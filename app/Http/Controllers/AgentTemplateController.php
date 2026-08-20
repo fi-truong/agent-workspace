@@ -7,10 +7,35 @@ use Illuminate\Http\Request;
 
 class AgentTemplateController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        // Đọc từ DB thật (thay cho mảng mock trước đây)
-        $templates = AgentTemplate::with('features')->latest()->get()->map(function ($t) {
+        $query = AgentTemplate::with('features')->latest();
+
+        // Search
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        // Category filter
+        if ($request->filled('category')) {
+            $query->where('category', $request->category);
+        }
+
+        // Sort
+        $sort = $request->get('sort', 'popular');
+        if ($sort === 'popular') {
+            $query->orderByDesc('uses_count');
+        } elseif ($sort === 'new') {
+            $query->latest();
+        } elseif ($sort === 'alpha') {
+            $query->orderBy('title');
+        }
+
+        $templates = $query->get()->map(function ($t) {
             return [
                 'id' => $t->id,
                 'icon' => $t->icon,
@@ -24,12 +49,29 @@ class AgentTemplateController extends Controller
                     'new' => 'New',
                     default => null,
                 },
+                'category' => $t->category,
             ];
         })->toArray();
 
+        // Categories for filter buttons (from DB)
+        $categories = AgentTemplate::select('category')->distinct()->whereNotNull('category')->pluck('category')->sort()->values()->toArray();
+
+        // Category display names
+        $categoryLabels = [
+            'teaching' => '📚 Teaching',
+            'assessment' => '📝 Assessment',
+            'communication' => '📧 Communication',
+            'admin' => '📊 Admin',
+            'subject' => '🔬 Subject-Specific',
+        ];
+
         return view('ai-plus.agent-templates.index', [
-            'templates' => $templates,
+            'templates' => collect($templates),
+            'categories' => $categories,
+            'categoryLabels' => $categoryLabels,
             'viewingAs' => 'Teacher / Staff',
+            'totalTemplates' => AgentTemplate::count(),
+            'totalCategories' => count($categories),
         ]);
     }
 }
