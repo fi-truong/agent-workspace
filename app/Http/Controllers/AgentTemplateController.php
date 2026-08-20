@@ -26,13 +26,14 @@ class AgentTemplateController extends Controller
         }
 
         // Sort
-        $sort = $request->get('sort', 'popular');
-        if ($sort === 'popular') {
-            $query->orderByDesc('uses_count');
-        } elseif ($sort === 'new') {
+        $sort = $request->get('sort', 'new');
+        if ($sort === 'new') {
             $query->latest();
         } elseif ($sort === 'alpha') {
             $query->orderBy('title');
+        } else {
+            // fallback for any old 'popular' URLs
+            $query->latest();
         }
 
         $templates = $query->get()->map(function ($t) {

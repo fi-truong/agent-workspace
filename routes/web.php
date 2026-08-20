@@ -41,6 +41,7 @@ Route::prefix('ai-plus')->name('ai-plus.')->group(function () {
     Route::get('/my-usage', [MyUsageController::class, 'index'])->name('my-usage.index');
     Route::get('/ai-policy', [AiPolicyController::class, 'index'])->name('ai-policy.index');
     Route::get('/support', [SupportController::class, 'index'])->name('support.index');
+    Route::post('/support', [SupportController::class, 'store'])->name('support.store');
 });
 
 // Legacy route redirect

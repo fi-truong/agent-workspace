@@ -37,7 +37,6 @@
       <div class="sort-group">
         <label for="sortSelect" class="sort-label">Sort:</label>
         <select id="sortSelect" class="sort-select">
-          <option value="popular" {{ request('sort') === 'popular' ? 'selected' : '' }}>Most Used</option>
           <option value="new" {{ request('sort') === 'new' ? 'selected' : '' }}>Newest</option>
           <option value="alpha" {{ request('sort') === 'alpha' ? 'selected' : '' }}>A–Z</option>
         </select>
@@ -81,7 +80,6 @@
               @endforeach
             </div>
             <div class="template-footer">
-              <span class="template-uses">Used {{ $template['uses'] }} times</span>
               <button class="use-btn" data-template-id="{{ $template['id'] }}">Use Template</button>
             </div>
           </div>
@@ -350,10 +348,6 @@
     padding-top: 16px;
     border-top: 1px solid var(--line);
   }
-  .template-uses {
-    font-size: 12px;
-    color: var(--ink-soft);
-  }
   .use-btn {
     padding: 8px 18px;
     background: var(--navy);
@@ -495,10 +489,7 @@
     const visibleCards = templateCards.filter(c => !c.classList.contains('hidden'));
 
     visibleCards.sort((a, b) => {
-      if (currentSort === 'popular') {
-        return parseInt(b.querySelector('.template-uses').textContent.match(/\d+/)?.[0] || '0') -
-               parseInt(a.querySelector('.template-uses').textContent.match(/\d+/)?.[0] || '0');
-      } else if (currentSort === 'new') {
+      if (currentSort === 'new') {
         // Newest = higher ID first (since we use latest())
         return parseInt(b.dataset.id || b.id) - parseInt(a.dataset.id || a.id);
       } else if (currentSort === 'alpha') {
@@ -525,14 +516,14 @@
   function clearAllFilters() {
     currentSearch = '';
     currentCategory = '';
-    currentSort = 'popular';
+    currentSort = 'new';
 
     searchInput.value = '';
     clearSearchBtn.style.display = 'none';
     categoryFilters.querySelectorAll('.filter-chip').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.category === '');
     });
-    sortSelect.value = 'popular';
+    sortSelect.value = 'new';
 
     filterAndRender();
   }

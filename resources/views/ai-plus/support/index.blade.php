@@ -14,25 +14,7 @@
 
 <main class="content">
   <div class="wrap">
-    <div class="quick-help">
-      <a href="#" class="help-card">
-        <div class="help-icon">📖</div>
-        <h3 class="help-title">Getting Started</h3>
-        <p class="help-desc">Learn the basics of using AI+ effectively</p>
-      </a>
-      <a href="#" class="help-card">
-        <div class="help-icon">🔧</div>
-        <h3 class="help-title">Troubleshooting</h3>
-        <p class="help-desc">Solve common issues quickly</p>
-      </a>
-      <a href="#" class="help-card">
-        <div class="help-icon">💡</div>
-        <h3 class="help-title">Request Feature</h3>
-        <p class="help-desc">Suggest improvements or new features</p>
-      </a>
-    </div>
-
-    <div class="faq-section">
+    <div class="faq-section" id="faq-section">
       <h2 class="section-title">Frequently Asked Questions</h2>
       <div class="faq-list">
         @foreach($faqs as $index => $faq)
@@ -49,43 +31,45 @@
       </div>
     </div>
 
-    <div class="contact-section">
+    <div class="contact-section" id="contact-section">
       <h2 class="section-title">Submit a Request</h2>
-      <form>
+      <form id="supportForm" method="POST" action="{{ route('ai-plus.support.store') }}">
+        @csrf
         <div class="form-grid">
           <div class="form-group">
             <label class="form-label">Your Name</label>
-            <input type="text" class="form-input" placeholder="Enter your name">
+            <input type="text" name="name" class="form-input" placeholder="Enter your name" required>
           </div>
           <div class="form-group">
             <label class="form-label">Email</label>
-            <input type="email" class="form-input" placeholder="your.email@lsts.edu.vn">
+            <input type="email" name="email" class="form-input" placeholder="your.email@lsts.edu.vn" required>
           </div>
           <div class="form-group full">
             <label class="form-label">Request Type</label>
-            <select class="form-select">
-              <option>— Select —</option>
-              <option>Technical Issue / Bug Report</option>
-              <option>Feature Request</option>
-              <option>Question / How-To</option>
-              <option>Access / Account Issue</option>
-              <option>Training Request</option>
-              <option>Other</option>
+            <select name="type" class="form-select" required>
+              <option value="">— Select —</option>
+              <option value="Technical Issue / Bug Report">Technical Issue / Bug Report</option>
+              <option value="Feature Request">Feature Request</option>
+              <option value="Question / How-To">Question / How-To</option>
+              <option value="Access / Account Issue">Access / Account Issue</option>
+              <option value="Training Request">Training Request</option>
+              <option value="Other">Other</option>
             </select>
           </div>
           <div class="form-group full">
             <label class="form-label">Subject</label>
-            <input type="text" class="form-input" placeholder="Brief description of your request">
+            <input type="text" name="subject" class="form-input" placeholder="Brief description of your request" required>
           </div>
           <div class="form-group full">
             <label class="form-label">Details</label>
-            <textarea class="form-textarea" placeholder="Please describe your issue or request in detail."></textarea>
+            <textarea name="details" class="form-textarea" placeholder="Please describe your issue or request in detail." required minlength="10"></textarea>
           </div>
         </div>
         <div class="form-row">
           <button type="submit" class="submit-btn">Submit Request</button>
           <span class="form-note">We typically respond within 1-2 business days</span>
         </div>
+        <div id="formMessage" class="form-message" style="display: none;"></div>
       </form>
 
       <div class="contact-info">
@@ -93,14 +77,14 @@
           <div class="contact-icon">📧</div>
           <div>
             <div class="contact-label">Email</div>
-            <div class="contact-value">ciec@lsts.edu.vn</div>
+            <div class="contact-value">ciec.coordinator.04@lsts.edu.vn</div>
           </div>
         </div>
         <div class="contact-item">
           <div class="contact-icon">🏢</div>
           <div>
             <div class="contact-label">Office</div>
-            <div class="contact-value">CIEC Room, Building A</div>
+            <div class="contact-value">HSC, Open Office</div>
           </div>
         </div>
       </div>
@@ -116,16 +100,6 @@
   .page-header p{color:#C7D3E2;font-size:16px;max-width:600px;}
 
   .content{padding:40px 0 60px;}
-
-  .quick-help{display:grid;grid-template-columns: repeat(3, 1fr);gap:20px;margin-bottom:48px;}
-  .help-card{background: var(--card-bg);border:1px solid var(--line);border-radius:12px;padding:24px;text-align:center;transition: transform 0.18s, box-shadow 0.18s;cursor:pointer;text-decoration:none;color: inherit;}
-  .help-card:hover{transform:translateY(-3px);box-shadow: 0 12px 24px -12px rgba(31,56,100,0.2);}
-  .help-icon{width:56px;height:56px;margin:0 auto 16px;border-radius:12px;background: var(--paper);display:flex;align-items:center;justify-content:center;font-size:28px;}
-  .help-card:nth-child(1) .help-icon{background: #E8F0F8;}
-  .help-card:nth-child(2) .help-icon{background: #FEF3E0;}
-  .help-card:nth-child(3) .help-icon{background: #E8F5F0;}
-  .help-title{font-weight:600;font-size:16px;color: var(--navy);margin-bottom:8px;}
-  .help-desc{font-size:13px;color: var(--ink-soft);}
 
   .faq-section{margin-bottom:48px;}
   .section-title{font-family:'Fraunces', serif;font-size:24px;font-weight:600;color: var(--navy);margin-bottom:24px;}
@@ -152,6 +126,10 @@
   .submit-btn:hover{background: var(--navy-deep);}
   .form-note{font-size:12px;color: var(--ink-soft);}
 
+  .form-message{padding:12px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-top:12px;display:none;}
+  .form-message.success{background:#E8F5F0;color:var(--sage);border:1px solid var(--sage);}
+  .form-message.error{background:#FEF0F0;color:#C0392B;border:1px solid #E74C3C;}
+
   .contact-info{margin-top:32px;padding-top:24px;border-top:1px solid var(--line);display:flex;gap:32px;flex-wrap:wrap;}
   .contact-item{display:flex;align-items:center;gap:12px;}
   .contact-icon{width:40px;height:40px;border-radius:8px;background: var(--paper);display:flex;align-items:center;justify-content:center;font-size:18px;}
@@ -159,7 +137,6 @@
   .contact-value{font-size:14px;font-weight:500;color: var(--ink);}
 
   @media (max-width: 700px){
-    .quick-help{grid-template-columns:1fr;}
     .form-grid{grid-template-columns:1fr;}
     .form-group.full{grid-column: span 1;}
   }
@@ -173,6 +150,60 @@
       const item = q.parentElement;
       item.classList.toggle('open');
     });
+  });
+
+  // Form submission via AJAX
+  const supportForm = document.getElementById('supportForm');
+  const formMessage = document.getElementById('formMessage');
+  const submitBtn = supportForm?.querySelector('.submit-btn');
+
+  supportForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    if (!supportForm.checkValidity()) {
+      supportForm.reportValidity();
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    formMessage.style.display = 'none';
+    formMessage.className = 'form-message';
+
+    const formData = new FormData(supportForm);
+
+    try {
+      const response = await fetch('{{ route('ai-plus.support.store') }}', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': '{{ csrf_token() }}',
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        formMessage.textContent = data.message;
+        formMessage.className = 'form-message success';
+        formMessage.style.display = 'block';
+        supportForm.reset();
+      } else {
+        const msg = data.message || 'Something went wrong. Please try again.';
+        formMessage.textContent = msg;
+        formMessage.className = 'form-message error';
+        formMessage.style.display = 'block';
+      }
+    } catch (err) {
+      console.error(err);
+      formMessage.textContent = 'Network error. Please check your connection and try again.';
+      formMessage.className = 'form-message error';
+      formMessage.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Request';
+    }
   });
 </script>
 @endpush
