@@ -135,6 +135,14 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        'guardrail' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/guardrail.log'),
+            'level' => 'info',
+            'max_files' => 30,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];

@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             SetTeamUrlDefaults::class,
+            \App\Http\Middleware\GuardrailMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
