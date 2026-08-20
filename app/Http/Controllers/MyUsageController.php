@@ -2,81 +2,91 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class MyUsageController extends Controller
 {
     public function index()
     {
+        // TẠM THỜI: user demo cố định, thay bằng auth()->user() khi có SSO thật
+        $user = User::where('email', 'fi.truong@lsts.edu.vn')->first();
+        $logs = $user->usageLogs();
+
+        $totalTokens = (clone $logs)->selectRaw('SUM(prompt_tokens + completion_tokens) as total')->value('total') ?? 0;
+
         $stats = [
-            'prompts' => 156,
-            'tokens' => '12.4K',
-            'timeSaved' => '2.3h',
-            'agentsCreated' => 8,
-            'agentsShared' => 3,
+            'prompts' => (clone $logs)->count(),
+            'tokens' => $this->formatTokens($totalTokens),
+            // Giả định ước lượng: mỗi prompt tiết kiệm trung bình ~0.9 phút — CHƯA có số liệu
+            // xác thực, cần hiệu chỉnh lại sau khi có khảo sát/dữ liệu Pilot thật.
+            'timeSaved' => round(((clone $logs)->count() * 0.9) / 60, 1).'h',
+            'agentsCreated' => $user->agents()->count(),
+            'agentsShared' => $user->agents()->where('is_shared', true)->count(),
         ];
 
-        $activities = [
-            [
-                'icon' => '💬',
-                'title' => 'Email draft for parent meeting',
-                'source' => 'Agent Workspace',
-                'time' => '10:32 AM',
-                'tokens' => '847 tok',
-                'isTemplate' => false,
-            ],
-            [
-                'icon' => '📋',
-                'title' => 'Math Problem Generator',
-                'source' => 'Template used',
-                'time' => '09:45 AM',
-                'tokens' => '1,234 tok',
-                'isTemplate' => true,
-            ],
-            [
-                'icon' => '💬',
-                'title' => 'Lesson plan - Grade 7 Math',
-                'source' => 'Agent Workspace',
-                'time' => 'Yesterday',
-                'tokens' => '2,156 tok',
-                'isTemplate' => false,
-            ],
-            [
-                'icon' => '💬',
-                'title' => 'Summary of student progress',
-                'source' => 'Agent Workspace',
-                'time' => 'Yesterday',
-                'tokens' => '1,089 tok',
-                'isTemplate' => false,
-            ],
-            [
-                'icon' => '📋',
-                'title' => 'Rubric Builder',
-                'source' => 'Template used',
-                'time' => '2 days ago',
-                'tokens' => '1,567 tok',
-                'isTemplate' => true,
-            ],
-        ];
+        $activities = (clone $logs)->latest()->take(5)->get()->map(function ($log) {
+            return [
+                'icon' => $log->source === 'template_used' ? '📋' : '💬',
+                'title' => $log->activity_title,
+                'source' => $log->source === 'template_used' ? 'Template used' : 'Agent Workspace',
+                'time' => $this->formatRelativeTime($log->created_at),
+                'tokens' => number_format($log->prompt_tokens + $log->completion_tokens).' tok',
+                'isTemplate' => $log->source === 'template_used',
+            ];
+        })->toArray();
 
-        $topTasks = [
-            ['icon' => '📧', 'name' => 'Email drafting', 'count' => 34],
-            ['icon' => '📚', 'name' => 'Lesson planning', 'count' => 28],
-            ['icon' => '📝', 'name' => 'Assessment creation', 'count' => 19],
-            ['icon' => '📊', 'name' => 'Data analysis', 'count' => 15],
-            ['icon' => '💡', 'name' => 'Brainstorming', 'count' => 12],
-        ];
+        $topTasks = (clone $logs)
+            ->whereNotNull('task_category')
+            ->selectRaw('task_category, COUNT(*) as cnt')
+            ->groupBy('task_category')
+            ->orderByDesc('cnt')
+            ->take(5)
+            ->get()
+            ->map(fn ($row) => [
+                'icon' => $this->iconForCategory($row->task_category),
+                'name' => $row->task_category,
+                'count' => $row->cnt,
+            ])->toArray();
 
         return view('ai-plus.my-usage.index', [
             'stats' => $stats,
             'activities' => $activities,
             'topTasks' => $topTasks,
             'viewingAs' => 'Teacher / Staff',
-            'userName' => 'Fi Truong',
-            'userInitials' => 'FT',
-            'userRole' => 'CIEC Coordinator • Teacher',
-            'promptsUsed' => 24,
-            'promptsLimit' => 50,
+            'userName' => $user->name,
+            'userInitials' => $user->initials,
+            'userRole' => $user->role,
+            'promptsUsed' => (clone $logs)->whereDate('created_at', today())->count(),
+            'promptsLimit' => $user->daily_prompt_quota,
         ]);
+    }
+
+    private function formatTokens(int $tokens): string
+    {
+        return $tokens >= 1000 ? round($tokens / 1000, 1).'K' : (string) $tokens;
+    }
+
+    private function formatRelativeTime(\Carbon\CarbonInterface $time): string
+    {
+        if ($time->isToday()) {
+            return $time->format('h:i A');
+        }
+        if ($time->isYesterday()) {
+            return 'Yesterday';
+        }
+        return $time->diffInDays(now()).' days ago';
+    }
+
+    private function iconForCategory(string $category): string
+    {
+        return match ($category) {
+            'Email drafting' => '📧',
+            'Lesson planning' => '📚',
+            'Assessment creation' => '📝',
+            'Data analysis' => '📊',
+            'Brainstorming' => '💡',
+            default => '💬',
+        };
     }
 }

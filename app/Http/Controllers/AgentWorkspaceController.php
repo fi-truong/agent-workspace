@@ -2,58 +2,28 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class AgentWorkspaceController extends Controller
 {
     public function index()
     {
-        $conversations = [
-            [
-                'id' => 1,
-                'title' => 'Email draft for parent meeting',
-                'type' => 'chat',
-                'date' => 'today',
-            ],
-            [
-                'id' => 2,
-                'title' => 'Lesson plan - Grade 7 Math',
-                'type' => 'chat',
-                'date' => 'today',
-            ],
-            [
-                'id' => 3,
-                'title' => 'Summary of student progress',
-                'type' => 'chat',
-                'date' => 'yesterday',
-            ],
-        ];
+        // TẠM THỜI: chưa có SSO thật nên lấy cố định user demo "Fi Truong".
+        // Khi tích hợp Entra ID xong, thay dòng dưới bằng: $user = auth()->user();
+        $user = User::where('email', 'fi.truong@lsts.edu.vn')->first();
 
-        $myAgents = [
-            [
-                'id' => 1,
-                'title' => 'Math Quiz Generator',
-                'type' => 'agent',
-            ],
-            [
-                'id' => 2,
-                'title' => 'Email Assistant (Bilingual)',
-                'type' => 'agent',
-            ],
-        ];
+        $conversations = $user->conversations()->latest()->get()->map(fn ($c) => [
+            'id' => $c->id, 'title' => $c->title, 'type' => 'chat',
+        ])->toArray();
 
-        $workflows = [
-            [
-                'id' => 1,
-                'title' => 'Weekly Report Generator',
-                'type' => 'workflow',
-            ],
-            [
-                'id' => 2,
-                'title' => 'Student Progress Summary',
-                'type' => 'workflow',
-            ],
-        ];
+        $myAgents = $user->agents()->latest()->get()->map(fn ($a) => [
+            'id' => $a->id, 'title' => $a->title, 'type' => 'agent',
+        ])->toArray();
+
+        $workflows = $user->workflows()->latest()->get()->map(fn ($w) => [
+            'id' => $w->id, 'title' => $w->title, 'type' => 'workflow',
+        ])->toArray();
 
         $quickActions = [
             ['icon' => '💬', 'label' => 'Quick Chat', 'desc' => 'Ask anything, get help'],
@@ -64,16 +34,19 @@ class AgentWorkspaceController extends Controller
             ['icon' => '📧', 'label' => 'Draft Email', 'desc' => 'Bilingual EN/VI emails'],
         ];
 
+        // promptsUsed tính thật từ usage_logs hôm nay, thay vì số cứng
+        $promptsUsedToday = $user->usageLogs()->whereDate('created_at', today())->count();
+
         return view('ai-plus.agent-workspace.index', [
             'conversations' => $conversations,
             'myAgents' => $myAgents,
             'workflows' => $workflows,
             'quickActions' => $quickActions,
             'viewingAs' => 'Teacher / Staff',
-            'userName' => 'Fi Truong',
-            'userInitials' => 'FT',
-            'promptsUsed' => 24,
-            'promptsLimit' => 50,
+            'userName' => $user->name,
+            'userInitials' => $user->initials,
+            'promptsUsed' => $promptsUsedToday,
+            'promptsLimit' => $user->daily_prompt_quota,
         ]);
     }
 }

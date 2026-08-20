@@ -54,4 +54,34 @@ class User extends Authenticatable implements PasskeyUser
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
+
+    public function conversations()
+    {
+        return $this->hasMany(\App\Models\Conversation::class);
+    }
+
+    public function agents()
+    {
+        return $this->hasMany(\App\Models\Agent::class);
+    }
+
+    public function workflows()
+    {
+        return $this->hasMany(\App\Models\Workflow::class);
+    }
+
+    public function promptLibraryPrompts()
+    {
+        return $this->hasMany(\App\Models\PromptLibraryPrompt::class, 'author_id');
+    }
+
+    public function showcasePosts()
+    {
+        return $this->hasMany(\App\Models\ShowcasePost::class, 'author_id');
+    }
+
+    public function usageLogs()
+    {
+        return $this->hasMany(\App\Models\UsageLog::class);
+    }
 }

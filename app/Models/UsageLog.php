@@ -8,6 +8,10 @@ class UsageLog extends Model
 {
     public $timestamps = false;
 
+    protected $casts = [
+        'created_at' => 'datetime',
+    ];
+
     protected $fillable = [
         'user_id', 'activity_title', 'source', 'related_conversation_id',
         'related_agent_template_id', 'prompt_tokens', 'completion_tokens',
