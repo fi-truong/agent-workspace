@@ -227,3 +227,7 @@
   }
 </style>
 @endpush
+
+@push('scripts')
+<script src="{{ asset('js/agent-workspace-chat.js') }}"></script>
+@endpush

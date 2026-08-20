@@ -13,6 +13,11 @@ use App\Http\Controllers\MyUsageController;
 use App\Http\Controllers\AiPolicyController;
 use App\Http\Controllers\SupportController;
 
+use App\Http\Controllers\ChatMessageController;
+
+Route::post('/ai-plus/agent-workspace/send', [ChatMessageController::class, 'store'])
+    ->name('ai-plus.agent-workspace.send');
+
 Route::inertia('/', 'welcome')->name('home');
 
 // Routes tạm thời để xem trước UI, chưa yêu cầu đăng nhập/team
