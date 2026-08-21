@@ -2,16 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class AgentWorkspaceController extends Controller
 {
     public function index()
     {
-        // TẠM THỜI: chưa có SSO thật nên lấy cố định user demo "Fi Truong".
-        // Khi tích hợp Entra ID xong, thay dòng dưới bằng: $user = auth()->user();
-        $user = User::where('email', 'fi.truong@lsts.edu.vn')->first();
+        $user = Auth::user();
+
+        // If not authenticated, redirect to login (will work when SSO is re-enabled)
+        if (! $user) {
+            return redirect()->route('login');
+        }
 
         $conversations = $user->conversations()->latest()->get()->map(fn ($c) => [
             'id' => $c->id, 'title' => $c->title, 'type' => 'chat',
@@ -34,7 +37,6 @@ class AgentWorkspaceController extends Controller
             ['icon' => '📧', 'label' => 'Draft Email', 'desc' => 'Bilingual EN/VI emails'],
         ];
 
-        // promptsUsed tính thật từ usage_logs hôm nay, thay vì số cứng
         $promptsUsedToday = $user->usageLogs()->whereDate('created_at', today())->count();
 
         return view('ai-plus.agent-workspace.index', [
