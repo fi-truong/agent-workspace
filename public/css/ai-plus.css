@@ -196,3 +196,12 @@ footer b{ color:var(--navy); }
   padding-left:14px;
   border-left:1px solid var(--line);
 }
+.ai-plus-topbar .user-badge{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:12px;
+  color: var(--navy);
+  background: var(--gold);
+  padding:4px 10px;
+  border-radius:999px;
+  font-weight:500;
+}

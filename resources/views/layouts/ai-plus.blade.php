@@ -17,6 +17,11 @@
   <div class="wrap">
     <a href="{{ route('ai-plus.index') }}" class="back-link">← Back to AI+</a>
     <span class="crumb-current">@yield('breadcrumb')</span>
+    @auth
+    <span class="user-badge" style="margin-left:auto;">
+      Viewing as: {{ $currentUser->name ?? '' }}
+    </span>
+    @endauth
   </div>
 </div>
 @endif

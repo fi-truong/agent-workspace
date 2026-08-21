@@ -17,7 +17,7 @@
       <div class="crumb-trail">
         <a href="{{ route('ai-plus.index') }}" class="crumb-link">LSTS Staff Portal</a> <span class="crumb-sep">/</span> <b>AI+</b>
       </div>
-      <div class="role-pill"><span class="dot"></span>Viewing as: {{ $viewingAs ?? 'Teacher / Staff' }}</div>
+      <div class="role-pill"><span class="dot"></span>Viewing as: {{ $currentUser->name ?? 'Teacher / Staff' }}</div>
     </div>
   </div>
 

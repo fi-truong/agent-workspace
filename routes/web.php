@@ -15,6 +15,8 @@ use App\Http\Controllers\SupportController;
 
 use App\Http\Controllers\ChatMessageController;
 
+use App\Http\Controllers\Auth\MicrosoftAuthController;
+
 Route::post('/ai-plus/agent-workspace/send', [ChatMessageController::class, 'store'])
     ->name('ai-plus.agent-workspace.send');
 
@@ -50,3 +52,15 @@ Route::middleware(['auth'])->group(function () {
     Route::post('invitations/{invitation}/accept', [TeamInvitationController::class, 'accept'])->name('invitations.accept');
     Route::delete('invitations/{invitation}', [TeamInvitationController::class, 'decline'])->name('invitations.decline');
 });
+
+Route::get('/auth/microsoft/redirect', [MicrosoftAuthController::class, 'redirect'])
+    ->name('auth.microsoft.redirect');
+
+Route::get('/auth/microsoft/callback', [MicrosoftAuthController::class, 'callback'])
+    ->name('auth.microsoft.callback');
+
+Route::get('/login', function () {
+    return inertia('auth/login');
+})->name('login');
+
+require __DIR__.'/settings.php';
