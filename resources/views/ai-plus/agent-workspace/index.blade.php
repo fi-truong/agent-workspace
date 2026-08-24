@@ -15,18 +15,18 @@
 
     <!-- Workspace Type Tabs -->
     <div class="workspace-tabs">
-      <button class="ws-tab active">
+      <a href="{{ route('ai-plus.agent-workspace.index') }}" class="ws-tab active">
         <span class="icon">💬</span>
         <span>Chat</span>
-      </button>
-      <button class="ws-tab">
+      </a>
+      <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="ws-tab">
         <span class="icon">🤖</span>
         <span>Agents</span>
-      </button>
-      <button class="ws-tab">
+      </a>
+      <a href="#" class="ws-tab" title="Coming soon">
         <span class="icon">⚡</span>
         <span>Workflows</span>
-      </button>
+      </a>
     </div>
 
     <div class="chat-list">
@@ -42,14 +42,14 @@
       @endforeach
 
       <div class="chat-list-section">
-        My Agents
-        <button class="add-btn" title="Create agent">+</button>
+        <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="section-link">My Agents</a>
+        <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="add-btn" title="Create agent">+</a>
       </div>
       @foreach($myAgents as $agent)
-      <div class="chat-item">
+      <a href="{{ route('ai-plus.agent-workspace.agents.show', $agent['id']) }}" class="chat-item">
         <span class="item-icon agent">🤖</span>
         <span class="title">{{ $agent['title'] }}</span>
-      </div>
+      </a>
       @endforeach
 
       <div class="chat-list-section">

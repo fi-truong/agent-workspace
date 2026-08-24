@@ -16,7 +16,7 @@ class AiPlusController extends Controller
                 'title' => 'Agent Workspace',
                 'description' => "Build, test, and run your own AI agents and automations — connected securely to the school's approved AI tool.",
                 'ctaLabel' => 'Open workspace',
-                'url' => route('ai-plus.agent-workspace.index'), // route thật của module Agent Workspace
+                'url' => route('ai-plus.agent-workspace.index'),
             ],
             [
                 'icon' => 'PL',

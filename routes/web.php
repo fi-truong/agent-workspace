@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AiPlusController;
 use App\Http\Controllers\AgentWorkspaceController;
+use App\Http\Controllers\AgentController;
 use App\Http\Controllers\PromptLibraryController;
 use App\Http\Controllers\AgentTemplateController;
 use App\Http\Controllers\SharingShowcaseController;
@@ -29,6 +30,11 @@ Route::get('/ai-plus', [AiPlusController::class, 'index'])->name('ai-plus.index'
 // AI+ Module Routes
 Route::prefix('ai-plus')->name('ai-plus.')->group(function () {
     Route::get('/agent-workspace', [AgentWorkspaceController::class, 'index'])->name('agent-workspace.index');
+    Route::get('/agent-workspace/agents', [AgentController::class, 'index'])->name('agent-workspace.agents.index');
+    Route::post('/agent-workspace/agents', [AgentController::class, 'store'])->name('agent-workspace.agents.store');
+    Route::get('/agent-workspace/agents/{agent}', [AgentController::class, 'show'])->name('agent-workspace.agents.show');
+    Route::put('/agent-workspace/agents/{agent}', [AgentController::class, 'update'])->name('agent-workspace.agents.update');
+    Route::delete('/agent-workspace/agents/{agent}', [AgentController::class, 'destroy'])->name('agent-workspace.agents.destroy');
     Route::get('/prompt-library', [PromptLibraryController::class, 'index'])->name('prompt-library.index');
     Route::get('/agent-templates', [AgentTemplateController::class, 'index'])->name('agent-templates.index');
     Route::get('/sharing-showcase', [SharingShowcaseController::class, 'index'])->name('sharing-showcase.index');

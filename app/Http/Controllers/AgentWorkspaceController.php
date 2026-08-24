@@ -11,7 +11,6 @@ class AgentWorkspaceController extends Controller
     {
         $user = Auth::user();
 
-        // If not authenticated, redirect to login (will work when SSO is re-enabled)
         if (! $user) {
             return redirect()->route('login');
         }

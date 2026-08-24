@@ -18,10 +18,6 @@
         <div class="stat-num">{{ $totalSubjects }}</div>
         <div class="stat-label">Subjects</div>
       </div>
-      <div class="stat">
-        <div class="stat-num">{{ $totalContributors }}</div>
-        <div class="stat-label">Contributors</div>
-      </div>
     </div>
   </div>
 </header>
@@ -31,19 +27,17 @@
     <div class="filters">
       <div class="search-box">
         <span class="icon">🔍</span>
-        <input type="text" placeholder="Search prompts...">
+        <input type="text" id="prompt-search" placeholder="Search prompts..." value="{{ request('search') }}">
+      </div>
+      <div class="filter-group" id="subject-filters">
+        <button class="filter-btn {{ !request('subject') ? 'active' : '' }}" data-subject="">All</button>
+        @foreach($subjects as $subject)
+        <button class="filter-btn {{ request('subject') == $subject->name ? 'active' : '' }}" data-subject="{{ $subject->name }}">{{ $subject->name }}</button>
+        @endforeach
       </div>
       <div class="filter-group">
-        <button class="filter-btn active">All</button>
-        <button class="filter-btn">Math</button>
-        <button class="filter-btn">English</button>
-        <button class="filter-btn">Science</button>
-        <button class="filter-btn">Admin</button>
-        <button class="filter-btn">HR</button>
-      </div>
-      <div class="filter-group">
-        <button class="filter-btn">⭐ Popular</button>
-        <button class="filter-btn">✨ New</button>
+        <button class="filter-btn {{ request('sort') == 'popular' ? 'active' : '' }}" data-sort="popular">⭐ Popular</button>
+        <button class="filter-btn {{ request('sort') == 'new' ? 'active' : '' }}" data-sort="new">✨ New</button>
       </div>
     </div>
   </div>
@@ -51,27 +45,35 @@
 
 <main class="content">
   <div class="wrap">
-    <h2 class="section-title">Popular Prompts <span class="count">{{ count($prompts) }} prompts</span></h2>
+    <h2 class="section-title">Prompts <span class="count">{{ $prompts->count() }} prompts</span></h2>
 
-    <div class="prompt-grid">
+    <div class="prompt-grid" id="prompt-grid">
       @foreach($prompts as $prompt)
-      <div class="prompt-card">
+      <div class="prompt-card" data-subject="{{ $prompt['badges'][0] ?? '' }}">
         <div class="prompt-header">
           <div class="prompt-title">{{ $prompt['title'] }}</div>
           <div class="prompt-badges">
             @foreach($prompt['badges'] as $badge)
-            <span class="badge {{ strtolower($badge) == 'new' ? 'new' : (strtolower($badge) == 'admin' ? 'role' : 'subject') }}">{{ $badge }}</span>
+            <span class="badge {{ strtolower($badge) == 'new' ? 'new' : (strtolower($badge) == 'admin' || strtolower($badge) == 'counseling' || strtolower($badge) == 'ciec' ? 'role' : 'subject') }}">{{ $badge }}</span>
             @endforeach
           </div>
         </div>
         <p class="prompt-desc">{{ $prompt['description'] }}</p>
         <div class="prompt-preview">{{ $prompt['preview'] }}</div>
         <div class="prompt-footer">
-          <button class="copy-btn">Copy Prompt</button>
+          <button class="copy-btn" data-prompt="{{ htmlspecialchars(json_encode($prompt['preview']), ENT_QUOTES, 'UTF-8') }}">Copy Prompt</button>
         </div>
       </div>
       @endforeach
     </div>
+
+    @if($prompts->isEmpty())
+    <div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <h3>No prompts found</h3>
+      <p>Try adjusting your search or filters.</p>
+    </div>
+    @endif
   </div>
 </main>
 @endsection
@@ -115,11 +117,127 @@
   .prompt-preview{background: var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px;font-family:'IBM Plex Mono', monospace;font-size:12px;color: var(--ink-soft);margin-bottom:16px;max-height:80px;overflow:hidden;position:relative;}
   .prompt-preview::after{content:"";position:absolute;bottom:0;left:0;right:0;height:30px;background: linear-gradient(transparent, var(--paper));}
   .prompt-footer{display:flex;justify-content:space-between;align-items:center;}
-  .prompt-author{display:flex;align-items:center;gap:8px;font-size:13px;color: var(--ink-soft);}
-  .author-avatar{width:24px;height:24px;border-radius:50%;background: var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;}
   .copy-btn{padding:8px 16px;background: var(--navy);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition: background 0.15s;}
   .copy-btn:hover{background: var(--navy-deep);}
 
-  @media (max-width: 700px){.prompt-grid{grid-template-columns:1fr;}}
+  .empty-state{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;background: var(--card-bg);border:1px solid var(--line);border-radius:14px;}
+  .empty-icon{font-size:48px;margin-bottom:16px;}
+  .empty-state h3{font-family:'Fraunces', serif;font-size:22px;color:var(--navy);margin-bottom:8px;}
+  .empty-state p{color:var(--ink-soft);margin-bottom:24px;}
+
+  @media (max-width: 700px){
+    .prompt-grid{grid-template-columns:1fr;}
+    .filters{flex-direction:column;align-items:stretch;}
+    .search-box{max-width:none;}
+    .filter-group{justify-content:center;}
+  }
 </style>
+@endpush
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const searchInput = document.getElementById('prompt-search');
+  const subjectButtons = document.querySelectorAll('#subject-filters .filter-btn[data-subject]');
+  const sortButtons = document.querySelectorAll('.filter-btn[data-sort]');
+  const promptGrid = document.getElementById('prompt-grid');
+  const promptCards = document.querySelectorAll('.prompt-card');
+  const sectionTitleCount = document.querySelector('.section-title .count');
+
+  let currentSearch = searchInput.value;
+  let currentSubject = '{{ request('subject') }}';
+  let currentSort = '{{ request('sort') }}';
+
+  // Debounce helper
+  function debounce(fn, delay) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
+  }
+
+  // Build URL with current filters
+  function buildUrl() {
+    const params = new URLSearchParams();
+    if (currentSearch) params.set('search', currentSearch);
+    if (currentSubject) params.set('subject', currentSubject);
+    if (currentSort) params.set('sort', currentSort);
+    return '{{ route('ai-plus.prompt-library.index') }}?' + params.toString();
+  }
+
+  // Fetch and update grid
+  async function fetchPrompts() {
+    const url = buildUrl();
+    const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+    const html = await res.text();
+    // Extract new grid content
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const newGrid = doc.getElementById('prompt-grid');
+    const newCount = doc.querySelector('.section-title .count');
+    if (newGrid) {
+      promptGrid.innerHTML = newGrid.innerHTML;
+      // Re-attach copy buttons
+      attachCopyButtons();
+    }
+    if (newCount) {
+      sectionTitleCount.textContent = newCount.textContent;
+    }
+    // Update URL without reload
+    window.history.replaceState({}, '', url);
+  }
+
+  // Debounced search
+  const debouncedSearch = debounce(() => {
+    currentSearch = searchInput.value;
+    fetchPrompts();
+  }, 300);
+
+  searchInput.addEventListener('input', debouncedSearch);
+
+  // Subject filter buttons
+  subjectButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      subjectButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentSubject = btn.dataset.subject;
+      fetchPrompts();
+    });
+  });
+
+  // Sort filter buttons
+  sortButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      sortButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentSort = btn.dataset.sort;
+      fetchPrompts();
+    });
+  });
+
+  // Copy button functionality
+  function attachCopyButtons() {
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const promptText = btn.dataset.prompt;
+        try {
+          await navigator.clipboard.writeText(promptText);
+          const original = btn.textContent;
+          btn.textContent = 'Copied!';
+          btn.style.background = 'var(--sage)';
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.style.background = '';
+          }, 1500);
+        } catch (e) {
+          console.error('Copy failed', e);
+        }
+      });
+    });
+  }
+
+  attachCopyButtons();
+});
+</script>
 @endpush

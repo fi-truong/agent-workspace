@@ -13,6 +13,7 @@ class UserSeeder extends Seeder
         // Dữ liệu nhân sự demo — sau này thay bằng đồng bộ thật từ Entra ID (SSO)
         // Password chỉ là placeholder, không dùng để đăng nhập thật cho tới khi tích hợp SSO.
         $staff = [
+            ['name' => 'Admin User', 'email' => 'admin@lsts.edu.vn', 'initials' => 'AD', 'role' => 'Admin', 'department' => 'Administration'],
             ['name' => 'Fi Truong', 'email' => 'fi.truong@lsts.edu.vn', 'initials' => 'FT', 'role' => 'CIEC Coordinator • Teacher', 'department' => 'CIEC'],
             ['name' => 'Toan Huynh', 'email' => 'toan.huynh@lsts.edu.vn', 'initials' => 'TH', 'role' => 'Teacher', 'department' => 'Math Department'],
             ['name' => 'Ngoc Tran', 'email' => 'ngoc.tran@lsts.edu.vn', 'initials' => 'NT', 'role' => 'Teacher', 'department' => 'General'],
