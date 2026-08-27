@@ -20,7 +20,7 @@ class ChatMessageController extends Controller
             'conversation_id' => 'nullable|integer|exists:conversations,id',
         ]);
 
-        $user = User::where('email', 'fi.truong@lsts.edu.vn')->first();
+        $user = User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
 
         $scan = $piiFilter->scan($request->message);
 

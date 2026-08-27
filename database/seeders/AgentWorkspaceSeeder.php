@@ -15,7 +15,7 @@ class AgentWorkspaceSeeder extends Seeder
         // Dữ liệu demo cho Agent Workspace, gắn với tài khoản Fi Truong.
         // Khi có SSO thật, dữ liệu này sẽ do chính người dùng tạo ra qua UI,
         // không cần seed nữa — đây chỉ để trang có nội dung khi demo/xem trước.
-        $user = User::where('email', 'fi.truong@lsts.edu.vn')->first();
+        $user = User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
         if (! $user) {
             return;
         }

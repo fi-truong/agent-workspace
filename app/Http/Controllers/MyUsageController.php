@@ -9,8 +9,8 @@ class MyUsageController extends Controller
 {
     public function index()
     {
-        // TẠM THỜI: user demo cố định, thay bằng auth()->user() khi có SSO thật
-        $user = User::where('email', 'fi.truong@lsts.edu.vn')->first();
+        // TODO-SSO-DEPLOY: thay bằng auth()->user() khi deploy server có SSO thật
+        $user = User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
         $logs = $user->usageLogs();
 
         $totalTokens = (clone $logs)->selectRaw('SUM(prompt_tokens + completion_tokens) as total')->value('total') ?? 0;

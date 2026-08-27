@@ -13,7 +13,7 @@ class PromptLibrarySeeder extends Seeder
     {
         // Danh sách tác giả demo (phải có trong UserSeeder)
         $authors = [
-            'fi.truong@lsts.edu.vn',
+            'ciec.coordinator.04@lsts.edu.vn',
             'toan.huynh@lsts.edu.vn',
             'ngoc.tran@lsts.edu.vn',
             'lan.hoang@lsts.edu.vn',
@@ -35,7 +35,7 @@ class PromptLibrarySeeder extends Seeder
             // ADMIN / OPERATIONS (10)
             // ═══════════════════════════════════════════════════════════════════════════
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Email to Parents Generator',
                 'description' => 'Generate professional, warm emails to parents about school events, student progress, or announcements in English and Vietnamese.',
                 'preview_text' => 'You are a helpful school administrator at a K-12 bilingual school. Write an email to parents about [TOPIC]. The email should be warm, professional, and bilingual (English + Vietnamese)...',
@@ -51,7 +51,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'Admin', 'category' => 'subject'], ['name' => 'Admin', 'category' => 'role']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Policy Brief Generator',
                 'description' => 'Tóm tắt chính sách/mục tiêu trường thành brief 1 trang cho ban giám hiệu/hội đồng.',
                 'preview_text' => 'Summarize the attached policy document into a 1-page executive brief for school leadership, with: Context, Key Changes, Impact, Recommendations...',
@@ -83,7 +83,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'Admin', 'category' => 'subject'], ['name' => 'Admin', 'category' => 'role']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Budget Request Justification',
                 'description' => 'Viết thư trình bày ngân sách cho dự án/thiết bị trường học.',
                 'preview_text' => 'Draft a budget justification memo for [ITEM/PROJECT] requesting [AMOUNT] VND. Structure: Need, Cost Breakdown, Expected Impact, Alternatives Considered...',
@@ -99,7 +99,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'Admin', 'category' => 'subject'], ['name' => 'Admin', 'category' => 'role']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Staff Onboarding Welcome Kit',
                 'description' => 'Tạo gói chào mừng & checklist onboarding cho nhân viên mới.',
                 'preview_text' => 'Create a staff onboarding welcome kit for a new [ROLE] at LSTS: Day-1 checklist, first-week goals, key contacts, school culture notes...',
@@ -571,7 +571,7 @@ class PromptLibrarySeeder extends Seeder
             // CIEC / STEAM / INNOVATION (10)
             // ═══════════════════════════════════════════════════════════════════════════
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Design Thinking Sprint Planner',
                 'description' => 'Kế hoạch sprint Design Thinking 5 giai đoạn cho học sinh.',
                 'preview_text' => 'Plan a 5-day Design Thinking sprint for [CHALLENGE]: Empathize, Define, Ideate, Prototype, Test. Include student worksheets + facilitator notes...',
@@ -579,7 +579,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'STEAM', 'category' => 'subject'], ['name' => 'CIEC', 'category' => 'subject'], ['name' => 'CIEC', 'category' => 'role']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Project-Based Learning Unit Designer',
                 'description' => 'Thiết kế unit PBL: driving question, milestones, products, public audience.',
                 'preview_text' => 'Design a PBL unit for [SUBJECT] with: Driving Question, Milestones (4-6 weeks), Student Products, Public Audience, Reflection. Grade [LEVEL]...',
@@ -587,7 +587,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'STEAM', 'category' => 'subject'], ['name' => 'CIEC', 'category' => 'subject'], ['name' => 'CIEC', 'category' => 'role']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Entrepreneurship Pitch Coach',
                 'description' => 'Huấn luyện pitch startup cho học sinh: problem, solution, market, traction.',
                 'preview_text' => 'You are a startup mentor. Help student refine their pitch for [IDEA]: Problem, Solution, Market, Business Model, Ask. Give 3 improvement tips...',
@@ -595,7 +595,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'CIEC', 'category' => 'subject'], ['name' => 'CIEC', 'category' => 'role'], ['name' => 'New', 'category' => 'status']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Innovation Challenge Brief Generator',
                 'description' => 'Tạo brief thử thách đổi mới: context, constraints, success criteria, resources.',
                 'preview_text' => 'Generate an innovation challenge brief for [THEME]: Context, Problem Statement, Constraints, Success Criteria, Available Resources, Judging Rubric...',
@@ -603,7 +603,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'CIEC', 'category' => 'subject'], ['name' => 'CIEC', 'category' => 'role']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Maker Space Activity Cards',
                 'description' => 'Thẻ hoạt động Maker Space: materials, steps, learning outcomes, safety.',
                 'preview_text' => 'Create 8 maker space activity cards for [GRADE BAND]: Title, Materials, Steps, Learning Outcome, Safety Note. Low-cost, recyclable materials...',
@@ -611,7 +611,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'STEAM', 'category' => 'subject']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Coding Project Generator (Beginner)',
                 'description' => 'Ý tưởng dự án lập trình cho học sinh mới bắt đầu.',
                 'preview_text' => 'Suggest 5 beginner coding projects in [LANGUAGE/BLOCK]: description, concepts covered, starter code snippet, extension challenge. Age [LEVEL]...',
@@ -619,7 +619,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'STEAM', 'category' => 'subject']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'STEM Career Exploration Guide',
                 'description' => 'Hướng dẫn khám phá nghề STEM cho học sinh THCS/THPT.',
                 'preview_text' => 'Create a STEM career exploration guide for [INTEREST]: 5 careers, what they do, skills needed, study path in VN, day-in-life. Inspiring tone...',
@@ -627,7 +627,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'STEAM', 'category' => 'subject'], ['name' => 'New', 'category' => 'status']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Sustainability Project Planner',
                 'description' => 'Kế hoạch dự án bền vững cho trường (rác, năng lượng, vườn).',
                 'preview_text' => 'Design a school sustainability project on [FOCUS]: Goal, Baseline Audit, Action Steps, Student Roles, Measurement. Align to SDGs...',
@@ -635,7 +635,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'CIEC', 'category' => 'role'], ['name' => 'STEAM', 'category' => 'subject']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'Student Portfolio Reflection Prompts',
                 'description' => 'Prompt phản tư cho portfolio dự án học sinh.',
                 'preview_text' => 'Generate 8 portfolio reflection prompts for [PROJECT]: What did I make? What was hard? What would I change? How does this connect to real life?...',
@@ -643,7 +643,7 @@ class PromptLibrarySeeder extends Seeder
                 'tags' => [['name' => 'CIEC', 'category' => 'subject'], ['name' => 'CIEC', 'category' => 'role']],
             ],
             [
-                'author_email' => 'fi.truong@lsts.edu.vn',
+                'author_email' => 'ciec.coordinator.04@lsts.edu.vn',
                 'title' => 'EdTech Tool Evaluator',
                 'description' => 'Tiêu chí đánh giá công cụ EdTech cho giáo viên.',
                 'preview_text' => 'Evaluate [TOOL] for classroom use: Pedagogy fit, Ease of use, Cost, Privacy/Data, Accessibility, VN context. Score 1-5 each, recommend Y/N...',

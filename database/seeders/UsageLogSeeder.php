@@ -10,7 +10,7 @@ class UsageLogSeeder extends Seeder
 {
     public function run(): void
     {
-        $user = User::where('email', 'fi.truong@lsts.edu.vn')->first();
+        $user = User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
         if (! $user) {
             return;
         }
