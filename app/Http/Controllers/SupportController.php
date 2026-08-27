@@ -35,6 +35,10 @@ class SupportController extends Controller
             'details' => 'required|string|min:10',
         ]);
 
+        if (auth()->check()) {
+            $validated['user_id'] = auth()->id();
+        }
+
         $ticket = SupportTicket::create($validated);
 
         // Send notification email to CIEC coordinator
@@ -70,7 +74,7 @@ class SupportController extends Controller
                 <p><strong>Details:</strong></p>
                 <p>" . nl2br(e($ticket->details)) . "</p>
                 <hr>
-                <p><a href=\"" . route('admin.support.tickets.show', $ticket) . "\">View in Admin Panel</a></p>
+                <p><a href=\"" . route('admin.tickets.show', $ticket) . "\">View in Admin Panel</a></p>
             ";
 
             // Using Mail::raw for simplicity - in production, use a proper Mailable class

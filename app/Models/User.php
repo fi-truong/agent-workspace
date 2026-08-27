@@ -84,4 +84,11 @@ class User extends Authenticatable implements PasskeyUser
     {
         return $this->hasMany(\App\Models\UsageLog::class);
     }
+
+    public function getInitialsAttribute(): string
+    {
+        return strtoupper(collect(explode(' ', $this->name))
+            ->map(fn($w) => mb_substr($w, 0, 1))
+            ->implode(''));
+    }
 }

@@ -35,11 +35,12 @@
       </div>
 
       <div class="sort-group">
-        <label for="sortSelect" class="sort-label">Sort:</label>
-        <select id="sortSelect" class="sort-select">
-          <option value="new" {{ request('sort') === 'new' ? 'selected' : '' }}>Newest</option>
-          <option value="alpha" {{ request('sort') === 'alpha' ? 'selected' : '' }}>A–Z</option>
-        </select>
+        <span class="sort-label">Sort by:</span>
+        <div class="sort-chips">
+          <button class="sort-chip {{ request('sort') === 'popular' ? 'active' : '' }}" data-sort="popular">Popular</button>
+          <button class="sort-chip {{ request('sort') === 'new' ? 'active' : '' }}" data-sort="new">New</button>
+          <button class="sort-chip {{ request('sort') === 'alpha' ? 'active' : '' }}" data-sort="alpha">A–Z</button>
+        </div>
       </div>
     </div>
   </div>
@@ -49,7 +50,7 @@
   <div class="wrap">
     <div class="results-header">
       <span class="results-count" id="resultsCount">
-        {{ $templates->count() }} of {{ $totalTemplates }} templates
+        {{ $templates->count() }} of {{ $filteredTotal ?? $totalTemplates }} templates
       </span>
     </div>
 
@@ -64,7 +65,7 @@
       </div>
       @else
         @foreach($templates as $template)
-        <div class="template-card" data-category="{{ $template['category'] ?? '' }}">
+        <div class="template-card" data-category="{{ $template['category'] ?? '' }}" data-id="{{ $template['id'] }}" data-uses="{{ $template['uses'] ?? 0 }}">
           <div class="template-preview {{ $template['preview_class'] ?? '' }}">
             <div class="template-icon">{{ $template['icon'] }}</div>
             @if($template['badge'])
@@ -87,6 +88,12 @@
         @endforeach
       @endif
     </div>
+
+    @if(isset($templatesPaginator) && $templatesPaginator->hasPages())
+    <div class="pagination">
+      {{ $templatesPaginator->links() }}
+    </div>
+    @endif
   </div>
 </main>
 @endsection
@@ -221,23 +228,29 @@
     color: var(--ink-soft);
     white-space: nowrap;
   }
-  .sort-select {
-    padding: 6px 32px 6px 12px;
+  .sort-chips {
+    display: flex;
+    gap: 6px;
+  }
+  .sort-chip {
+    padding: 6px 12px;
     background: var(--paper);
     border: 1px solid var(--line);
-    border-radius: 6px;
-    font-size: 13px;
+    border-radius: 20px;
+    font-size: 12px;
     color: var(--ink);
     cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234A5A7A' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 8px center;
+    transition: all 0.15s;
+    white-space: nowrap;
   }
-  .sort-select:focus {
-    outline: none;
+  .sort-chip:hover {
+    background: #fff;
     border-color: var(--navy);
-    box-shadow: 0 0 0 3px rgba(31, 56, 100, 0.15);
+  }
+  .sort-chip.active {
+    background: var(--navy);
+    color: #fff;
+    border-color: var(--navy);
   }
 
   .content {
@@ -411,134 +424,109 @@
       padding-bottom: 4px;
     }
   }
+
+  .pagination{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line);}
+  .pagination-link,.pagination-current,.pagination-ellipsis{min-width:30px;height:30px;padding:0 6px;border:1px solid var(--line);border-radius:4px;font-size:11px;color: var(--ink);text-decoration:none;background: var(--paper);transition: all 0.15s;line-height:1;display:flex;align-items:center;justify-content:center;}
+  .pagination-link:hover{background: #fff;border-color:var(--navy);color:var(--navy);}
+  .pagination-current{background: var(--navy);color:#fff;border-color:var(--navy);}
+  .pagination-ellipsis{color: var(--ink-soft);border-color:transparent;background:transparent;cursor:default;}
 </style>
 @endpush
 
 @push('scripts')
 <script>
-(function() {
-  'use strict';
-
+document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('searchInput');
   const clearSearchBtn = document.getElementById('clearSearch');
   const categoryFilters = document.getElementById('categoryFilters');
-  const sortSelect = document.getElementById('sortSelect');
+  const sortChips = document.querySelectorAll('.sort-chip');
   const templateGrid = document.getElementById('templateGrid');
   const resultsCount = document.getElementById('resultsCount');
   const emptyState = document.getElementById('emptyState');
   const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
-  let searchDebounceTimer = null;
-  const DEBOUNCE_MS = 300;
-
   // State
   let currentSearch = searchInput.value;
   let currentCategory = '';
-  let currentSort = sortSelect.value;
+  let currentSort = 'new';
+  let currentPage = 1;
 
-  // Get all template cards
-  const templateCards = Array.from(templateGrid.querySelectorAll('.template-card'));
-
-  function updateResultsCount(visibleCount) {
-    resultsCount.textContent = `${visibleCount} of {{ $totalTemplates }} templates`;
+  // Debounce helper
+  function debounce(fn, delay) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
   }
 
-  function showEmptyState(show) {
-    if (show) {
-      emptyState.style.display = 'block';
-      templateGrid.querySelectorAll('.template-card').forEach(c => c.style.display = 'none');
-    } else {
-      emptyState.style.display = 'none';
+  // Build URL with current filters
+  function buildUrl(page = currentPage) {
+    const params = new URLSearchParams();
+    if (currentSearch) params.set('search', currentSearch);
+    if (currentCategory) params.set('category', currentCategory);
+    if (currentSort && currentSort !== 'new') params.set('sort', currentSort);
+    if (page > 1) params.set('page', page);
+    return '{{ route('ai-plus.agent-templates.index') }}?' + params.toString();
+  }
+
+  // Fetch and update grid
+  async function fetchTemplates() {
+    const url = buildUrl();
+    const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+    const html = await res.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const newGrid = doc.getElementById('templateGrid');
+    const newCount = doc.getElementById('resultsCount');
+    const newEmptyState = doc.getElementById('emptyState');
+    const newPagination = doc.querySelector('.pagination');
+    if (newGrid) {
+      templateGrid.innerHTML = newGrid.innerHTML;
     }
+    if (newCount) {
+      resultsCount.textContent = newCount.textContent;
+    }
+    if (newEmptyState) {
+      emptyState.style.display = newEmptyState.style.display;
+      emptyState.innerHTML = newEmptyState.innerHTML;
+    }
+    // Replace pagination
+    const paginationContainer = document.querySelector('.pagination');
+    if (newPagination && paginationContainer) {
+      paginationContainer.innerHTML = newPagination.innerHTML;
+      attachPaginationLinks();
+    } else if (newPagination) {
+      const parent = templateGrid.parentElement;
+      parent.insertAdjacentHTML('beforeend', newPagination.outerHTML);
+      attachPaginationLinks();
+    } else if (paginationContainer) {
+      paginationContainer.remove();
+    }
+    window.history.replaceState({}, '', url);
   }
 
-  function filterAndRender() {
-    let visibleCount = 0;
+  // Debounced search
+  const debouncedSearch = debounce(() => {
+    currentSearch = searchInput.value.trim();
+    clearSearchBtn.style.display = currentSearch ? 'block' : 'none';
+    // Reset to page 1 when searching
+    currentPage = 1;
+    fetchTemplates();
+  }, 300);
 
-    templateCards.forEach(card => {
-      const title = card.querySelector('.template-title').textContent.toLowerCase();
-      const desc = card.querySelector('.template-desc').textContent.toLowerCase();
-      const cardCategory = card.dataset.category || '';
-
-      // Search match
-      const searchMatch = !currentSearch ||
-        title.includes(currentSearch.toLowerCase()) ||
-        desc.includes(currentSearch.toLowerCase());
-
-      // Category match
-      const categoryMatch = !currentCategory || cardCategory === currentCategory;
-
-      if (searchMatch && categoryMatch) {
-        card.classList.remove('hidden');
-        card.style.display = '';
-        visibleCount++;
-      } else {
-        card.classList.add('hidden');
-        card.style.display = 'none';
-      }
-    });
-
-    updateResultsCount(visibleCount);
-    showEmptyState(visibleCount === 0);
-
-    // Re-sort visible cards
-    sortVisibleCards();
-  }
-
-  function sortVisibleCards() {
-    const visibleCards = templateCards.filter(c => !c.classList.contains('hidden'));
-
-    visibleCards.sort((a, b) => {
-      if (currentSort === 'new') {
-        // Newest = higher ID first (since we use latest())
-        return parseInt(b.dataset.id || b.id) - parseInt(a.dataset.id || a.id);
-      } else if (currentSort === 'alpha') {
-        const titleA = a.querySelector('.template-title').textContent.toLowerCase();
-        const titleB = b.querySelector('.template-title').textContent.toLowerCase();
-        return titleA.localeCompare(titleB);
-      }
-      return 0;
-    });
-
-    // Re-append in sorted order
-    visibleCards.forEach(card => templateGrid.appendChild(card));
-  }
-
-  function debouncedSearch() {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-      currentSearch = searchInput.value.trim();
-      clearSearchBtn.style.display = currentSearch ? 'block' : 'none';
-      filterAndRender();
-    }, DEBOUNCE_MS);
-  }
-
-  function clearAllFilters() {
-    currentSearch = '';
-    currentCategory = '';
-    currentSort = 'new';
-
-    searchInput.value = '';
-    clearSearchBtn.style.display = 'none';
-    categoryFilters.querySelectorAll('.filter-chip').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.category === '');
-    });
-    sortSelect.value = 'new';
-
-    filterAndRender();
-  }
-
-  // Event listeners
   searchInput.addEventListener('input', debouncedSearch);
 
   clearSearchBtn.addEventListener('click', () => {
     searchInput.value = '';
     currentSearch = '';
     clearSearchBtn.style.display = 'none';
-    filterAndRender();
+    currentPage = 1;
+    fetchTemplates();
     searchInput.focus();
   });
 
+  // Category filter buttons
   categoryFilters.addEventListener('click', (e) => {
     const chip = e.target.closest('.filter-chip');
     if (!chip) return;
@@ -547,15 +535,37 @@
     categoryFilters.querySelectorAll('.filter-chip').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.category === currentCategory);
     });
-    filterAndRender();
+    // Reset to page 1 when changing category
+    currentPage = 1;
+    fetchTemplates();
   });
 
-  sortSelect.addEventListener('change', () => {
-    currentSort = sortSelect.value;
-    sortVisibleCards();
+  // Sort filter buttons
+  sortChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      currentSort = chip.dataset.sort;
+      sortChips.forEach(c => c.classList.toggle('active', c.dataset.sort === currentSort));
+      // Reset to page 1 when changing sort
+      currentPage = 1;
+      fetchTemplates();
+    });
   });
 
-  clearFiltersBtn.addEventListener('click', clearAllFilters);
+  clearFiltersBtn.addEventListener('click', () => {
+    currentSearch = '';
+    currentCategory = '';
+    currentSort = 'new';
+    currentPage = 1;
+
+    searchInput.value = '';
+    clearSearchBtn.style.display = 'none';
+    categoryFilters.querySelectorAll('.filter-chip').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.category === '');
+    });
+    sortChips.forEach(c => c.classList.toggle('active', c.dataset.sort === 'new'));
+
+    fetchTemplates();
+  });
 
   // Keyboard: Escape to clear search
   searchInput.addEventListener('keydown', (e) => {
@@ -565,13 +575,58 @@
         searchInput.value = '';
         currentSearch = '';
         clearSearchBtn.style.display = 'none';
-        filterAndRender();
+        currentPage = 1;
+        fetchTemplates();
       }
     }
   });
 
-  // Initial render
-  filterAndRender();
-})();
+  // Handle pagination links via AJAX
+  function attachPaginationLinks() {
+    document.querySelectorAll('.pagination a').forEach(link => {
+      link.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const url = link.href;
+        const urlObj = new URL(url, window.location.origin);
+        const pageParam = urlObj.searchParams.get('page');
+        if (pageParam) currentPage = parseInt(pageParam, 10);
+
+        const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+        const html = await res.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const newGrid = doc.getElementById('templateGrid');
+        const newCount = doc.getElementById('resultsCount');
+        const newEmptyState = doc.getElementById('emptyState');
+        const newPagination = doc.querySelector('.pagination');
+        if (newGrid) {
+          templateGrid.innerHTML = newGrid.innerHTML;
+        }
+        if (newCount) {
+          resultsCount.textContent = newCount.textContent;
+        }
+        if (newEmptyState) {
+          emptyState.style.display = newEmptyState.style.display;
+          emptyState.innerHTML = newEmptyState.innerHTML;
+        }
+        // Replace pagination
+        const paginationContainer = document.querySelector('.pagination');
+        if (newPagination && paginationContainer) {
+          paginationContainer.innerHTML = newPagination.innerHTML;
+          attachPaginationLinks();
+        } else if (newPagination) {
+          const parent = templateGrid.parentElement;
+          parent.insertAdjacentHTML('beforeend', newPagination.outerHTML);
+          attachPaginationLinks();
+        } else if (paginationContainer) {
+          paginationContainer.remove();
+        }
+        window.history.replaceState({}, '', url);
+      });
+    });
+  }
+
+  attachPaginationLinks();
+});
 </script>
 @endpush

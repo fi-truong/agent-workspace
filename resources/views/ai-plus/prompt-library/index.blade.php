@@ -35,7 +35,8 @@
         <button class="filter-btn {{ request('subject') == $subject->name ? 'active' : '' }}" data-subject="{{ $subject->name }}">{{ $subject->name }}</button>
         @endforeach
       </div>
-      <div class="filter-group">
+      <div class="filter-group sort-group">
+        <span class="sort-label">Sort by:</span>
         <button class="filter-btn {{ request('sort') == 'popular' ? 'active' : '' }}" data-sort="popular">⭐ Popular</button>
         <button class="filter-btn {{ request('sort') == 'new' ? 'active' : '' }}" data-sort="new">✨ New</button>
       </div>
@@ -45,7 +46,7 @@
 
 <main class="content">
   <div class="wrap">
-    <h2 class="section-title">Prompts <span class="count">{{ $prompts->count() }} prompts</span></h2>
+    <h2 class="section-title">Prompts <span class="count">{{ $promptsPaginator->total() }} prompts</span></h2>
 
     <div class="prompt-grid" id="prompt-grid">
       @foreach($prompts as $prompt)
@@ -61,7 +62,7 @@
         <p class="prompt-desc">{{ $prompt['description'] }}</p>
         <div class="prompt-preview">{{ $prompt['preview'] }}</div>
         <div class="prompt-footer">
-          <button class="copy-btn" data-prompt="{{ htmlspecialchars(json_encode($prompt['preview']), ENT_QUOTES, 'UTF-8') }}">Copy Prompt</button>
+          <button class="copy-btn" data-prompt="{{ htmlspecialchars($prompt['preview'], ENT_QUOTES, 'UTF-8') }}">Copy Prompt</button>
         </div>
       </div>
       @endforeach
@@ -73,6 +74,12 @@
       <h3>No prompts found</h3>
       <p>Try adjusting your search or filters.</p>
     </div>
+    @else
+    @if($promptsPaginator->hasPages())
+    <div class="pagination">
+      {{ $promptsPaginator->links() }}
+    </div>
+    @endif
     @endif
   </div>
 </main>
@@ -95,6 +102,8 @@
   .search-box input:focus{outline:none;border-color:var(--navy);}
   .search-box .icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color: var(--ink-soft);}
   .filter-group{display:flex;gap:8px;}
+  .filter-group.sort-group{align-items:center;}
+  .sort-label{font-size:13px;color: var(--ink-soft);white-space:nowrap;}
   .filter-btn{padding:8px 14px;background: var(--paper);border:1px solid var(--line);border-radius:6px;font-size:13px;color: var(--ink);cursor:pointer;transition: all 0.15s;}
   .filter-btn:hover{background: #fff;border-color:var(--navy);}
   .filter-btn.active{background: var(--navy);color:#fff;border-color:var(--navy);}
@@ -131,6 +140,12 @@
     .search-box{max-width:none;}
     .filter-group{justify-content:center;}
   }
+
+  .pagination{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line);}
+  .pagination-link,.pagination-current,.pagination-ellipsis{min-width:30px;height:30px;padding:0 6px;border:1px solid var(--line);border-radius:4px;font-size:11px;color: var(--ink);text-decoration:none;background: var(--paper);transition: all 0.15s;line-height:1;display:flex;align-items:center;justify-content:center;}
+  .pagination-link:hover{background: #fff;border-color:var(--navy);color:var(--navy);}
+  .pagination-current{background: var(--navy);color:#fff;border-color:var(--navy);}
+  .pagination-ellipsis{color: var(--ink-soft);border-color:transparent;background:transparent;cursor:default;}
 </style>
 @endpush
 
@@ -147,6 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentSearch = searchInput.value;
   let currentSubject = '{{ request('subject') }}';
   let currentSort = '{{ request('sort') }}';
+  let currentPage = 1;
 
   // Debounce helper
   function debounce(fn, delay) {
@@ -158,11 +174,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Build URL with current filters
-  function buildUrl() {
+  function buildUrl(page = currentPage) {
     const params = new URLSearchParams();
     if (currentSearch) params.set('search', currentSearch);
     if (currentSubject) params.set('subject', currentSubject);
     if (currentSort) params.set('sort', currentSort);
+    if (page > 1) params.set('page', page);
     return '{{ route('ai-plus.prompt-library.index') }}?' + params.toString();
   }
 
@@ -176,6 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const doc = parser.parseFromString(html, 'text/html');
     const newGrid = doc.getElementById('prompt-grid');
     const newCount = doc.querySelector('.section-title .count');
+    const newPagination = doc.querySelector('.pagination');
     if (newGrid) {
       promptGrid.innerHTML = newGrid.innerHTML;
       // Re-attach copy buttons
@@ -184,6 +202,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (newCount) {
       sectionTitleCount.textContent = newCount.textContent;
     }
+    // Replace pagination
+    const paginationContainer = document.querySelector('.pagination');
+    if (newPagination && paginationContainer) {
+      paginationContainer.innerHTML = newPagination.innerHTML;
+      attachPaginationLinks();
+    } else if (newPagination) {
+      const parent = promptGrid.parentElement;
+      parent.insertAdjacentHTML('beforeend', newPagination.outerHTML);
+      attachPaginationLinks();
+    } else if (paginationContainer) {
+      paginationContainer.remove();
+    }
     // Update URL without reload
     window.history.replaceState({}, '', url);
   }
@@ -191,6 +221,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Debounced search
   const debouncedSearch = debounce(() => {
     currentSearch = searchInput.value;
+    // Reset to page 1 when searching
+    currentPage = 1;
     fetchPrompts();
   }, 300);
 
@@ -202,6 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
       subjectButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentSubject = btn.dataset.subject;
+      // Reset to page 1 when changing subject
+      currentPage = 1;
       fetchPrompts();
     });
   });
@@ -212,6 +246,8 @@ document.addEventListener('DOMContentLoaded', () => {
       sortButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentSort = btn.dataset.sort;
+      // Reset to page 1 when changing sort
+      currentPage = 1;
       fetchPrompts();
     });
   });
@@ -222,7 +258,20 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.addEventListener('click', async () => {
         const promptText = btn.dataset.prompt;
         try {
-          await navigator.clipboard.writeText(promptText);
+          // Try modern clipboard API first (requires HTTPS)
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(promptText);
+          } else {
+            // Fallback for HTTP/localhost
+            const textarea = document.createElement('textarea');
+            textarea.value = promptText;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+          }
           const original = btn.textContent;
           btn.textContent = 'Copied!';
           btn.style.background = 'var(--sage)';
@@ -232,12 +281,73 @@ document.addEventListener('DOMContentLoaded', () => {
           }, 1500);
         } catch (e) {
           console.error('Copy failed', e);
+          // Last resort fallback
+          const textarea = document.createElement('textarea');
+          textarea.value = promptText;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+
+          const original = btn.textContent;
+          btn.textContent = 'Copied!';
+          btn.style.background = 'var(--sage)';
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.style.background = '';
+          }, 1500);
         }
       });
     });
   }
 
+  // Handle pagination links via AJAX
+  function attachPaginationLinks() {
+    document.querySelectorAll('.pagination a').forEach(link => {
+      link.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const url = link.href;
+        // Extract page number from URL
+        const urlObj = new URL(url, window.location.origin);
+        const pageParam = urlObj.searchParams.get('page');
+        if (pageParam) currentPage = parseInt(pageParam, 10);
+
+        const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+        const html = await res.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const newGrid = doc.getElementById('prompt-grid');
+        const newCount = doc.querySelector('.section-title .count');
+        const newPagination = doc.querySelector('.pagination');
+        if (newGrid) {
+          promptGrid.innerHTML = newGrid.innerHTML;
+          attachCopyButtons();
+        }
+        if (newCount) {
+          sectionTitleCount.textContent = newCount.textContent;
+        }
+        // Replace pagination
+        const paginationContainer = document.querySelector('.pagination');
+        if (newPagination && paginationContainer) {
+          paginationContainer.innerHTML = newPagination.innerHTML;
+          attachPaginationLinks();
+        } else if (newPagination) {
+          // Insert new pagination
+          const parent = promptGrid.parentElement;
+          parent.insertAdjacentHTML('beforeend', newPagination.outerHTML);
+          attachPaginationLinks();
+        } else if (paginationContainer) {
+          paginationContainer.remove();
+        }
+        window.history.replaceState({}, '', url);
+      });
+    });
+  }
+
   attachCopyButtons();
+  attachPaginationLinks();
 });
 </script>
 @endpush

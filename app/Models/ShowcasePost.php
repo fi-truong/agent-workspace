@@ -9,6 +9,7 @@ class ShowcasePost extends Model
     protected $fillable = [
         'author_id', 'source_agent_id', 'source_workflow_id', 'department',
         'title', 'description', 'views_count', 'comments_count', 'uses_count', 'badge',
+        'status', 'published_at',
     ];
 
     public function author()

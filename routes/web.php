@@ -17,6 +17,13 @@ use App\Http\Controllers\SupportController;
 use App\Http\Controllers\ChatMessageController;
 
 use App\Http\Controllers\Auth\MicrosoftAuthController;
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\PromptController;
+use App\Http\Controllers\Admin\TemplateController;
+use App\Http\Controllers\Admin\ShowcaseController;
+use App\Http\Controllers\Admin\FaqController;
+use App\Http\Controllers\Admin\TicketController;
+use App\Http\Controllers\Admin\UserController;
 
 Route::post('/ai-plus/agent-workspace/send', [ChatMessageController::class, 'store'])
     ->name('ai-plus.agent-workspace.send');
@@ -44,6 +51,31 @@ Route::prefix('ai-plus')->name('ai-plus.')->group(function () {
     Route::post('/support', [SupportController::class, 'store'])->name('support.store');
 });
 
+// Admin Panel Routes
+Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
+    Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+
+    // Prompts
+    Route::resource('prompts', PromptController::class);
+
+    // Agent Templates
+    Route::resource('templates', TemplateController::class);
+
+    // Showcases
+    Route::resource('showcases', ShowcaseController::class);
+
+    // FAQs
+    Route::resource('faqs', FaqController::class);
+
+    // Support Tickets
+    Route::resource('tickets', TicketController::class);
+    Route::patch('tickets/{ticket}/assign', [TicketController::class, 'assign'])->name('tickets.assign');
+    Route::patch('tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.status');
+
+    // Users & Roles
+    Route::resource('users', UserController::class);
+});
+
 // Legacy route redirect
 Route::get('/agent-workspace', function () {
     return redirect()->route('ai-plus.agent-workspace.index');
@@ -69,5 +101,16 @@ Route::get('/auth/microsoft/callback', [MicrosoftAuthController::class, 'callbac
 Route::get('/login', function () {
     return inertia('auth/login');
 })->name('login');
+
+// Local email/password login for dev
+Route::get('/login-local', fn() => view('auth.login'))->name('login.local.form');
+Route::post('/login-local', function() {
+    $credentials = request()->validate(['email'=>'required|email','password'=>'required']);
+    if (auth()->attempt($credentials, request()->boolean('remember'))) {
+        request()->session()->regenerate();
+        return redirect()->intended(route('admin.dashboard'));
+    }
+    return back()->withErrors(['email' => 'Sai email hoặc mật khẩu.'])->onlyInput('email');
+})->name('login.local');
 
 require __DIR__.'/settings.php';

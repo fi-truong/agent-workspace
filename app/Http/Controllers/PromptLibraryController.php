@@ -37,7 +37,10 @@ class PromptLibraryController extends Controller
             $query->latest();
         }
 
-        $prompts = $query->get()->map(function ($p) {
+        // Pagination - 20 per page
+        $promptsPaginator = $query->paginate(20)->withQueryString();
+
+        $prompts = $promptsPaginator->getCollection()->map(function ($p) {
             return [
                 'id' => $p->id,
                 'icon' => 'PL',
@@ -49,13 +52,14 @@ class PromptLibraryController extends Controller
                 'badges' => $p->tags->pluck('name')->toArray(),
                 'uses' => $p->uses_count,
             ];
-        })->toArray();
+        });
 
         // Subjects for filter buttons (only 'subject' category tags)
         $subjects = Tag::where('category', 'subject')->orderBy('name')->get();
 
         return view('ai-plus.prompt-library.index', [
-            'prompts' => collect($prompts),
+            'prompts' => $prompts,
+            'promptsPaginator' => $promptsPaginator,
             'subjects' => $subjects,
             'viewingAs' => 'Teacher / Staff',
             'totalPrompts' => PromptLibraryPrompt::count(),

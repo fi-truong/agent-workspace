@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Pagination\Paginator;
 
 use App\Models\Agent;
 use App\Policies\AgentPolicy;
@@ -38,6 +39,9 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(function (SocialiteWasCalled $event) {
             $event->extendSocialite('microsoft', \SocialiteProviders\Microsoft\Provider::class);
         });
+
+        // Use custom pagination view
+        Paginator::defaultView('vendor.pagination.tailwind');
     }
 
     /**

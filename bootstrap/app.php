@@ -25,6 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
             SetTeamUrlDefaults::class,
             \App\Http\Middleware\GuardrailMiddleware::class,
         ]);
+
+        // Trust proxies for external access (needed when accessing via LAN IP)
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

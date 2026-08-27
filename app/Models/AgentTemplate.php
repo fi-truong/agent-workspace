@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class AgentTemplate extends Model
 {
-    protected $fillable = ['icon', 'title', 'description', 'preview_class', 'badge', 'uses_count', 'category'];
+    protected $fillable = ['icon', 'name', 'description', 'preview_class', 'badge', 'uses_count', 'category', 'status'];
 
     public function features()
     {

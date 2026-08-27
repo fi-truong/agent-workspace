@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class SupportTicket extends Model
 {
     protected $fillable = [
-        'name', 'email', 'type', 'subject', 'details', 'status', 'assigned_to', 'admin_notes', 'resolved_at'
+        'name', 'email', 'type', 'priority', 'subject', 'details', 'status', 'assigned_to', 'admin_notes', 'resolved_at'
     ];
 
     protected $casts = [
@@ -17,5 +17,10 @@ class SupportTicket extends Model
     public function assignee()
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

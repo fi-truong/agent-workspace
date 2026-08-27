@@ -15,7 +15,7 @@ class AgentTemplateController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
+                $q->where('name', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%");
             });
         }
@@ -30,17 +30,20 @@ class AgentTemplateController extends Controller
         if ($sort === 'new') {
             $query->latest();
         } elseif ($sort === 'alpha') {
-            $query->orderBy('title');
+            $query->orderBy('name');
         } else {
             // fallback for any old 'popular' URLs
             $query->latest();
         }
 
-        $templates = $query->get()->map(function ($t) {
+        // Pagination - 10 per page
+        $templatesPaginator = $query->paginate(10)->withQueryString();
+
+        $templates = $templatesPaginator->getCollection()->map(function ($t) {
             return [
                 'id' => $t->id,
                 'icon' => $t->icon,
-                'title' => $t->title,
+                'title' => $t->name,
                 'description' => $t->description,
                 'features' => $t->features->pluck('feature_text')->toArray(),
                 'uses' => $t->uses_count,
@@ -66,12 +69,17 @@ class AgentTemplateController extends Controller
             'subject' => '🔬 Subject-Specific',
         ];
 
+        // Total count for current filter (search + category)
+        $filteredTotal = $query->count();
+
         return view('ai-plus.agent-templates.index', [
             'templates' => collect($templates),
+            'templatesPaginator' => $templatesPaginator,
             'categories' => $categories,
             'categoryLabels' => $categoryLabels,
             'viewingAs' => 'Teacher / Staff',
             'totalTemplates' => AgentTemplate::count(),
+            'filteredTotal' => $filteredTotal,
             'totalCategories' => count($categories),
         ]);
     }
