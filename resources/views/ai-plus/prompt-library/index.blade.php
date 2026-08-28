@@ -89,11 +89,11 @@
 <style>
   .page-header{background: var(--navy);color:#fff;padding: 48px 0 56px;}
   .page-header h1{font-family:'Fraunces', serif;font-weight:600;font-size: clamp(32px, 4vw, 44px);margin-bottom:12px;}
-  .page-header p{color:#C7D3E2;font-size:16px;max-width:600px;}
+  .page-header p{color:#C8E1DC;font-size:16px;max-width:600px;}
   .stats-bar{display:flex;gap:32px;margin-top:24px;}
   .stat{text-align:center;}
   .stat-num{font-family:'Fraunces', serif;font-size:28px;font-weight:600;color: var(--gold-light);}
-  .stat-label{font-size:12px;color:#7C8FA8;text-transform:uppercase;letter-spacing:0.05em;}
+  .stat-label{font-size:12px;color:#7EA69E;text-transform:uppercase;letter-spacing:0.05em;}
 
   .filters-section{background: var(--card-bg);border-bottom:1px solid var(--line);padding:20px 0;position:sticky;top:0;z-index:10;}
   .filters{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
@@ -119,7 +119,7 @@
   .prompt-title{font-weight:600;font-size:16px;color: var(--ink);}
   .prompt-badges{display:flex;gap:6px;}
   .badge{font-family:'IBM Plex Mono', monospace;font-size:10px;padding:3px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:0.03em;}
-  .badge.subject{background:#E8F0F8;color:var(--navy);}
+  .badge.subject{background:#E9F7F4;color:var(--navy);}
   .badge.role{background:#FDF3E0;color:#9A6B1F;}
   .badge.new{background:#E8F5F0;color:var(--sage);}
   .prompt-desc{font-size:14px;color: var(--ink-soft);margin-bottom:16px;line-height:1.5;}

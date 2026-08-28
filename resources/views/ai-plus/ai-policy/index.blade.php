@@ -165,8 +165,8 @@
 <style>
   .page-header{background: var(--navy);color:#fff;padding: 48px 0 56px;}
   .page-header h1{font-family:'Fraunces', serif;font-weight:600;font-size: clamp(32px, 4vw, 44px);margin-bottom:12px;}
-  .page-header p{color:#C7D3E2;font-size:16px;max-width:600px;}
-  .last-updated{margin-top:16px;font-size:12px;color:#7C8FA8;font-family:'IBM Plex Mono', monospace;}
+  .page-header p{color:#C8E1DC;font-size:16px;max-width:600px;}
+  .last-updated{margin-top:16px;font-size:12px;color:#7EA69E;font-family:'IBM Plex Mono', monospace;}
 
   .toc-nav{background: var(--card-bg);border-bottom:1px solid var(--line);padding:16px 0;position:sticky;top:0;z-index:10;}
   .toc-links{display:flex;gap:8px;flex-wrap:wrap;}

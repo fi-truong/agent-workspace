@@ -3,14 +3,16 @@
 @import 'tw-animate-css';
 
 :root{
-  --navy: #1F3864;
-  --navy-deep: #16263F;
+  --navy: #1F5147;
+  --navy-deep: #163B34;
   --gold: #D89B34;
-  --paper: #F6F3EC;
-  --ink: #22303F;
-  --ink-soft: #5B6B7C;
-  --line: #E1DACB;
-  --sage: #6E8E82;
+  --navy-light: #2E7A68;
+  --gold-light: #F0C878;
+  --paper: #F4FBF9;
+  --ink: #1B2E2A;
+  --ink-soft: #4F6A63;
+  --line: #D9E8E3;
+  --sage: #2A6F61;
   --card-bg: #FFFFFF;
 }
 *{box-sizing:border-box;}
@@ -27,7 +29,7 @@ body{
 /* ---------- Breadcrumb / role signature ---------- */
 .crumbbar{
   background: var(--navy-deep);
-  color: #CBD6E4;
+  color: #CCE3DE;
   font-family:'IBM Plex Mono', monospace;
   font-size:16px;
   letter-spacing:.02em;
@@ -36,10 +38,10 @@ body{
   display:flex; align-items:center; justify-content:space-between;
   padding-top:11px; padding-bottom:11px;
 }
-.crumb-trail .crumb-link{color:#CBD6E4;text-decoration:none;font-size:16px !important;}
+.crumb-trail .crumb-link{color:#CCE3DE;text-decoration:none;font-size:16px !important;}
 .crumb-trail .crumb-link:hover{color:#fff;}
-.crumb-trail .crumb-sep{color:#5B6B7C;margin:0 4px;font-size:16px !important;}
-.crumb-trail span{color:#7C8FA8;font-size:16px !important;}
+.crumb-trail .crumb-sep{color:#4F6A63;margin:0 4px;font-size:16px !important;}
+.crumb-trail span{color:#7EA69E;font-size:16px !important;}
 .crumb-trail b{color:#fff; font-weight:500;font-size:16px !important;}
 .role-pill{
   display:flex; align-items:center; gap:8px;
@@ -91,7 +93,7 @@ h1.page-title{
   color: var(--ink);
 }
 .hero p.sub{
-  font-size:17px; max-width:560px; color:#C7D3E2; margin:0;
+  font-size:17px; max-width:560px; color:#C8E1DC; margin:0;
 }
 
 /* ---------- Section ---------- */
@@ -151,12 +153,12 @@ section + section{ border-top:1px solid var(--line); }
 
 /* Featured showcase card spans wider with strip */
 .showcase{
-  background: linear-gradient(135deg, var(--navy) 0%, #274B7F 100%);
+  background: linear-gradient(135deg, var(--navy) 0%, #2E7A68 100%);
   color:#fff; border:none; grid-column: span 2;
 }
 .showcase .icon{ background: rgba(255,255,255,0.14); color:#F0C878; }
 .showcase h3{ color:#fff; }
-.showcase p{ color:#C7D3E2; }
+.showcase p{ color:#C8E1DC; }
 .showcase .cta{ color:#F0C878; }
 .showcase .strip{
   display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;

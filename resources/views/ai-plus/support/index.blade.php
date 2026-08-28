@@ -97,7 +97,7 @@
 <style>
   .page-header{background: var(--navy);color:#fff;padding: 48px 0 56px;}
   .page-header h1{font-family:'Fraunces', serif;font-weight:600;font-size: clamp(32px, 4vw, 44px);margin-bottom:12px;}
-  .page-header p{color:#C7D3E2;font-size:16px;max-width:600px;}
+  .page-header p{color:#C8E1DC;font-size:16px;max-width:600px;}
 
   .content{padding:40px 0 60px;}
 

@@ -1,65 +1,15 @@
 :root{
-  --mint: #B0EDE1;
   --navy: #1F5147;
   --navy-deep: #163B34;
-  --navy-light: #2E7A68;
   --gold: #D89B34;
+  --navy-light: #2E7A68;
   --gold-light: #F0C878;
-  --gold-text: #7A4E12;
   --paper: #F4FBF9;
   --ink: #1B2E2A;
-  --ink-soft: #3D554E;
+  --ink-soft: #4F6A63;
   --line: #D9E8E3;
   --sage: #2A6F61;
   --card-bg: #FFFFFF;
-
-  /* ---- Theme role variables: mặc định = Option B (mint sáng, đúng màu trường) ---- */
-  --hero-bg: var(--mint);
-  --hero-text: var(--ink);
-  --hero-accent: var(--gold-text);
-  --hero-title-em: var(--navy);
-
-  --hero-sub: var(--ink-soft);
-  --crumb-bg: var(--mint);
-  --crumb-text: var(--ink);
-  --crumb-link-hover: var(--navy);
-  --crumb-sep: var(--ink-soft);
-  --crumb-muted: var(--ink-soft);
-  --crumb-strong: var(--navy);
-  --role-pill-color: var(--gold-text);
-
-  --showcase-bg: linear-gradient(135deg, var(--mint) 0%, #D5F5EC 100%);
-  --showcase-text: var(--ink);
-  --showcase-icon-bg: rgba(31,81,71,0.12);
-  --showcase-icon-color: var(--navy);
-  --showcase-p-color: var(--ink-soft);
-  --showcase-cta-color: var(--gold-text);
-  --showcase-border: var(--line);
-}
-
-/* ---- Option A: xanh teal đậm (bản trước, để so sánh) ---- */
-[data-theme="teal"]{
-  --hero-bg: var(--navy);
-  --hero-text: #fff;
-  --hero-accent: #F0C878;
-  --hero-title-em: #F0C878;
-
-  --hero-sub: #C8E1DC;
-  --crumb-bg: var(--navy-deep);
-  --crumb-text: #CCE3DE;
-  --crumb-link-hover: #fff;
-  --crumb-sep: #4F6A63;
-  --crumb-muted: #7EA69E;
-  --crumb-strong: #fff;
-  --role-pill-color: #F0C878;
-
-  --showcase-bg: linear-gradient(135deg, var(--navy) 0%, #2E7A68 100%);
-  --showcase-text: #fff;
-  --showcase-icon-bg: rgba(255,255,255,0.14);
-  --showcase-icon-color: #F0C878;
-  --showcase-p-color: #C8E1DC;
-  --showcase-cta-color: #F0C878;
-  --showcase-border: transparent;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -74,8 +24,8 @@ body{
 
 /* ---------- Breadcrumb / role signature ---------- */
 .crumbbar{
-  background: var(--crumb-bg);
-  color: var(--crumb-text);
+  background: var(--navy-deep);
+  color: #CCE3DE;
   font-family:'IBM Plex Mono', monospace;
   font-size:16px;
   letter-spacing:.02em;
@@ -84,25 +34,25 @@ body{
   display:flex; align-items:center; justify-content:space-between;
   padding-top:11px; padding-bottom:11px;
 }
-.crumb-trail .crumb-link{color:var(--crumb-text);text-decoration:none;font-size:16px !important;}
-.crumb-trail .crumb-link:hover{color:var(--crumb-link-hover);}
-.crumb-trail .crumb-sep{color:var(--crumb-sep);margin:0 4px;font-size:16px !important;}
-.crumb-trail span{color:var(--crumb-muted);font-size:16px !important;}
-.crumb-trail b{color:var(--crumb-strong); font-weight:600;font-size:16px !important;}
+.crumb-trail .crumb-link{color:#CCE3DE;text-decoration:none;font-size:16px !important;}
+.crumb-trail .crumb-link:hover{color:#fff;}
+.crumb-trail .crumb-sep{color:#4F6A63;margin:0 4px;font-size:16px !important;}
+.crumb-trail span{color:#7EA69E;font-size:16px !important;}
+.crumb-trail b{color:#fff; font-weight:500;font-size:16px !important;}
 .role-pill{
   display:flex; align-items:center; gap:8px;
-  background: rgba(216,155,52,0.18);
-  border:1px solid rgba(216,155,52,0.5);
-  color:var(--role-pill-color);
+  background: rgba(216,155,52,0.16);
+  border:1px solid rgba(216,155,52,0.45);
+  color:#F0C878;
   padding:4px 12px 4px 10px;
   border-radius:999px;
 }
-.role-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--role-pill-color);}
+.role-pill .dot{width:6px;height:6px;border-radius:50%;background:#F0C878;}
 
 /* ---------- Hero ---------- */
 header.hero{
-  background: var(--hero-bg);
-  color: var(--hero-text);
+  background: var(--navy);
+  color:#fff;
   padding: 56px 0 64px;
   position:relative;
   overflow:hidden;
@@ -111,12 +61,12 @@ header.hero::after{
   content:"";
   position:absolute; right:-120px; top:-140px;
   width:420px; height:420px; border-radius:50%;
-  background: radial-gradient(circle at 30% 30%, rgba(216,155,52,0.28), rgba(216,155,52,0) 70%);
+  background: radial-gradient(circle at 30% 30%, rgba(216,155,52,0.35), rgba(216,155,52,0) 70%);
 }
 .eyebrow{
   font-family:'IBM Plex Mono', monospace;
   font-size:12.5px; letter-spacing:.14em; text-transform:uppercase;
-  color:var(--hero-accent); margin-bottom:18px; display:block;
+  color:#F0C878; margin-bottom:18px; display:block;
 }
 h1.title{
   font-family:'Fraunces', serif;
@@ -125,9 +75,8 @@ h1.title{
   line-height:1.02;
   margin:0 0 18px;
   letter-spacing:-0.01em;
-  color: var(--hero-text);
 }
-h1.title em{ font-style:italic; font-weight:500; color:var(--hero-title-em); }
+h1.title em{ font-style:italic; font-weight:500; color:#F0C878; }
 
 /* Page title for Agent Workspace - match hero title size */
 h1.page-title{
@@ -140,7 +89,7 @@ h1.page-title{
   color: var(--ink);
 }
 .hero p.sub{
-  font-size:17px; max-width:560px; color:var(--hero-sub); margin:0;
+  font-size:17px; max-width:560px; color:#C8E1DC; margin:0;
 }
 
 /* ---------- Section ---------- */
@@ -200,13 +149,13 @@ section + section{ border-top:1px solid var(--line); }
 
 /* Featured showcase card spans wider with strip */
 .showcase{
-  background: var(--showcase-bg);
-  color:var(--showcase-text); border:1px solid var(--showcase-border); grid-column: span 2;
+  background: linear-gradient(135deg, var(--navy) 0%, #2E7A68 100%);
+  color:#fff; border:none; grid-column: span 2;
 }
-.showcase .icon{ background: var(--showcase-icon-bg); color:var(--showcase-icon-color); }
-.showcase h3{ color:var(--showcase-text); }
-.showcase p{ color:var(--showcase-p-color); }
-.showcase .cta{ color:var(--showcase-cta-color); }
+.showcase .icon{ background: rgba(255,255,255,0.14); color:#F0C878; }
+.showcase h3{ color:#fff; }
+.showcase p{ color:#C8E1DC; }
+.showcase .cta{ color:#F0C878; }
 .strip{
   display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;
 }

@@ -112,7 +112,7 @@
     margin-bottom: 12px;
   }
   .page-header p {
-    color: #C7D3E2;
+    color: #C8E1DC;
     font-size: 16px;
     max-width: 600px;
   }
@@ -294,7 +294,7 @@
 
   .template-preview {
     height: 140px;
-    background: linear-gradient(135deg, var(--navy) 0%, #2A4A73 100%);
+    background: linear-gradient(135deg, var(--navy) 0%, #2E7A68 100%);
     display: flex;
     align-items: center;
     justify-content: center;

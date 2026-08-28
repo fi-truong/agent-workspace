@@ -83,7 +83,7 @@
 
 .agent-detail-grid { display: grid; grid-template-columns: 1fr 320px; gap: 32px; }
 .agent-section h2 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 20px; color: var(--navy); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-.system-prompt { background: var(--navy-deep); color: #CBD6E4; padding: 20px; border-radius: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-x: auto; }
+.system-prompt { background: var(--navy-deep); color: #CCE3DE; padding: 20px; border-radius: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-x: auto; }
 .no-prompt { color: var(--ink-soft); font-style: italic; background: var(--paper); padding: 20px; border-radius: 12px; border: 1px dashed var(--line); }
 
 .agent-sidebar { display: flex; flex-direction: column; gap: 20px; }

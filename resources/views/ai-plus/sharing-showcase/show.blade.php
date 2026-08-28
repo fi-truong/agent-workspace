@@ -126,7 +126,7 @@
 @push('styles')
 <style>
   .page-header {
-    background: linear-gradient(135deg, var(--navy) 0%, #274B7F 100%);
+    background: linear-gradient(135deg, var(--navy) 0%, #2E7A68 100%);
     color: #fff;
     padding: 40px 0 48px;
   }
@@ -135,7 +135,7 @@
     margin-bottom: 16px;
   }
   .back-link a {
-    color: #C7D3E2;
+    color: #C8E1DC;
     text-decoration: none;
     font-size: 14px;
     transition: color 0.15s;
@@ -173,7 +173,7 @@
     font-size: 18px;
   }
   .author-name { font-weight: 600; font-size: 16px; display: block; }
-  .author-dept { font-size: 13px; color: #CBD6E4; }
+  .author-dept { font-size: 13px; color: #CCE3DE; }
   .post-stats {
     display: flex;
     flex-wrap: wrap;
@@ -184,7 +184,7 @@
     align-items: center;
     gap: 6px;
     font-size: 13px;
-    color: #CBD6E4;
+    color: #CCE3DE;
   }
   .post-stats .stat.date {
     color: var(--gold);
@@ -210,7 +210,7 @@
     background: rgba(255,255,255,0.15);
     border-radius: 4px;
     font-size: 12px;
-    color: #C7D3E2;
+    color: #C8E1DC;
   }
 
   .content { padding: 32px 0 48px; }

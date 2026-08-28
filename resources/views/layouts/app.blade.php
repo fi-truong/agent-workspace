@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <title>@yield('title', 'AI+ - LSTS Staff Portal')</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  // Áp dụng theme đã lưu NGAY LẬP TỨC, tránh nháy màu sai lúc đầu load trang
+  (function(){
+    var saved = localStorage.getItem('aiplus-theme');
+    if (saved === 'teal') {
+      document.documentElement.setAttribute('data-theme', 'teal');
+    }
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 @vite('resources/css/app.css')
@@ -30,5 +39,6 @@
     </div>
   </footer>
 
+  @stack('scripts')
 </body>
 </html>

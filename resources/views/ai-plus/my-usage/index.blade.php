@@ -117,7 +117,7 @@
   .user-profile{display:flex;align-items:center;gap:16px;}
   .user-avatar{width:64px;height:64px;border-radius:50%;background: var(--gold);color: var(--navy-deep);display:flex;align-items:center;justify-content:center;font-family:'Fraunces', serif;font-size:24px;font-weight:600;}
   .user-info h1{font-family:'Fraunces', serif;font-size:28px;font-weight:600;margin-bottom:4px;}
-  .user-role{color:#C7D3E2;font-size:14px;}
+  .user-role{color:#C8E1DC;font-size:14px;}
   .date-range{display:flex;gap:8px;}
   .date-btn{padding:8px 16px;background: rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#fff;font-size:13px;cursor:pointer;transition: all 0.15s;}
   .date-btn:hover{background: rgba(255,255,255,0.2);}
@@ -126,7 +126,7 @@
   .stats-grid{display:grid;grid-template-columns: repeat(4, 1fr);gap:16px;margin-top:24px;}
   .stat-card{background: rgba(255,255,255,0.08);border-radius:12px;padding:20px;text-align:center;}
   .stat-value{font-family:'Fraunces', serif;font-size:36px;font-weight:600;color: var(--gold-light);}
-  .stat-label{font-size:12px;color:#7C8FA8;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;}
+  .stat-label{font-size:12px;color:#7EA69E;text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;}
   .stat-change{font-size:12px;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:4px;}
   .stat-change.up{color: var(--success);}
 

@@ -178,7 +178,7 @@
 @push('styles')
 <style>
   .page-header {
-    background: linear-gradient(135deg, var(--navy) 0%, #274B7F 100%);
+    background: linear-gradient(135deg, var(--navy) 0%, #2E7A68 100%);
     color: #fff;
     padding: 48px 0 56px;
     position: relative;
@@ -191,7 +191,7 @@
     margin-bottom: 12px;
   }
   .page-header p {
-    color: #C7D3E2;
+    color: #C8E1DC;
     font-size: 16px;
     max-width: 600px;
   }
@@ -205,7 +205,7 @@
     align-items: center;
     gap: 8px;
     font-size: 14px;
-    color: #CBD6E4;
+    color: #CCE3DE;
   }
   .header-stat strong {
     color: var(--gold);
