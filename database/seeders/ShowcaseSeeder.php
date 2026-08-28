@@ -86,6 +86,8 @@ class ShowcaseSeeder extends Seeder
                 'comments_count' => $data['comments_count'],
                 'uses_count' => $data['uses_count'],
                 'badge' => $data['badge'],
+                'status' => 'published',
+                'published_at' => now(),
             ]);
 
             $tagIds = [];

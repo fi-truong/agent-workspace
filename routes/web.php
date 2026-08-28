@@ -45,6 +45,8 @@ Route::prefix('ai-plus')->name('ai-plus.')->group(function () {
     Route::get('/prompt-library', [PromptLibraryController::class, 'index'])->name('prompt-library.index');
     Route::get('/agent-templates', [AgentTemplateController::class, 'index'])->name('agent-templates.index');
     Route::get('/sharing-showcase', [SharingShowcaseController::class, 'index'])->name('sharing-showcase.index');
+    Route::post('/sharing-showcase', [SharingShowcaseController::class, 'store'])->name('sharing-showcase.store');
+    Route::get('/sharing-showcase/{showcase}', [SharingShowcaseController::class, 'show'])->name('sharing-showcase.show');
     Route::get('/my-usage', [MyUsageController::class, 'index'])->name('my-usage.index');
     Route::get('/ai-policy', [AiPolicyController::class, 'index'])->name('ai-policy.index');
     Route::get('/support', [SupportController::class, 'index'])->name('support.index');
