@@ -1,3 +1,141 @@
+/* ============================================
+   Self-hosted Fonts (@font-face)
+   Place font files in /public/fonts/
+   ============================================ */
+
+/* Inter - Variable font (wght 100-900) */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-var.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+  font-style: normal;
+}
+
+/* Inter - Static weights (fallback) */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-700.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+  font-style: normal;
+}
+
+/* Fraunces - Variable font (opsz 9-144, wght 100-900) */
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/fraunces-var.woff2') format('woff2');
+  font-weight: 100 900;
+  font-stretch: 25% 151%;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/fraunces-var-italic.woff2') format('woff2');
+  font-weight: 100 900;
+  font-stretch: 25% 151%;
+  font-display: swap;
+  font-style: italic;
+}
+
+/* Fraunces - Static weights (fallback) */
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/fraunces-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/fraunces-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/fraunces-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/fraunces-700.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+  font-style: normal;
+}
+
+/* IBM Plex Mono - Variable font (wght 100-700) */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/ibm-plex-mono-var.woff2') format('woff2');
+  font-weight: 100 700;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/ibm-plex-mono-var-italic.woff2') format('woff2');
+  font-weight: 100 700;
+  font-display: swap;
+  font-style: italic;
+}
+
+/* IBM Plex Mono - Static weights (fallback) */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/ibm-plex-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/ibm-plex-mono-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/ibm-plex-mono-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/ibm-plex-mono-700.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+  font-style: normal;
+}
+
 :root{
   --mint: #B0EDE1;
   --navy: #1F5147;
@@ -35,6 +173,42 @@
   --showcase-p-color: var(--ink-soft);
   --showcase-cta-color: var(--gold-text);
   --showcase-border: var(--line);
+
+  /* ---- Theme role variables: page-level components (Mint default) ---- */
+  --body-bg: var(--paper);
+  --surface: var(--card-bg);            /* card / panel background */
+  --surface-border: var(--line);        /* card border */
+  --page-bg: var(--card-bg);            /* page-header / pagination panel bg */
+
+  --page-header-bg: linear-gradient(135deg, var(--mint) 0%, #D5F5EC 100%);
+  --page-header-text: var(--ink);
+  --page-header-muted: var(--ink-soft);
+  --page-header-accent: var(--gold-text);
+  --page-header-stat: var(--navy);
+
+  --text-main: var(--ink);
+  --text-soft: var(--ink-soft);
+
+  --input-bg: var(--paper);
+  --input-border: var(--line);
+  --input-text: var(--ink);
+
+  --chip-bg: var(--paper);
+  --chip-border: var(--line);
+  --chip-text: var(--ink);
+  --chip-active-bg: var(--navy);
+  --chip-active-text: #fff;
+
+  --section-title: var(--navy);
+  --brand-badge-bg: #E9F7F4;
+  --brand-badge-text: var(--navy);
+  --sage-badge-bg: #E8F5F0;
+  --sage-badge-text: var(--sage);
+
+  --topbar-bg: var(--card-bg);
+  --topbar-border: var(--line);
+  --topbar-link: var(--navy);
+  --topbar-crumb: var(--ink-soft);
 }
 
 /* ---- Option A: xanh teal đậm (bản trước, để so sánh) ---- */
@@ -60,15 +234,52 @@
   --showcase-p-color: #C8E1DC;
   --showcase-cta-color: #F0C878;
   --showcase-border: transparent;
+
+  /* ---- Teal: page-level components ---- */
+  --body-bg: #0F2924;
+  --surface: #153530;
+  --surface-border: #2A6B5E;
+  --page-bg: #153530;
+
+  --page-header-bg: linear-gradient(135deg, var(--navy) 0%, #2E7A68 100%);
+  --page-header-text: #E8F3F0;
+  --page-header-muted: #A9C8C1;
+  --page-header-accent: #F0C878;
+  --page-header-stat: #F0C878;
+
+  --text-main: #E8F3F0;
+  --text-soft: #A9C8C1;
+
+  --input-bg: #1A423C;
+  --input-border: #2A6B5E;
+  --input-text: #E8F3F0;
+
+  --chip-bg: #1A423C;
+  --chip-border: #2A6B5E;
+  --chip-text: #A9C8C1;
+  --chip-active-bg: #F0C878;
+  --chip-active-text: #0F2924;
+
+  --section-title: #F0C878;
+  --brand-badge-bg: rgba(240,200,120,0.18);
+  --brand-badge-text: #F0C878;
+  --sage-badge-bg: rgba(176,237,225,0.15);
+  --sage-badge-text: #B0EDE1;
+
+  --topbar-bg: #153530;
+  --topbar-border: #2A6B5E;
+  --topbar-link: #B0EDE1;
+  --topbar-crumb: #A9C8C1;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--body-bg);
+  color: var(--text-main);
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing:antialiased;
   line-height:1.5;
+  transition: background .3s ease, color .3s ease;
 }
 .wrap{max-width:1080px;margin:0 auto;padding:0 32px;}
 
@@ -79,6 +290,7 @@ body{
   font-family:'IBM Plex Mono', monospace;
   font-size:16px;
   letter-spacing:.02em;
+  transition: background .3s ease, color .3s ease;
 }
 .crumbbar .wrap{
   display:flex; align-items:center; justify-content:space-between;
@@ -91,8 +303,8 @@ body{
 .crumb-trail b{color:var(--crumb-strong); font-weight:600;font-size:16px !important;}
 .role-pill{
   display:flex; align-items:center; gap:8px;
-  background: rgba(216,155,52,0.18);
-  border:1px solid rgba(216,155,52,0.5);
+  background: var(--topbar-bg);
+  border:1px solid var(--topbar-border);
   color:var(--role-pill-color);
   padding:4px 12px 4px 10px;
   border-radius:999px;
@@ -152,13 +364,14 @@ section + section{ border-top:1px solid var(--line); }
 }
 .section-head h2{
   font-family:'Fraunces', serif; font-weight:600; font-size:26px;
-  margin:0; color:var(--navy);
+  margin:0; color:var(--section-title);
+  transition: color .3s ease;
 }
 .section-head .tag{
   font-family:'IBM Plex Mono', monospace; font-size:12px;
-  color: var(--ink-soft); letter-spacing:.04em;
+  color: var(--text-soft); letter-spacing:.04em;
 }
-.section-desc{ color:var(--ink-soft); font-size:15px; max-width:720px; margin:-18px 0 28px; }
+.section-desc{ color:var(--text-soft); font-size:15px; max-width:720px; margin:-18px 0 28px; }
 
 /* ---------- Card grid ---------- */
 .grid{ display:grid; gap:20px; }
@@ -166,8 +379,8 @@ section + section{ border-top:1px solid var(--line); }
 .grid.cols-2{ grid-template-columns: repeat(2, 1fr); }
 
 .card{
-  background: var(--card-bg);
-  border:1px solid var(--line);
+  background: var(--surface);
+  border:1px solid var(--surface-border);
   border-radius:14px;
   padding:26px 24px 24px;
   display:flex; flex-direction:column; gap:12px;
@@ -176,7 +389,7 @@ section + section{ border-top:1px solid var(--line); }
 .card:hover{
   transform: translateY(-3px);
   box-shadow: 0 14px 28px -18px rgba(31,56,100,0.35);
-  border-color: rgba(31,56,100,0.28);
+  border-color: var(--surface-border);
 }
 .card .icon{
   width:38px; height:38px; border-radius:10px;
@@ -187,12 +400,12 @@ section + section{ border-top:1px solid var(--line); }
 .card.featured .icon{ background: var(--gold); color: var(--navy-deep); }
 .card h3{
   font-family:'Fraunces', serif; font-weight:600; font-size:19px;
-  margin:2px 0 0; color:var(--ink);
+  margin:2px 0 0; color:var(--text-main);
 }
-.card p{ font-size:14px; color:var(--ink-soft); margin:0; flex-grow:1; }
+.card p{ font-size:14px; color:var(--text-soft); margin:0; flex-grow:1; }
 .card .cta{
   font-family:'IBM Plex Mono', monospace; font-size:12px;
-  color:var(--navy); letter-spacing:.03em;
+  color:var(--topbar-link); letter-spacing:.03em;
   display:flex; align-items:center; gap:6px; margin-top:4px;
 }
 .card .cta .arrow{ transition: transform .18s ease; }
@@ -229,25 +442,25 @@ footer b{ color:var(--navy); }
 }
 
 .ai-plus-topbar{
-  background: var(--card-bg);
-  border-bottom:1px solid var(--line);
+  background: var(--topbar-bg);
+  border-bottom:1px solid var(--topbar-border);
   padding:14px 0;
 }
 .ai-plus-topbar .wrap{
   display:flex; align-items:center; gap:14px;
 }
 .ai-plus-topbar .back-link{
-  color: var(--navy);
+  color: var(--topbar-link);
   font-family:'IBM Plex Mono', monospace;
   font-size:13px;
   text-decoration:none;
 }
 .ai-plus-topbar .back-link:hover{ text-decoration:underline; }
 .ai-plus-topbar .crumb-current{
-  color: var(--ink-soft);
+  color: var(--topbar-crumb);
   font-size:13px;
   padding-left:14px;
-  border-left:1px solid var(--line);
+  border-left:1px solid var(--topbar-border);
 }
 .ai-plus-topbar .user-badge{
   font-family:'IBM Plex Mono', monospace;

@@ -1,3 +1,6 @@
+/* Import self-hosted fonts and theme variables from ai-plus.css */
+@import url('ai-plus.css');
+
 :root{
   --navy: #1F5147;
   --navy-deep: #163B34;

@@ -4,60 +4,6 @@
 
 @section('content')
 
-@push('scripts')
-<!-- Theme Switcher (homepage only) -->
-<div class="theme-switcher" id="themeSwitcher">
-  <span class="theme-switcher-label">Theme</span>
-  <button type="button" class="theme-swatch" data-theme-value="mint" title="Mint (school color)" style="background:#B0EDE1;"></button>
-  <button type="button" class="theme-swatch" data-theme-value="teal" title="Teal (dark)" style="background:#1F5147;"></button>
-</div>
-
-<style>
-.theme-switcher{
-  position:fixed; bottom:20px; right:20px; z-index:500;
-  display:flex; align-items:center; gap:8px;
-  background:#fff; border:1px solid var(--line);
-  border-radius:999px; padding:8px 14px; box-shadow:0 8px 24px -8px rgba(0,0,0,0.18);
-  font-family:'Inter', sans-serif;
-}
-.theme-switcher-label{ font-size:12px; color:var(--ink-soft); }
-.theme-swatch{
-  width:22px; height:22px; border-radius:50%; cursor:pointer;
-  border:2px solid transparent; padding:0; transition: border-color .15s, transform .15s;
-}
-.theme-swatch:hover{ transform: scale(1.1); }
-.theme-swatch.active{ border-color: var(--ink); }
-@media (max-width:640px){
-  .theme-switcher{ bottom:12px; right:12px; padding:6px 10px; }
-  .theme-switcher-label{ display:none; }
-}
-</style>
-
-<script>
-(function(){
-  var current = localStorage.getItem('aiplus-theme') || 'mint';
-  function applyActiveState(){
-    document.querySelectorAll('.theme-swatch').forEach(function(btn){
-      btn.classList.toggle('active', btn.dataset.themeValue === current);
-    });
-  }
-  document.querySelectorAll('.theme-swatch').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      current = btn.dataset.themeValue;
-      localStorage.setItem('aiplus-theme', current);
-      if (current === 'teal') {
-        document.documentElement.setAttribute('data-theme', 'teal');
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-      }
-      applyActiveState();
-    });
-  });
-  applyActiveState();
-})();
-</script>
-@endpush
-
   <header class="hero">
     <div class="wrap">
       <span class="eyebrow">LSTS · AI+</span>
@@ -115,7 +61,7 @@
   <section id="guidance">
     <div class="wrap">
       <div class="section-head">
-        <h2>Guidance &amp; Account</h2>
+        <h2>Guidance & Account</h2>
         <span class="tag">03 — STAY INFORMED</span>
       </div>
       <div class="grid cols-2">
@@ -132,3 +78,12 @@
   </section>
 
 @endsection
+
+@push('styles')
+<style>
+  /* Homepage uses the global theme variables from ai-plus.css */
+  /* Hero section already uses: --hero-bg, --hero-text, --hero-accent, --hero-title-em, --hero-sub */
+  /* Cards use: --surface, --surface-border, --text-main, --text-soft, --topbar-link, --navy, --gold, --paper, --line */
+  /* No additional inline CSS needed - all styles use theme variables from ai-plus.css */
+</style>
+@endpush

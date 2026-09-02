@@ -12,6 +12,13 @@ class ShowcasePost extends Model
         'status', 'published_at', 'source_type',
     ];
 
+    protected $casts = [
+        'published_at' => 'datetime',
+        'views_count' => 'integer',
+        'comments_count' => 'integer',
+        'uses_count' => 'integer',
+    ];
+
     public function author()
     {
         return $this->belongsTo(User::class, 'author_id');

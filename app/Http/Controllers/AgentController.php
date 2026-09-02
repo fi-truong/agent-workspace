@@ -10,7 +10,14 @@ class AgentController extends Controller
 {
     public function index(Request $request)
     {
-        $agents = Auth::user()->agents()->latest()->get();
+        $user = Auth::user();
+
+        if (!$user) {
+            // Guest user - return empty collection
+            $agents = collect();
+        } else {
+            $agents = $user->agents()->latest()->get();
+        }
 
         if ($request->wantsJson()) {
             return response()->json($agents);

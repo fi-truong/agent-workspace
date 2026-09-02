@@ -95,46 +95,46 @@
 
 @push('styles')
 <style>
-  .page-header{background: var(--navy);color:#fff;padding: 48px 0 56px;}
+  .page-header{background: var(--page-header-bg);color: var(--page-header-text);padding: 48px 0 56px;}
   .page-header h1{font-family:'Fraunces', serif;font-weight:600;font-size: clamp(32px, 4vw, 44px);margin-bottom:12px;}
-  .page-header p{color:#C8E1DC;font-size:16px;max-width:600px;}
+  .page-header p{color: var(--page-header-muted);font-size:16px;max-width:600px;}
 
   .content{padding:40px 0 60px;}
 
   .faq-section{margin-bottom:48px;}
-  .section-title{font-family:'Fraunces', serif;font-size:24px;font-weight:600;color: var(--navy);margin-bottom:24px;}
+  .section-title{font-family:'Fraunces', serif;font-size:24px;font-weight:600;color: var(--section-title);margin-bottom:24px;}
   .faq-list{display:flex;flex-direction:column;gap:12px;}
-  .faq-item{background: var(--card-bg);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .faq-question{padding:18px 20px;font-weight:500;font-size:15px;color: var(--ink);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition: background 0.15s;}
-  .faq-question:hover{background: var(--paper);}
-  .faq-arrow{color: var(--ink-soft);font-size:12px;transition: transform 0.2s;}
+  .faq-item{background: var(--surface);border:1px solid var(--surface-border);border-radius:12px;overflow:hidden;}
+  .faq-question{padding:18px 20px;font-weight:500;font-size:15px;color: var(--text-main);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition: background 0.15s;}
+  .faq-question:hover{background: var(--input-bg);}
+  .faq-arrow{color: var(--text-soft);font-size:12px;transition: transform 0.2s;}
   .faq-item.open .faq-arrow{transform: rotate(180deg);}
-  .faq-answer{padding:0 20px;max-height:0;overflow:hidden;transition: max-height 0.3s, padding 0.3s;font-size:14px;color: var(--ink-soft);line-height:1.7;}
+  .faq-answer{padding:0 20px;max-height:0;overflow:hidden;transition: max-height 0.3s, padding 0.3s;font-size:14px;color: var(--text-soft);line-height:1.7;}
   .faq-item.open .faq-answer{padding:0 20px 20px;max-height:300px;}
 
-  .contact-section{background: var(--card-bg);border:1px solid var(--line);border-radius:14px;padding:32px;}
+  .contact-section{background: var(--surface);border:1px solid var(--surface-border);border-radius:14px;padding:32px;}
   .contact-section .section-title{margin-bottom:20px;}
   .form-grid{display:grid;grid-template-columns: 1fr 1fr;gap:16px;margin-bottom:16px;}
   .form-group{display:flex;flex-direction:column;gap:6px;}
   .form-group.full{grid-column: span 2;}
-  .form-label{font-size:13px;font-weight:500;color: var(--ink);}
-  .form-input, .form-select, .form-textarea{padding:12px 14px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;background: var(--paper);transition: border-color 0.15s;}
+  .form-label{font-size:13px;font-weight:500;color: var(--text-main);}
+  .form-input, .form-select, .form-textarea{padding:12px 14px;border:1px solid var(--input-border);border-radius:8px;font-size:14px;font-family:inherit;background: var(--input-bg);color: var(--input-text);transition: border-color 0.15s, background 0.3s, color 0.3s;}
   .form-input:focus, .form-select:focus, .form-textarea:focus{outline:none;border-color: var(--navy);}
   .form-textarea{min-height:120px;resize:vertical;}
   .form-row{display:flex;gap:12px;align-items:center;margin-top:8px;}
   .submit-btn{padding:12px 24px;background: var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition: background 0.15s;}
   .submit-btn:hover{background: var(--navy-deep);}
-  .form-note{font-size:12px;color: var(--ink-soft);}
+  .form-note{font-size:12px;color: var(--text-soft);}
 
   .form-message{padding:12px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-top:12px;display:none;}
-  .form-message.success{background:#E8F5F0;color:var(--sage);border:1px solid var(--sage);}
+  .form-message.success{background:var(--sage-badge-bg);color:var(--sage-badge-text);border:1px solid var(--sage);}
   .form-message.error{background:#FEF0F0;color:#C0392B;border:1px solid #E74C3C;}
 
-  .contact-info{margin-top:32px;padding-top:24px;border-top:1px solid var(--line);display:flex;gap:32px;flex-wrap:wrap;}
+  .contact-info{margin-top:32px;padding-top:24px;border-top:1px solid var(--surface-border);display:flex;gap:32px;flex-wrap:wrap;}
   .contact-item{display:flex;align-items:center;gap:12px;}
-  .contact-icon{width:40px;height:40px;border-radius:8px;background: var(--paper);display:flex;align-items:center;justify-content:center;font-size:18px;}
-  .contact-label{font-size:12px;color: var(--ink-soft);margin-bottom:2px;}
-  .contact-value{font-size:14px;font-weight:500;color: var(--ink);}
+  .contact-icon{width:40px;height:40px;border-radius:8px;background: var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .contact-label{font-size:12px;color: var(--text-soft);margin-bottom:2px;}
+  .contact-value{font-size:14px;font-weight:500;color: var(--text-main);}
 
   @media (max-width: 700px){
     .form-grid{grid-template-columns:1fr;}

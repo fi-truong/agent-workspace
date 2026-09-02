@@ -178,8 +178,8 @@
 @push('styles')
 <style>
   .page-header {
-    background: linear-gradient(135deg, var(--navy) 0%, #2E7A68 100%);
-    color: #fff;
+    background: var(--page-header-bg);
+    color: var(--page-header-text);
     padding: 48px 0 56px;
     position: relative;
     overflow: hidden;
@@ -191,7 +191,7 @@
     margin-bottom: 12px;
   }
   .page-header p {
-    color: #C8E1DC;
+    color: var(--page-header-muted);
     font-size: 16px;
     max-width: 600px;
   }
@@ -205,16 +205,16 @@
     align-items: center;
     gap: 8px;
     font-size: 14px;
-    color: #CCE3DE;
+    color: var(--page-header-muted);
   }
   .header-stat strong {
-    color: var(--gold);
+    color: var(--page-header-accent);
     font-family: 'IBM Plex Mono', monospace;
   }
 
   .filters-section {
-    background: var(--card-bg);
-    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    border-bottom: 1px solid var(--surface-border);
     padding: 16px 0;
     position: sticky;
     top: 0;
@@ -242,18 +242,18 @@
     transform: translateY(-50%);
     width: 20px;
     height: 20px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     pointer-events: none;
   }
   .search-box input {
     width: 100%;
     padding: 10px 44px 10px 44px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
     border-radius: 8px;
     font-size: 14px;
-    color: var(--ink);
-    transition: border-color 0.15s, box-shadow 0.15s;
+    color: var(--input-text);
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.3s, color 0.3s;
   }
   .search-box input:focus {
     outline: none;
@@ -268,13 +268,13 @@
     background: none;
     border: none;
     font-size: 18px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     cursor: pointer;
     padding: 0;
     line-height: 1;
   }
   .search-box .clear-btn:hover {
-    color: var(--ink);
+    color: var(--text-main);
   }
 
   .filter-group {
@@ -284,7 +284,7 @@
   }
   .filter-label {
     font-size: 13px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     white-space: nowrap;
   }
   .filter-chips {
@@ -294,23 +294,23 @@
   }
   .filter-chip {
     padding: 6px 12px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: var(--chip-bg);
+    border: 1px solid var(--chip-border);
     border-radius: 20px;
     font-size: 12px;
-    color: var(--ink);
+    color: var(--chip-text);
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
   }
   .filter-chip:hover {
-    background: #fff;
+    background: var(--surface);
     border-color: var(--navy);
   }
   .filter-chip.active {
-    background: var(--navy);
-    color: #fff;
-    border-color: var(--navy);
+    background: var(--chip-active-bg);
+    color: var(--chip-active-text);
+    border-color: var(--chip-active-bg);
   }
 
   .view-group {
@@ -320,7 +320,7 @@
   }
   .view-label {
     font-size: 13px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     white-space: nowrap;
   }
   .view-tabs {
@@ -330,23 +330,23 @@
   }
   .view-tab {
     padding: 6px 12px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: var(--chip-bg);
+    border: 1px solid var(--chip-border);
     border-radius: 20px;
     font-size: 12px;
-    color: var(--ink);
+    color: var(--chip-text);
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
   }
   .view-tab:hover {
-    background: #fff;
+    background: var(--surface);
     border-color: var(--navy);
   }
   .view-tab.active {
-    background: var(--navy);
-    color: #fff;
-    border-color: var(--navy);
+    background: var(--chip-active-bg);
+    color: var(--chip-active-text);
+    border-color: var(--chip-active-bg);
   }
 
   .share-btn, .share-btn-primary {
@@ -378,7 +378,7 @@
   }
   .results-count {
     font-size: 14px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
   }
 
   .showcase-grid {
@@ -388,8 +388,8 @@
   }
 
   .showcase-card {
-    background: var(--card-bg);
-    border: 1px solid var(--line);
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
     border-radius: 14px;
     overflow: hidden;
     transition: transform 0.18s, box-shadow 0.18s;
@@ -409,7 +409,7 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--surface-border);
   }
   .showcase-author {
     display: flex;
@@ -431,17 +431,17 @@
   .author-info h3 {
     font-size: 15px;
     font-weight: 600;
-    color: var(--ink);
+    color: var(--text-main);
     margin: 0;
   }
   .author-info span {
     font-size: 12px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
   }
   .showcase-badge {
     padding: 4px 10px;
-    background: #E8F5F0;
-    color: var(--sage);
+    background: var(--sage-badge-bg);
+    color: var(--sage-badge-text);
     border-radius: 6px;
     font-size: 11px;
     font-weight: 500;
@@ -457,12 +457,12 @@
     font-family: 'Fraunces', serif;
     font-size: 20px;
     font-weight: 600;
-    color: var(--navy);
+    color: var(--section-title);
     margin-bottom: 8px;
   }
   .showcase-desc {
     font-size: 14px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     line-height: 1.6;
     margin-bottom: 16px;
     flex: 1;
@@ -475,16 +475,16 @@
   }
   .tag {
     padding: 4px 10px;
-    background: var(--paper);
+    background: var(--input-bg);
     border-radius: 4px;
     font-size: 12px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
   }
   .showcase-stats {
     display: flex;
     gap: 20px;
     padding-bottom: 16px;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--surface-border);
     margin-bottom: 16px;
   }
   .stat-item {
@@ -492,7 +492,7 @@
     align-items: center;
     gap: 6px;
     font-size: 13px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
   }
   .stat-item .icon {
     font-size: 16px;
@@ -522,7 +522,7 @@
     grid-column: 1 / -1;
     text-align: center;
     padding: 60px 20px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
   }
   .empty-state svg {
     width: 64px;
@@ -579,7 +579,7 @@
     gap: 4px;
     margin-top: 16px;
     padding-top: 12px;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--surface-border);
   }
   .pagination-link,
   .pagination-current,
@@ -587,12 +587,12 @@
     min-width: 30px;
     height: 30px;
     padding: 0 6px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--surface-border);
     border-radius: 4px;
     font-size: 11px;
-    color: var(--ink);
+    color: var(--text-main);
     text-decoration: none;
-    background: var(--paper);
+    background: var(--surface);
     transition: all 0.15s;
     line-height: 1;
     display: flex;
@@ -600,7 +600,7 @@
     justify-content: center;
   }
   .pagination-link:hover {
-    background: #fff;
+    background: var(--input-bg);
     border-color: var(--navy);
     color: var(--navy);
   }
@@ -610,7 +610,7 @@
     border-color: var(--navy);
   }
   .pagination-ellipsis {
-    color: var(--ink-soft);
+    color: var(--text-soft);
     border-color: transparent;
     background: transparent;
     cursor: default;
@@ -634,7 +634,7 @@
     display: flex;
   }
   .modal {
-    background: var(--card-bg);
+    background: var(--surface);
     border-radius: 16px;
     max-width: 560px;
     width: 100%;
@@ -652,16 +652,16 @@
     font-family: 'Fraunces', serif;
     font-size: 24px;
     font-weight: 600;
-    color: var(--navy);
+    color: var(--section-title);
   }
   .modal-close {
     width: 32px;
     height: 32px;
     border: none;
-    background: var(--paper);
+    background: var(--input-bg);
     border-radius: 8px;
     font-size: 20px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -669,8 +669,8 @@
     transition: background 0.15s;
   }
   .modal-close:hover {
-    background: var(--line);
-    color: var(--ink);
+    background: var(--surface-border);
+    color: var(--text-main);
   }
   .modal-body {
     padding: 24px;
@@ -688,7 +688,7 @@
     display: block;
     font-size: 14px;
     font-weight: 500;
-    color: var(--ink);
+    color: var(--text-main);
     margin-bottom: 6px;
   }
   .form-group .text-danger {
@@ -697,11 +697,11 @@
   .form-input, .form-textarea, .form-select {
     width: 100%;
     padding: 10px 14px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
     border-radius: 8px;
     font-size: 14px;
-    color: var(--ink);
+    color: var(--input-text);
     transition: border-color 0.15s, box-shadow 0.15s;
     font-family: inherit;
   }
@@ -716,7 +716,7 @@
   }
   .form-hint {
     font-size: 12px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     margin-top: 4px;
   }
   .form-row {
@@ -726,17 +726,17 @@
   }
   .btn-secondary {
     padding: 10px 20px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
     border-radius: 8px;
     font-size: 14px;
     font-weight: 500;
-    color: var(--ink);
+    color: var(--text-main);
     cursor: pointer;
     transition: background 0.15s;
   }
   .btn-secondary:hover {
-    background: var(--line);
+    background: var(--surface-border);
   }
   .btn-primary {
     padding: 10px 20px;

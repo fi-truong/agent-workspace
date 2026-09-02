@@ -101,8 +101,8 @@
 @push('styles')
 <style>
   .page-header {
-    background: var(--navy);
-    color: #fff;
+    background: var(--page-header-bg);
+    color: var(--page-header-text);
     padding: 48px 0 56px;
   }
   .page-header h1 {
@@ -112,14 +112,14 @@
     margin-bottom: 12px;
   }
   .page-header p {
-    color: #C8E1DC;
+    color: var(--page-header-muted);
     font-size: 16px;
     max-width: 600px;
   }
 
   .filters-section {
-    background: var(--card-bg);
-    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    border-bottom: 1px solid var(--surface-border);
     padding: 16px 0;
     position: sticky;
     top: 0;
@@ -146,18 +146,18 @@
     transform: translateY(-50%);
     width: 20px;
     height: 20px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     pointer-events: none;
   }
   .search-box input {
     width: 100%;
     padding: 10px 44px 10px 44px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
     border-radius: 8px;
     font-size: 14px;
-    color: var(--ink);
-    transition: border-color 0.15s, box-shadow 0.15s;
+    color: var(--input-text);
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.3s, color 0.3s;
   }
   .search-box input:focus {
     outline: none;
@@ -172,13 +172,13 @@
     background: none;
     border: none;
     font-size: 18px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     cursor: pointer;
     padding: 0;
     line-height: 1;
   }
   .search-box .clear-btn:hover {
-    color: var(--ink);
+    color: var(--text-main);
   }
 
   .filter-group {
@@ -188,7 +188,7 @@
   }
   .filter-label {
     font-size: 13px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     white-space: nowrap;
   }
   .filter-chips {
@@ -198,23 +198,23 @@
   }
   .filter-chip {
     padding: 6px 12px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: var(--chip-bg);
+    border: 1px solid var(--chip-border);
     border-radius: 20px;
     font-size: 12px;
-    color: var(--ink);
+    color: var(--chip-text);
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
   }
   .filter-chip:hover {
-    background: #fff;
+    background: var(--surface);
     border-color: var(--navy);
   }
   .filter-chip.active {
-    background: var(--navy);
-    color: #fff;
-    border-color: var(--navy);
+    background: var(--chip-active-bg);
+    color: var(--chip-active-text);
+    border-color: var(--chip-active-bg);
   }
 
   .sort-group {
@@ -225,7 +225,7 @@
   }
   .sort-label {
     font-size: 13px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     white-space: nowrap;
   }
   .sort-chips {
@@ -234,23 +234,23 @@
   }
   .sort-chip {
     padding: 6px 12px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: var(--chip-bg);
+    border: 1px solid var(--chip-border);
     border-radius: 20px;
     font-size: 12px;
-    color: var(--ink);
+    color: var(--chip-text);
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
   }
   .sort-chip:hover {
-    background: #fff;
+    background: var(--surface);
     border-color: var(--navy);
   }
   .sort-chip.active {
-    background: var(--navy);
-    color: #fff;
-    border-color: var(--navy);
+    background: var(--chip-active-bg);
+    color: var(--chip-active-text);
+    border-color: var(--chip-active-bg);
   }
 
   .content {
@@ -266,7 +266,7 @@
   }
   .results-count {
     font-size: 14px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
   }
 
   .template-grid {
@@ -276,8 +276,8 @@
   }
 
   .template-card {
-    background: var(--card-bg);
-    border: 1px solid var(--line);
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
     border-radius: 14px;
     overflow: hidden;
     transition: transform 0.18s, box-shadow 0.18s;
@@ -331,12 +331,12 @@
     font-family: 'Fraunces', serif;
     font-size: 18px;
     font-weight: 600;
-    color: var(--ink);
+    color: var(--text-main);
     margin-bottom: 8px;
   }
   .template-desc {
     font-size: 14px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
     margin-bottom: 16px;
     line-height: 1.5;
     flex: 1;
@@ -350,16 +350,16 @@
   .feature-tag {
     font-size: 11px;
     padding: 4px 8px;
-    background: var(--paper);
+    background: var(--input-bg);
     border-radius: 4px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
   }
   .template-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding-top: 16px;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--surface-border);
   }
   .use-btn {
     padding: 8px 18px;
@@ -380,7 +380,7 @@
     grid-column: 1 / -1;
     text-align: center;
     padding: 60px 20px;
-    color: var(--ink-soft);
+    color: var(--text-soft);
   }
   .empty-state svg {
     width: 64px;
@@ -425,11 +425,11 @@
     }
   }
 
-  .pagination{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line);}
-  .pagination-link,.pagination-current,.pagination-ellipsis{min-width:30px;height:30px;padding:0 6px;border:1px solid var(--line);border-radius:4px;font-size:11px;color: var(--ink);text-decoration:none;background: var(--paper);transition: all 0.15s;line-height:1;display:flex;align-items:center;justify-content:center;}
-  .pagination-link:hover{background: #fff;border-color:var(--navy);color:var(--navy);}
+  .pagination{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:16px;padding-top:12px;border-top:1px solid var(--surface-border);}
+  .pagination-link,.pagination-current,.pagination-ellipsis{min-width:30px;height:30px;padding:0 6px;border:1px solid var(--surface-border);border-radius:4px;font-size:11px;color: var(--text-main);text-decoration:none;background: var(--surface);transition: all 0.15s;line-height:1;display:flex;align-items:center;justify-content:center;}
+  .pagination-link:hover{background: var(--input-bg);border-color:var(--navy);color:var(--navy);}
   .pagination-current{background: var(--navy);color:#fff;border-color:var(--navy);}
-  .pagination-ellipsis{color: var(--ink-soft);border-color:transparent;background:transparent;cursor:default;}
+  .pagination-ellipsis{color: var(--text-soft);border-color:transparent;background:transparent;cursor:default;}
 </style>
 @endpush
 
