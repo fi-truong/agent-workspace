@@ -19,52 +19,54 @@ class MicrosoftAuthController extends Controller
 
     public function callback()
     {
+        // Nếu cấu hình Microsoft chưa bật, redirect về login với thông báo
+        if (! config('services.microsoft.client_id')) {
+            return redirect()->route('login.local.form')
+                ->with('error', 'Đăng nhập Microsoft chưa được cấu hình. Vui lòng dùng đăng nhập email/mật khẩu.');
+        }
+
         $azureUser = Socialite::driver('microsoft')->user();
 
+        // Gating: chỉ cho phép user đã có trong DB (được admin duyệt thêm) + is_active = true
         $user = User::where('entra_id', $azureUser->getId())->first();
 
         if (! $user) {
             $user = User::where('email', $azureUser->getEmail())->first();
         }
 
-       if ($user) {
-    $user->update([
-        'entra_id' => $azureUser->getId(),
-        'name' => $user->name ?: $azureUser->getName(),
-        'source_system' => 'Entra ID',
-    ]);
-} else {
-    $user = DB::transaction(function () use ($azureUser) {
-        $newUser = User::create([
-            'name' => $azureUser->getName(),
-            'email' => $azureUser->getEmail(),
-            'password' => bcrypt(str()->random(32)),
-            'entra_id' => $azureUser->getId(),
-            'initials' => $this->makeInitials($azureUser->getName()),
-            'source_system' => 'Entra ID',
-            'email_verified_at' => now(),
-        ]);
+        // Không có trong DB → chặn, không auto-create
+        if (! $user) {
+            Auth::logout();
+            return redirect()->route('ai-plus.access-pending');
+        }
 
-        app(CreateTeam::class)->handle($newUser, $newUser->name."'s Team", isPersonal: true);
+        // Có trong DB nhưng bị khóa (is_active = false)
+        if (! $user->is_active) {
+            Auth::logout();
+            return redirect()->route('ai-plus.access-pending');
+        }
 
-        return $newUser;
-    });
-}
-        // Đảm bảo mọi user (kể cả user cũ do Seeder tạo trước khi có SSO) đều có ít nhất 1 team
+        // User hợp lệ: upsert entra_id nếu login SSO lần đầu + cập nhật name
+        if (empty($user->entra_id) || $user->entra_id !== $azureUser->getId()) {
+            $user->update([
+                'entra_id' => $azureUser->getId(),
+                'name' => $user->name ?: $azureUser->getName(),
+                'source_system' => 'Entra ID',
+            ]);
+        }
+
+        // Đảm bảo mọi user đều có ít nhất 1 team
         if ($user->ownedTeams()->count() === 0) {
             $team = app(CreateTeam::class)->handle($user, $user->name."'s Team", isPersonal: true);
-            // CreateTeam::handle đã gọi switchTeam() bên trong
         } elseif (! $user->currentTeam) {
-            // User có team nhưng chưa set current_team → chuyển sang personal team đầu tiên
             $personalTeam = $user->personalTeam();
             if ($personalTeam) {
                 $user->switchTeam($personalTeam);
             }
         }
+
         Auth::login($user, remember: true);
 
-        // Sau SSO login: luôn về trang AI+ (Blade, không cần team), không dùng intended()
-        // vì intended() có thể là '/' (welcome page Inertia) → lỗi missing current_team parameter
         return redirect()->route('ai-plus.index');
     }
 

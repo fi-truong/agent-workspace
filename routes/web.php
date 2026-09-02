@@ -105,6 +105,10 @@ Route::get('/login', function () {
 })->name('login');
 
 // Local email/password login for dev
+Route::get('/ai-plus/access-pending', function () {
+    return view('ai-plus.access-pending');
+})->name('ai-plus.access-pending');
+
 Route::get('/login-local', fn() => view('auth.login'))->name('login.local.form');
 Route::post('/login-local', function() {
     $credentials = request()->validate(['email'=>'required|email','password'=>'required']);

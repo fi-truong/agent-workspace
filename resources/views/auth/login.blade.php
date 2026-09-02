@@ -48,7 +48,7 @@
 
         <div class="links">
             <a href="{{ route('ai-plus.index') }}">← Về AI+</a>
-            <a href="{{ route('login') }}">SSO Microsoft</a>
+            <a href="{{ route('auth.microsoft.redirect') }}" class="sso-link">Đăng nhập Microsoft SSO</a>
         </div>
     </div>
 </body>
