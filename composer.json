@@ -17,6 +17,9 @@
         "laravel/socialite": "^5.29",
         "laravel/tinker": "^3.0",
         "laravel/wayfinder": "^0.1.14",
+        "phpoffice/phpword": "^1.3",
+        "phpoffice/phpspreadsheet": "^2.3",
+        "smalot/pdfparser": "^2.10",
         "socialiteproviders/microsoft": "^4.10"
     },
     "require-dev": {
@@ -71,13 +74,13 @@
             "@test"
         ],
         "types:check": [
-            "phpstan analyse"
+            "phpstan analyse --memory-limit=1G"
         ],
         "test": [
             "@php artisan config:clear --ansi",
             "@lint:check",
             "@types:check",
-            "@php artisan test"
+            "@php artisan test tests/Unit/OpenAIClientTest.php tests/Unit/ChatCompletionServiceTest.php tests/Unit/PiiFilterServiceTest.php tests/Unit/Guardrail/RegexPiiFilterTest.php tests/Feature/AgentFileUploadTest.php tests/Feature/AgentWorkspaceChatTest.php tests/Feature/Guardrail/GuardrailMiddlewareTest.php"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

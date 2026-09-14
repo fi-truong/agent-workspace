@@ -15,11 +15,11 @@ class TicketController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('subject', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhereHas('user', fn($q) => $q->where('name', 'like', "%{$search}%")
-                                                     ->orWhere('email', 'like', "%{$search}%"));
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhereHas('user', fn ($q) => $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%"));
             });
         }
 
@@ -32,7 +32,7 @@ class TicketController extends Controller
         }
 
         $sort = $request->get('sort', 'newest');
-        match($sort) {
+        match ($sort) {
             'oldest' => $query->oldest(),
             'priority' => $query->orderByDesc('priority'),
             default => $query->latest(),
@@ -49,6 +49,7 @@ class TicketController extends Controller
     {
         $ticket->load('user', 'assignee');
         $assignees = User::whereIn('role', ['admin', 'staff'])->get(['id', 'name', 'email']);
+
         return view('admin.tickets.show', compact('ticket', 'assignees'));
     }
 
@@ -90,6 +91,7 @@ class TicketController extends Controller
     public function destroy(SupportTicket $ticket)
     {
         $ticket->delete();
+
         return redirect()->route('admin.tickets.index')->with('success', 'Ticket deleted.');
     }
 }

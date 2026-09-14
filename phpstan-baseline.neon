@@ -1,0 +1,770 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Offset ''error'' on \*NEVER\* on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Console/Commands/TestOpenAIKey.php
+
+		-
+			message: '#^Offset ''ok'' on array\{ok\: bool, error\?\: string, count\?\: int, models\?\: array\<int, string\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Console/Commands/TestOpenAIKey.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\AdminDashboardController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/AdminDashboardController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\FaqController\:\:create\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/FaqController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\FaqController\:\:destroy\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/FaqController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\FaqController\:\:edit\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/FaqController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\FaqController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/FaqController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\FaqController\:\:show\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/FaqController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\FaqController\:\:store\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/FaqController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\FaqController\:\:update\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/FaqController.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/FaqController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\PromptController\:\:create\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/PromptController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\PromptController\:\:destroy\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/PromptController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\PromptController\:\:edit\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/PromptController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\PromptController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/PromptController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\PromptController\:\:show\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/PromptController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\PromptController\:\:store\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/PromptController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\PromptController\:\:update\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/PromptController.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/PromptController.php
+
+		-
+			message: '#^Relation ''tags'' is not found in App\\Models\\PromptLibraryPrompt model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Admin/PromptController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\ShowcaseController\:\:create\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/ShowcaseController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\ShowcaseController\:\:destroy\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/ShowcaseController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\ShowcaseController\:\:edit\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/ShowcaseController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\ShowcaseController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/ShowcaseController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\ShowcaseController\:\:show\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/ShowcaseController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\ShowcaseController\:\:store\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/ShowcaseController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\ShowcaseController\:\:update\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/ShowcaseController.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/ShowcaseController.php
+
+		-
+			message: '#^Relation ''tags'' is not found in App\\Models\\ShowcasePost model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Admin/ShowcaseController.php
+
+		-
+			message: '#^Call to an undefined method App\\Models\\AgentTemplateFeature\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\AgentTemplateFeature\>\:\:delete\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Call to an undefined method App\\Models\\AgentTemplateFeature\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\AgentTemplateFeature\>\:\:update\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TemplateController\:\:create\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TemplateController\:\:destroy\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TemplateController\:\:edit\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TemplateController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TemplateController\:\:show\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TemplateController\:\:store\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TemplateController\:\:update\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Relation ''features'' is not found in App\\Models\\AgentTemplate model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/Admin/TemplateController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TicketController\:\:assign\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TicketController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TicketController\:\:destroy\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TicketController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TicketController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TicketController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TicketController\:\:show\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TicketController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TicketController\:\:storeNote\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TicketController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\TicketController\:\:updateStatus\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/TicketController.php
+
+		-
+			message: '#^Relation ''user'' is not found in App\\Models\\SupportTicket model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/Admin/TicketController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\UserController\:\:create\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/UserController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\UserController\:\:destroy\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/UserController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\UserController\:\:edit\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/UserController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\UserController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/UserController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\UserController\:\:show\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/UserController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\UserController\:\:store\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/UserController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Admin\\UserController\:\:update\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Admin/UserController.php
+
+		-
+			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/UserController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\AgentTemplate\:\:\$features\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/AgentTemplateController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\AgentTemplateController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/AgentTemplateController.php
+
+		-
+			message: '#^Relation ''features'' is not found in App\\Models\\AgentTemplate model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/AgentTemplateController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\AiPlusController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/AiPlusController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\AiPolicyController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/AiPolicyController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Auth\\MicrosoftAuthController\:\:callback\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Auth/MicrosoftAuthController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Auth\\MicrosoftAuthController\:\:makeInitials\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Http/Controllers/Auth/MicrosoftAuthController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Auth\\MicrosoftAuthController\:\:redirect\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/Auth/MicrosoftAuthController.php
+
+		-
+			message: '#^Offset 0 on non\-empty\-list\<string\> on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Controllers/Auth/MicrosoftAuthController.php
+
+		-
+			message: '#^Call to an undefined method object\:\:count\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/MyUsageController.php
+
+		-
+			message: '#^Call to an undefined method object\:\:latest\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/MyUsageController.php
+
+		-
+			message: '#^Call to an undefined method object\:\:selectRaw\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/MyUsageController.php
+
+		-
+			message: '#^Call to an undefined method object\:\:whereDate\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/MyUsageController.php
+
+		-
+			message: '#^Call to an undefined method object\:\:whereNotNull\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/MyUsageController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\MyUsageController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/MyUsageController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromptLibraryPrompt\:\:\$author\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/PromptLibraryController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\PromptLibraryPrompt\:\:\$tags\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/PromptLibraryController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\PromptLibraryController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/PromptLibraryController.php
+
+		-
+			message: '#^Relation ''author'' is not found in App\\Models\\PromptLibraryPrompt model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Http/Controllers/PromptLibraryController.php
+
+		-
+			message: '#^Relation ''tags'' is not found in App\\Models\\PromptLibraryPrompt model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/PromptLibraryController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\ShowcasePost\:\:\$tags\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/SharingShowcaseController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\SharingShowcaseController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/SharingShowcaseController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\SharingShowcaseController\:\:show\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/SharingShowcaseController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\SharingShowcaseController\:\:store\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/SharingShowcaseController.php
+
+		-
+			message: '#^Relation ''author'' is not found in App\\Models\\ShowcasePost model\.$#'
+			identifier: larastan.relationExistence
+			count: 3
+			path: app/Http/Controllers/SharingShowcaseController.php
+
+		-
+			message: '#^Relation ''tags'' is not found in App\\Models\\ShowcasePost model\.$#'
+			identifier: larastan.relationExistence
+			count: 2
+			path: app/Http/Controllers/SharingShowcaseController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>initials" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Http/Controllers/SharingShowcaseController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: app/Http/Controllers/SharingShowcaseController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\SupportController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/SupportController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\SupportController\:\:sendAutoReplyEmail\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/SupportController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\SupportController\:\:sendNotificationEmail\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/SupportController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\SupportController\:\:store\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Http/Controllers/SupportController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>slug" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Http/Controllers/Teams/TeamInvitationController.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: app/Http/Middleware/GuardrailMiddleware.php
+
+		-
+			message: '#^Method App\\Http\\Middleware\\GuardrailMiddleware\:\:logPiiDetection\(\) has parameter \$detected with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Http/Middleware/GuardrailMiddleware.php
+
+		
+		-
+			message: '#^Parameter \#2 \$values of method Symfony\\Component\\HttpFoundation\\ResponseHeaderBag\:\:set\(\) expects array\<string\>\|string\|null, int\<0, max\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Middleware/GuardrailMiddleware.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Routing\\Route\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Middleware/GuardrailMiddleware.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>currentTeam" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Responses/LoginResponse.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>currentTeam" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Responses/PasskeyLoginResponse.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>currentTeam" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Responses/RegisterResponse.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>currentTeam" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Responses/TwoFactorLoginResponse.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>currentTeam" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Responses/VerifyEmailResponse.php
+
+		-
+			message: '#^Method App\\Models\\AgentTemplate\:\:features\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/AgentTemplate.php
+
+		-
+			message: '#^Method App\\Models\\AgentTemplate\:\:usageLogs\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/AgentTemplate.php
+
+		-
+			message: '#^Method App\\Models\\AgentTemplateFeature\:\:agentTemplate\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/AgentTemplateFeature.php
+
+		-
+			message: '#^Method App\\Models\\PromptLibraryPrompt\:\:author\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/PromptLibraryPrompt.php
+
+		-
+			message: '#^Method App\\Models\\PromptLibraryPrompt\:\:tags\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/PromptLibraryPrompt.php
+
+		-
+			message: '#^Method App\\Models\\ShowcasePost\:\:author\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/ShowcasePost.php
+
+		-
+			message: '#^Method App\\Models\\ShowcasePost\:\:sourceAgent\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/ShowcasePost.php
+
+		-
+			message: '#^Method App\\Models\\ShowcasePost\:\:sourceWorkflow\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/ShowcasePost.php
+
+		-
+			message: '#^Method App\\Models\\ShowcasePost\:\:tags\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/ShowcasePost.php
+
+		-
+			message: '#^Method App\\Models\\SupportTicket\:\:assignee\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/SupportTicket.php
+
+		-
+			message: '#^Method App\\Models\\SupportTicket\:\:user\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/SupportTicket.php
+
+		-
+			message: '#^Method App\\Models\\Tag\:\:prompts\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/Tag.php
+
+		-
+			message: '#^Method App\\Models\\Tag\:\:showcasePosts\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/Tag.php
+
+		-
+			message: '#^Method App\\Models\\UsageLog\:\:agentTemplate\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/UsageLog.php
+
+		-
+			message: '#^Method App\\Models\\UsageLog\:\:conversation\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/UsageLog.php
+
+		-
+			message: '#^Method App\\Models\\UsageLog\:\:user\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/UsageLog.php
+
+		-
+			message: '#^Method App\\Models\\User\:\:agents\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^Method App\\Models\\User\:\:conversations\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^Method App\\Models\\User\:\:promptLibraryPrompts\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^Method App\\Models\\User\:\:showcasePosts\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^Method App\\Models\\User\:\:usageLogs\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^Method App\\Models\\User\:\:workflows\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^Method App\\Models\\Workflow\:\:showcasePosts\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/Workflow.php
+
+		-
+			message: '#^Method App\\Models\\Workflow\:\:user\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/Workflow.php
+
+		-
+			message: '#^Method App\\Services\\Guardrail\\RegexPiiFilter\:\:filter\(\) has parameter \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Services/Guardrail/RegexPiiFilter.php
+
+		-
+			message: '#^Method App\\Services\\Guardrail\\RegexPiiFilter\:\:filter\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Services/Guardrail/RegexPiiFilter.php
+
+		-
+			message: '#^Method App\\Services\\Guardrail\\RegexPiiFilter\:\:getPatterns\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Services/Guardrail/RegexPiiFilter.php
+
+		-
+			message: '#^Binary operation "\." between PhpOffice\\PhpWord\\Element\\TextRun\|string and "\\n" results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/Services/KnowledgeService.php
+
+		-
+			message: '#^Parameter \#2 \$needle of function str_contains expects string, int\|string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/OpenAIErrorMapper.php
+
+		-
+			message: '#^Property App\\Services\\PiiFilterService\:\:\$patterns type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Services/PiiFilterService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Schema\\ForeignKeyDefinition\:\:after\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: database/migrations/2026_08_27_000004_add_user_id_to_support_tickets.php

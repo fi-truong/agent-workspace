@@ -15,9 +15,9 @@ class TemplateController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -30,7 +30,7 @@ class TemplateController extends Controller
         }
 
         $sort = $request->get('sort', 'newest');
-        match($sort) {
+        match ($sort) {
             'oldest' => $query->oldest(),
             'alpha' => $query->orderBy('name'),
             default => $query->latest(),
@@ -46,6 +46,7 @@ class TemplateController extends Controller
     public function create()
     {
         $categories = AgentTemplate::distinct()->pluck('category')->filter()->all();
+
         return view('admin.templates.create', compact('categories'));
     }
 
@@ -84,6 +85,7 @@ class TemplateController extends Controller
     public function show(AgentTemplate $template)
     {
         $template->load('features');
+
         return view('admin.templates.show', compact('template'));
     }
 
@@ -91,6 +93,7 @@ class TemplateController extends Controller
     {
         $categories = AgentTemplate::distinct()->pluck('category')->filter()->all();
         $template->load('features');
+
         return view('admin.templates.edit', compact('template', 'categories'));
     }
 
@@ -119,7 +122,10 @@ class TemplateController extends Controller
         // Handle features
         foreach ($data['features'] ?? [] as $feat) {
             if ($feat['_delete'] ?? false) {
-                if ($feat['id']) AgentTemplateFeature::find($feat['id'])?->delete();
+                if ($feat['id']) {
+                    AgentTemplateFeature::find($feat['id'])?->delete();
+                }
+
                 continue;
             }
             if ($feat['id']) {
@@ -144,6 +150,7 @@ class TemplateController extends Controller
     public function destroy(AgentTemplate $template)
     {
         $template->delete();
+
         return redirect()->route('admin.templates.index')->with('success', 'Template deleted successfully.');
     }
 }

@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
 class AiPlusController extends Controller
 {
     public function index()
@@ -46,7 +44,7 @@ class AiPlusController extends Controller
             [
                 'icon' => 'SU',
                 'title' => 'Support',
-                'description' => "Something not working, or not sure where to start? Report an issue, ask a question, or request a new feature.",
+                'description' => 'Something not working, or not sure where to start? Report an issue, ask a question, or request a new feature.',
                 'strip' => [],
                 'ctaLabel' => 'Get help',
                 'url' => route('ai-plus.support.index'),

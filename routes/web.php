@@ -1,29 +1,27 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\FaqController;
+use App\Http\Controllers\Admin\PromptController;
+use App\Http\Controllers\Admin\ShowcaseController;
+use App\Http\Controllers\Admin\TemplateController;
+use App\Http\Controllers\Admin\TicketController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AgentController;
+use App\Http\Controllers\AgentTemplateController;
+use App\Http\Controllers\AgentWorkspaceController;
+use App\Http\Controllers\AiPlusController;
+use App\Http\Controllers\AiPolicyController;
+use App\Http\Controllers\Auth\MicrosoftAuthController;
+use App\Http\Controllers\ChatMessageController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MyUsageController;
+use App\Http\Controllers\PromptLibraryController;
+use App\Http\Controllers\SharingShowcaseController;
+use App\Http\Controllers\SupportController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AiPlusController;
-use App\Http\Controllers\AgentWorkspaceController;
-use App\Http\Controllers\AgentController;
-use App\Http\Controllers\PromptLibraryController;
-use App\Http\Controllers\AgentTemplateController;
-use App\Http\Controllers\SharingShowcaseController;
-use App\Http\Controllers\MyUsageController;
-use App\Http\Controllers\AiPolicyController;
-use App\Http\Controllers\SupportController;
-
-use App\Http\Controllers\ChatMessageController;
-
-use App\Http\Controllers\Auth\MicrosoftAuthController;
-use App\Http\Controllers\Admin\AdminDashboardController;
-use App\Http\Controllers\Admin\PromptController;
-use App\Http\Controllers\Admin\TemplateController;
-use App\Http\Controllers\Admin\ShowcaseController;
-use App\Http\Controllers\Admin\FaqController;
-use App\Http\Controllers\Admin\TicketController;
-use App\Http\Controllers\Admin\UserController;
 
 Route::post('/ai-plus/agent-workspace/send', [ChatMessageController::class, 'store'])
     ->name('ai-plus.agent-workspace.send');
@@ -109,13 +107,15 @@ Route::get('/ai-plus/access-pending', function () {
     return view('ai-plus.access-pending');
 })->name('ai-plus.access-pending');
 
-Route::get('/login-local', fn() => view('auth.login'))->name('login.local.form');
-Route::post('/login-local', function() {
-    $credentials = request()->validate(['email'=>'required|email','password'=>'required']);
+Route::get('/login-local', fn () => view('auth.login'))->name('login.local.form');
+Route::post('/login-local', function () {
+    $credentials = request()->validate(['email' => 'required|email', 'password' => 'required']);
     if (auth()->attempt($credentials, request()->boolean('remember'))) {
         request()->session()->regenerate();
+
         return redirect()->intended(route('admin.dashboard'));
     }
+
     return back()->withErrors(['email' => 'Sai email hoặc mật khẩu.'])->onlyInput('email');
 })->name('login.local');
 

@@ -25,12 +25,12 @@ class RegexPiiFilter
             'description' => 'Student ID (HS/SV/ST + 6-8 digits)',
         ],
         'cccd_12' => [
-            'pattern' => '/\b[0-9]{12}\b/',
+            'pattern' => '/(?<![A-Za-z0-9À-ỹ])[0-9]{12}(?![0-9])/iu',
             'replacement' => '[CCCD]',
             'description' => '12-digit CCCD (Citizen ID)',
         ],
         'cmnd_9' => [
-            'pattern' => '/\b[0-9]{9}\b/',
+            'pattern' => '/(?<![A-Za-z0-9À-ỹ])[0-9]{9}(?![0-9])/iu',
             'replacement' => '[CMND]',
             'description' => '9-digit CMND (old ID card)',
         ],
@@ -40,9 +40,9 @@ class RegexPiiFilter
             'description' => 'Specific Vietnamese address pattern',
         ],
         'bank_account' => [
-            'pattern' => '/\b[0-9]{10,19}\b/',
+            'pattern' => '/(?<![A-Za-z0-9À-ỹ])[0-9]{12,19}(?![0-9])/iu',
             'replacement' => '[SỐ_TK]',
-            'description' => 'Bank account number (10-19 digits)',
+            'description' => 'Bank account number (12-19 digits)',
         ],
         'passport' => [
             'pattern' => '/\b[A-Z]{1,2}[0-9]{7,8}\b/',
@@ -59,8 +59,8 @@ class RegexPiiFilter
     /**
      * Filter PII from text using regex patterns.
      *
-     * @param string $text Input text to filter
-     * @param array $options Options: 'replace' (bool), 'detect_only' (bool)
+     * @param  string  $text  Input text to filter
+     * @param  array  $options  Options: 'replace' (bool), 'detect_only' (bool)
      * @return array ['filtered' => string, 'detected' => array, 'has_pii' => bool]
      */
     public function filter(string $text, array $options = []): array
@@ -70,6 +70,7 @@ class RegexPiiFilter
 
         $filtered = $text;
         $detected = [];
+        $seenOrigins = [];
 
         foreach (self::PATTERNS as $key => $config) {
             $matches = [];
@@ -78,6 +79,13 @@ class RegexPiiFilter
             if ($matchCount > 0) {
                 $uniqueMatches = array_unique($matches[0]);
                 foreach ($uniqueMatches as $match) {
+                    // Tránh đếm trùng khi cùng một chuỗi match nhiều pattern
+                    // (vd SĐT 10 số cũng khớp dãy số 10-19). Ưu tiên pattern đứng trước.
+                    if (isset($seenOrigins[$match])) {
+                        continue;
+                    }
+
+                    $seenOrigins[$match] = true;
                     $detected[] = [
                         'type' => $key,
                         'description' => $config['description'],
@@ -86,7 +94,7 @@ class RegexPiiFilter
                     ];
                 }
 
-                if ($replace && !$detectOnly) {
+                if ($replace && ! $detectOnly) {
                     $filtered = preg_replace($config['pattern'], $config['replacement'], $filtered);
                 }
             }
@@ -95,7 +103,7 @@ class RegexPiiFilter
         return [
             'filtered' => $filtered,
             'detected' => $detected,
-            'has_pii' => !empty($detected),
+            'has_pii' => ! empty($detected),
         ];
     }
 
@@ -109,6 +117,7 @@ class RegexPiiFilter
                 return true;
             }
         }
+
         return false;
     }
 

@@ -16,16 +16,16 @@ class PromptController extends Controller
         // Search
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('preview_text', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('preview_text', 'like', "%{$search}%");
             });
         }
 
         // Filters
         if ($request->filled('subject')) {
-            $query->whereHas('tags', fn($q) => $q->where('category', 'subject')->where('name', $request->subject));
+            $query->whereHas('tags', fn ($q) => $q->where('category', 'subject')->where('name', $request->subject));
         }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -33,7 +33,7 @@ class PromptController extends Controller
 
         // Sort
         $sort = $request->get('sort', 'newest');
-        match($sort) {
+        match ($sort) {
             'oldest' => $query->oldest(),
             'alpha' => $query->orderBy('title'),
             default => $query->latest(),
@@ -50,6 +50,7 @@ class PromptController extends Controller
     public function create()
     {
         $subjects = Tag::where('category', 'subject')->pluck('name', 'name')->all();
+
         return view('admin.prompts.create', compact('subjects'));
     }
 
@@ -86,6 +87,7 @@ class PromptController extends Controller
     {
         $subjects = Tag::where('category', 'subject')->pluck('name', 'name')->all();
         $currentSubject = $prompt->tags()->where('category', 'subject')->value('name');
+
         return view('admin.prompts.edit', compact('prompt', 'subjects', 'currentSubject'));
     }
 
@@ -117,6 +119,7 @@ class PromptController extends Controller
     public function destroy(PromptLibraryPrompt $prompt)
     {
         $prompt->delete();
+
         return redirect()->route('admin.prompts.index')->with('success', 'Prompt deleted successfully.');
     }
 }

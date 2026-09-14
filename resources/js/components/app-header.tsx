@@ -222,9 +222,9 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                             <DropdownMenuTrigger asChild>
                                 <Button
                                     variant="ghost"
-                                    className="size-10 rounded-full p-1 flex items-center gap-2 pr-3"
+                                    className="flex size-10 items-center gap-2 rounded-full p-1 pr-3"
                                 >
-                                    <Avatar className="size-8 overflow-hidden rounded-full shrink-0">
+                                    <Avatar className="size-8 shrink-0 overflow-hidden rounded-full">
                                         <AvatarImage
                                             src={auth.user.avatar}
                                             alt={auth.user.name}
@@ -233,7 +233,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                             {getInitials(auth.user.name)}
                                         </AvatarFallback>
                                     </Avatar>
-                                    <span className="hidden md:block text-sm font-medium text-gray-900 dark:text-white truncate max-w-[160px]">
+                                    <span className="hidden max-w-[160px] truncate text-sm font-medium text-gray-900 md:block dark:text-white">
                                         {auth.user.name}
                                     </span>
                                 </Button>

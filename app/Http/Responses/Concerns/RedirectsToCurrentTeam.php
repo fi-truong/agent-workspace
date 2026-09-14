@@ -3,6 +3,7 @@
 namespace App\Http\Responses\Concerns;
 
 use App\Models\Team;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
 use Laravel\Fortify\Fortify;
@@ -34,7 +35,7 @@ trait RedirectsToCurrentTeam
     /**
      * Fallback for SSO users without a team — redirect to AI+ homepage.
      */
-    protected function redirectToIntendedOrAiPlus(Request $request): \Illuminate\Http\RedirectResponse
+    protected function redirectToIntendedOrAiPlus(Request $request): RedirectResponse
     {
         $team = $request->user()?->currentTeam ?? $request->user()?->personalTeam();
 

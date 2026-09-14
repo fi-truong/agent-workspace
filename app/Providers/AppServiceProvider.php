@@ -2,18 +2,19 @@
 
 namespace App\Providers;
 
-use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Validation\Rules\Password;
-use Illuminate\Pagination\Paginator;
-
 use App\Models\Agent;
 use App\Policies\AgentPolicy;
+use Carbon\CarbonImmutable;
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 use SocialiteProviders\Manager\SocialiteWasCalled;
+use SocialiteProviders\Microsoft\Provider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -32,12 +33,12 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::policy(Agent::class, AgentPolicy::class);
 
-        \Illuminate\Support\Facades\View::composer(['layouts.ai-plus', 'layouts.app'], function ($view) {
+        View::composer(['layouts.ai-plus', 'layouts.app'], function ($view) {
             $view->with('currentUser', auth()->user());
         });
 
         Event::listen(function (SocialiteWasCalled $event) {
-            $event->extendSocialite('microsoft', \SocialiteProviders\Microsoft\Provider::class);
+            $event->extendSocialite('microsoft', Provider::class);
         });
 
         // Use custom pagination view

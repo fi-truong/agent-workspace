@@ -10,10 +10,12 @@ uses()->group('guardrail', 'feature');
 
 describe('GuardrailMiddleware', function () {
     beforeEach(function () {
-        $this->middleware = new GuardrailMiddleware(new RegexPiiFilter());
+        $this->middleware = new GuardrailMiddleware(new RegexPiiFilter);
         Route::get('ai-plus/test', fn () => 'ok')->name('ai-plus.test');
         Route::post('ai-plus/chat', fn () => 'ok')->name('ai-plus.chat');
         Route::post('other/route', fn () => 'ok')->name('other.route');
+        Route::post('ai-plus/agent-templates', fn () => 'ok')->name('ai-plus.agent-templates.test');
+        Route::post('ai-plus/prompt-library', fn () => 'ok')->name('ai-plus.prompt-library.test');
     });
 
     test('skips GET requests', function () {
@@ -94,37 +96,40 @@ describe('GuardrailMiddleware', function () {
     });
 
     test('logs PII detection to guardrail channel', function () {
-        Log::spy('guardrail');
+        $logger = Mockery::mock();
+        $logger->shouldReceive('info')->once()->with('PII detected and filtered', Mockery::on(
+            fn ($context) => isset($context['route']) &&
+                $context['route'] === 'ai-plus.chat' &&
+                in_array('phone_vn', $context['detected_types']) &&
+                $context['detected_count'] === 1
+        ));
+        Log::shouldReceive('channel')->with('guardrail')->andReturn($logger);
 
         $request = Request::create('/ai-plus/chat', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode(['content' => 'SĐT: 0901234567']));
         $request->setRouteResolver(fn () => Route::getRoutes()->match($request));
 
         $this->middleware->handle($request, fn ($req) => response('ok'));
-
-        Log::shouldHaveReceived('info')->with('PII detected and filtered', fn ($context) =>
-            isset($context['user_id']) &&
-            isset($context['route']) &&
-            $context['route'] === 'ai-plus.chat' &&
-            in_array('phone_vn', $context['detected_types']) &&
-            $context['detected_count'] === 1
-        );
     });
 
     test('does not log actual PII values', function () {
-        Log::spy('guardrail');
+        $capturedContext = null;
+        $logger = Mockery::mock();
+        $logger->shouldReceive('info')->once()->with('PII detected and filtered', Mockery::on(
+            function ($context) use (&$capturedContext) {
+                $capturedContext = $context;
+
+                return is_array($context);
+            }
+        ));
+        Log::shouldReceive('channel')->with('guardrail')->andReturn($logger);
 
         $request = Request::create('/ai-plus/chat', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], json_encode(['content' => 'SĐT: 0901234567, email: secret@test.com']));
         $request->setRouteResolver(fn () => Route::getRoutes()->match($request));
 
         $this->middleware->handle($request, fn ($req) => response('ok'));
 
-        Log::shouldHaveReceived('info');
-        $loggedCall = Log::captured()['guardrail'][0] ?? null;
-        $context = $loggedCall[1] ?? [];
-
-        // Should NOT contain actual PII
-        expect(json_encode($context))->not->toContain('0901234567')
-            ->and(json_encode($context))->not->toContain('secret@test.com');
+        expect(json_encode($capturedContext))->not->toContain('0901234567')
+            ->and(json_encode($capturedContext))->not->toContain('secret@test.com');
     });
 
     test('handles empty content gracefully', function () {

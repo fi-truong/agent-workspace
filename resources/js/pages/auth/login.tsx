@@ -25,7 +25,11 @@ export default function Login({ status, teamInvitation }: Props) {
                     Đăng nhập bằng tài khoản trường LSTS (Microsoft / Entra ID)
                 </p>
 
-                <Button asChild className="w-full" data-test="microsoft-login-button">
+                <Button
+                    asChild
+                    className="w-full"
+                    data-test="microsoft-login-button"
+                >
                     <a href="/auth/microsoft/redirect">
                         Đăng nhập bằng tài khoản LSTS
                     </a>

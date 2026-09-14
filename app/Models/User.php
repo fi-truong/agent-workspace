@@ -57,38 +57,38 @@ class User extends Authenticatable implements PasskeyUser
 
     public function conversations()
     {
-        return $this->hasMany(\App\Models\Conversation::class);
+        return $this->hasMany(Conversation::class);
     }
 
     public function agents()
     {
-        return $this->hasMany(\App\Models\Agent::class);
+        return $this->hasMany(Agent::class);
     }
 
     public function workflows()
     {
-        return $this->hasMany(\App\Models\Workflow::class);
+        return $this->hasMany(Workflow::class);
     }
 
     public function promptLibraryPrompts()
     {
-        return $this->hasMany(\App\Models\PromptLibraryPrompt::class, 'author_id');
+        return $this->hasMany(PromptLibraryPrompt::class, 'author_id');
     }
 
     public function showcasePosts()
     {
-        return $this->hasMany(\App\Models\ShowcasePost::class, 'author_id');
+        return $this->hasMany(ShowcasePost::class, 'author_id');
     }
 
     public function usageLogs()
     {
-        return $this->hasMany(\App\Models\UsageLog::class);
+        return $this->hasMany(UsageLog::class);
     }
 
     public function getInitialsAttribute(): string
     {
         return strtoupper(collect(explode(' ', $this->name))
-            ->map(fn($w) => mb_substr($w, 0, 1))
+            ->map(fn ($w) => mb_substr($w, 0, 1))
             ->implode(''));
     }
 }

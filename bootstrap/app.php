@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\GuardrailMiddleware;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetTeamUrlDefaults;
@@ -23,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             SetTeamUrlDefaults::class,
-            \App\Http\Middleware\GuardrailMiddleware::class,
+            GuardrailMiddleware::class,
         ]);
 
         // Trust proxies for external access (needed when accessing via LAN IP)

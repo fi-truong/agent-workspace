@@ -4,12 +4,42 @@ document.addEventListener('DOMContentLoaded', function () {
   const emptyState = document.querySelector('.empty-state');
   const main = document.querySelector('main.main');
   const inputArea = document.querySelector('.input-area');
+  const appEl = document.querySelector('.app');
 
   if (!sendBtn || !textarea || !main) return;
 
   let conversationId = null;
   let messagesContainer = null;
 
+  // Đọc selectedAgentId từ sessionStorage (set bởi trang Agents/show).
+  const selectedAgentId = sessionStorage.getItem('selectedAgentId');
+
+  // Nếu URL có ?conversation_id= → mở lại cuộc cũ (load đúng history).
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlConversationId = urlParams.get('conversation_id');
+  if (urlConversationId) {
+    conversationId = urlConversationId;
+  }
+
+  // Render history từ server khi mở lại conversation cũ.
+  function renderInitialMessages() {
+    if (!appEl) return;
+    const raw = appEl.getAttribute('data-initial-messages');
+    if (!raw) return;
+
+    let messages = [];
+    try {
+      messages = JSON.parse(raw);
+    } catch (e) {
+      return;
+    }
+    if (messages.length === 0) return;
+
+    if (emptyState) emptyState.style.display = 'none';
+    messages.forEach((m) => appendMessage(m.role, m.content));
+  }
+
+  // Hàm tạo bubble
   function ensureMessagesContainer() {
     if (messagesContainer) return messagesContainer;
     messagesContainer = document.createElement('div');
@@ -39,9 +69,14 @@ document.addEventListener('DOMContentLoaded', function () {
     container.scrollTop = container.scrollHeight;
   }
 
+  let sending = false;
+
   async function sendMessage() {
     const message = textarea.value.trim();
-    if (!message) return;
+    if (!message || sending) return;
+
+    sending = true;
+    if (sendBtn) sendBtn.textContent = 'Sending…';
 
     if (emptyState) emptyState.style.display = 'none';
     appendMessage('user', message);
@@ -58,13 +93,27 @@ document.addEventListener('DOMContentLoaded', function () {
           'X-CSRF-TOKEN': csrfToken,
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ message: message, conversation_id: conversationId }),
+        body: JSON.stringify({
+          message: message,
+          conversation_id: conversationId,
+          agent_id: selectedAgentId,
+        }),
       });
 
       const data = await response.json();
 
       if (data.blocked) {
-        appendWarning(data.warning);
+        appendWarning(data.warning || 'Nội dung của bạn chứa thông tin nhạy cảm.');
+        return;
+      }
+
+      if (!response.ok && data.error) {
+        appendWarning(data.error);
+        return;
+      }
+
+      if (!response.ok) {
+        appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
         return;
       }
 
@@ -72,6 +121,9 @@ document.addEventListener('DOMContentLoaded', function () {
       appendMessage('assistant', data.reply);
     } catch (err) {
       appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
+    } finally {
+      sending = false;
+      if (sendBtn) sendBtn.textContent = 'Send →';
     }
   }
 
@@ -86,4 +138,7 @@ document.addEventListener('DOMContentLoaded', function () {
       sendMessage();
     }
   });
+
+  // Mở lại conversation cũ → render history sau khi DOM sẵn sàng.
+  renderInitialMessages();
 });

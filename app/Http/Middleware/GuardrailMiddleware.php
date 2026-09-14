@@ -5,7 +5,6 @@ namespace App\Http\Middleware;
 use App\Services\Guardrail\RegexPiiFilter;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -18,12 +17,12 @@ class GuardrailMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
         // Only apply to AI+ routes that accept user input (POST/PUT/PATCH with content)
-        if (!$this->shouldFilter($request)) {
+        if (! $this->shouldFilter($request)) {
             return $next($request);
         }
 
@@ -60,12 +59,12 @@ class GuardrailMiddleware
     private function shouldFilter(Request $request): bool
     {
         // Only filter write operations on AI+ routes
-        if (!in_array($request->method(), ['POST', 'PUT', 'PATCH'])) {
+        if (! in_array($request->method(), ['POST', 'PUT', 'PATCH'])) {
             return false;
         }
 
         // Only filter routes under ai-plus prefix
-        if (!str_starts_with($request->route()?->uri() ?? '', 'ai-plus/')) {
+        if (! str_starts_with($request->route()?->uri() ?? '', 'ai-plus/')) {
             return false;
         }
 
@@ -94,6 +93,7 @@ class GuardrailMiddleware
         // Try JSON content first
         if ($request->isJson()) {
             $data = $request->json()->all();
+
             return $data['content'] ?? $data['message'] ?? $data['prompt'] ?? null;
         }
 
@@ -106,19 +106,39 @@ class GuardrailMiddleware
      */
     private function replaceRequestContent(Request $request, string $filtered): void
     {
+        $candidates = ['content', 'message', 'prompt'];
+
         if ($request->isJson()) {
             $data = $request->json()->all();
-            $key = array_key_first(array_intersect(['content', 'message', 'prompt'], array_keys($data)));
-            if ($key) {
+            $key = $this->firstPresentKey($data, $candidates);
+            if ($key !== null) {
                 $data[$key] = $filtered;
                 $request->replace($data);
             }
         } else {
-            $key = array_key_first(array_intersect(['content', 'message', 'prompt'], array_keys($request->all())));
-            if ($key) {
+            $data = $request->all();
+            $key = $this->firstPresentKey($data, $candidates);
+            if ($key !== null) {
                 $request->request->set($key, $filtered);
             }
         }
+    }
+
+    /**
+     * Tìm key đầu tiên trong $candidates có mặt (theo key) trong $data.
+     *
+     * @param  array<mixed>  $data
+     * @param  array<int, string>  $candidates
+     */
+    private function firstPresentKey(array $data, array $candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            if (array_key_exists($candidate, $data)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**

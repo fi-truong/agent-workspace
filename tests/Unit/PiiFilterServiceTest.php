@@ -2,8 +2,10 @@
 
 use App\Services\PiiFilterService;
 
+uses()->group('guardrail', 'unit');
+
 beforeEach(function () {
-    $this->filter = new PiiFilterService();
+    $this->filter = new PiiFilterService;
 });
 
 it('flags text containing an email', function () {

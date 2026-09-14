@@ -2,23 +2,54 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int $user_id
+ * @property int|null $agent_id
+ * @property string $title
+ * @property-read Agent|null $agent
+ * @property-read Collection<int, Message> $messages
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ */
 class Conversation extends Model
 {
-    protected $fillable = ['user_id', 'title'];
+    protected $fillable = ['user_id', 'agent_id', 'title'];
 
-    public function user()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function messages()
+    /**
+     * @return BelongsTo<Agent, $this>
+     */
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(Agent::class);
+    }
+
+    /**
+     * @return HasMany<Message, $this>
+     */
+    public function messages(): HasMany
     {
         return $this->hasMany(Message::class);
     }
 
-    public function usageLogs()
+    /**
+     * @return HasMany<UsageLog, $this>
+     */
+    public function usageLogs(): HasMany
     {
         return $this->hasMany(UsageLog::class, 'related_conversation_id');
     }

@@ -15,9 +15,9 @@ class UserController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
@@ -30,7 +30,7 @@ class UserController extends Controller
         }
 
         $sort = $request->get('sort', 'newest');
-        match($sort) {
+        match ($sort) {
             'oldest' => $query->oldest(),
             'alpha' => $query->orderBy('name'),
             default => $query->latest(),
@@ -80,7 +80,7 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+            'email' => 'required|email|max:255|unique:users,email,'.$user->id,
             'password' => 'nullable|string|min:8|confirmed',
             'role' => 'required|in:admin,staff,teacher,student',
             'department' => 'nullable|string|max:100',
@@ -111,6 +111,7 @@ class UserController extends Controller
         }
 
         $user->delete();
+
         return redirect()->route('admin.users.index')->with('success', 'User deleted successfully.');
     }
 }

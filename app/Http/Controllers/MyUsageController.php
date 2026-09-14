@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Http\Request;
+use Carbon\CarbonInterface;
 
 class MyUsageController extends Controller
 {
@@ -67,7 +67,7 @@ class MyUsageController extends Controller
         return $tokens >= 1000 ? round($tokens / 1000, 1).'K' : (string) $tokens;
     }
 
-    private function formatRelativeTime(\Carbon\CarbonInterface $time): string
+    private function formatRelativeTime(CarbonInterface $time): string
     {
         if ($time->isToday()) {
             return $time->format('h:i A');
@@ -75,6 +75,7 @@ class MyUsageController extends Controller
         if ($time->isYesterday()) {
             return 'Yesterday';
         }
+
         return $time->diffInDays(now()).' days ago';
     }
 

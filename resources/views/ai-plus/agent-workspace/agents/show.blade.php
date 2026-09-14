@@ -38,6 +38,17 @@
       @else
       <p class="no-prompt">No custom system prompt set. Will use default behavior.</p>
       @endif
+
+      <h2 style="margin-top:28px;">Knowledge</h2>
+      @if($agent->knowledge_files)
+        <ul class="knowledge-files">
+          @foreach($agent->knowledge_files as $file)
+          <li>{{ $file['original_name'] ?? $file['path'] }}</li>
+          @endforeach
+        </ul>
+      @else
+        <p class="no-prompt">No knowledge files uploaded.</p>
+      @endif
     </section>
 
     <aside class="agent-sidebar">
@@ -93,6 +104,11 @@
 .info-card dt { color: var(--ink-soft); font-size: 13px; font-family: 'IBM Plex Mono', monospace; }
 .info-card dd { margin: 0; color: var(--ink); font-size: 13px; }
 .usage-hint { color: var(--ink-soft); font-size: 13px; margin: 0; }
+.knowledge-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.knowledge-files li {
+  background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 12px; font-size: 13px; color: var(--ink);
+}
 
 @media (max-width: 860px) {
   .agent-detail-grid { grid-template-columns: 1fr; }

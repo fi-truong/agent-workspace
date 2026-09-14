@@ -19,9 +19,9 @@ class SharingShowcaseController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('department', 'like', "%{$search}%")
-                  ->orWhereHas('author', fn ($a) => $a->where('name', 'like', "%{$search}%"));
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('department', 'like', "%{$search}%")
+                    ->orWhereHas('author', fn ($a) => $a->where('name', 'like', "%{$search}%"));
             });
         }
 
@@ -110,7 +110,7 @@ class SharingShowcaseController extends Controller
         ]);
 
         // Attach tags (comma-separated input)
-        if (!empty($data['tags'])) {
+        if (! empty($data['tags'])) {
             $tagNames = array_filter(
                 array_map('trim', explode(',', $data['tags']))
             );
@@ -159,9 +159,9 @@ class SharingShowcaseController extends Controller
             ->where('id', '!=', $showcase->id)
             ->where(function ($q) use ($showcase) {
                 $q->where('department', $showcase->department)
-                  ->orWhereHas('tags', function ($t) use ($showcase) {
-                      $t->whereIn('tags.id', $showcase->tags->pluck('id'));
-                  });
+                    ->orWhereHas('tags', function ($t) use ($showcase) {
+                        $t->whereIn('tags.id', $showcase->tags->pluck('id'));
+                    });
             })
             ->with('author', 'tags')
             ->latest()

@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Actions\Teams\CreateTeam;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Laravel\Socialite\Facades\Socialite;
-
-use App\Actions\Teams\CreateTeam;
 use Illuminate\Support\Facades\DB;
+use Laravel\Socialite\Facades\Socialite;
 
 class MicrosoftAuthController extends Controller
 {
@@ -37,12 +36,14 @@ class MicrosoftAuthController extends Controller
         // Không có trong DB → chặn, không auto-create
         if (! $user) {
             Auth::logout();
+
             return redirect()->route('ai-plus.access-pending');
         }
 
         // Có trong DB nhưng bị khóa (is_active = false)
         if (! $user->is_active) {
             Auth::logout();
+
             return redirect()->route('ai-plus.access-pending');
         }
 
@@ -75,6 +76,7 @@ class MicrosoftAuthController extends Controller
         $parts = explode(' ', trim($name));
         $first = mb_substr($parts[0] ?? '', 0, 1);
         $last = mb_substr(end($parts) ?: '', 0, 1);
+
         return mb_strtoupper($first.$last);
     }
 }

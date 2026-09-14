@@ -19,7 +19,7 @@ class FaqSeeder extends Seeder
                 'answer' => 'Teachers and staff have a daily quota of 50 prompts. This resets at midnight (Vietnam time). You can check your remaining quota in the "My Usage" section. If you need more for a specific project, contact the CIEC team.',
             ],
             [
-                'question' => "Can I share my AI conversations with colleagues?",
+                'question' => 'Can I share my AI conversations with colleagues?',
                 'answer' => "Yes! You can export conversations and share them. Better yet, if you've created a useful agent or prompt, consider sharing it through the Sharing & Showcase section so others can benefit from your work.",
             ],
             [

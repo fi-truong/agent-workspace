@@ -398,6 +398,6 @@ class AgentTemplateSeeder extends Seeder
             }
         }
 
-        $this->command->info('Seeded ' . count($templates) . ' agent templates with features.');
+        $this->command->info('Seeded '.count($templates).' agent templates with features.');
     }
 }

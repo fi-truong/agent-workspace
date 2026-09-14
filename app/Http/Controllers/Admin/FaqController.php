@@ -14,9 +14,9 @@ class FaqController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('question', 'like', "%{$search}%")
-                  ->orWhere('answer', 'like', "%{$search}%");
+                    ->orWhere('answer', 'like', "%{$search}%");
             });
         }
 
@@ -25,7 +25,7 @@ class FaqController extends Controller
         }
 
         $sort = $request->get('sort', 'newest');
-        match($sort) {
+        match ($sort) {
             'oldest' => $query->oldest(),
             'alpha' => $query->orderBy('question'),
             default => $query->latest(),
@@ -40,6 +40,7 @@ class FaqController extends Controller
     public function create()
     {
         $categories = Faq::distinct()->pluck('category')->filter()->all();
+
         return view('admin.faqs.create', compact('categories'));
     }
 
@@ -68,6 +69,7 @@ class FaqController extends Controller
     public function edit(Faq $faq)
     {
         $categories = Faq::distinct()->pluck('category')->filter()->all();
+
         return view('admin.faqs.edit', compact('faq', 'categories'));
     }
 
@@ -91,6 +93,7 @@ class FaqController extends Controller
     public function destroy(Faq $faq)
     {
         $faq->delete();
+
         return redirect()->route('admin.faqs.index')->with('success', 'FAQ deleted successfully.');
     }
 }

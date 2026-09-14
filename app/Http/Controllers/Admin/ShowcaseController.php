@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ShowcasePost;
-use App\Models\Tag;
 use Illuminate\Http\Request;
 
 class ShowcaseController extends Controller
@@ -15,9 +14,9 @@ class ShowcaseController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('content', 'like', "%{$search}%");
+                    ->orWhere('content', 'like', "%{$search}%");
             });
         }
 
@@ -26,7 +25,7 @@ class ShowcaseController extends Controller
         }
 
         $sort = $request->get('sort', 'newest');
-        match($sort) {
+        match ($sort) {
             'oldest' => $query->oldest(),
             'popular' => $query->orderByDesc('views_count'),
             'alpha' => $query->orderBy('title'),
@@ -91,6 +90,7 @@ class ShowcaseController extends Controller
     public function destroy(ShowcasePost $showcase)
     {
         $showcase->delete();
+
         return redirect()->route('admin.showcases.index')->with('success', 'Showcase deleted successfully.');
     }
 }

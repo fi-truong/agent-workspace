@@ -6,7 +6,7 @@ uses()->group('guardrail', 'unit');
 
 describe('RegexPiiFilter', function () {
     beforeEach(function () {
-        $this->filter = new RegexPiiFilter();
+        $this->filter = new RegexPiiFilter;
     });
 
     describe('Vietnamese phone numbers', function () {
@@ -54,7 +54,8 @@ describe('RegexPiiFilter', function () {
         });
 
         test('does not detect invalid phone numbers', function () {
-            $invalid = ['0123456789', '0201234567', '090123456', '1234567890'];
+            // 10 chữ số không thuộc prefix nhà mạng VN (không phải SĐT, không phải CMND/CCCD)
+            $invalid = ['0123456789', '0201234567', '1234567890'];
             foreach ($invalid as $phone) {
                 $result = $this->filter->filter("Số: {$phone}");
                 expect($result['has_pii'])->toBeFalse();

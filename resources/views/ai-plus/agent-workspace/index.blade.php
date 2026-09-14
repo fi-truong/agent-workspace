@@ -5,7 +5,9 @@
 @section('breadcrumb', 'Agent Workspace')
 
 @section('content')
-<div class="app">
+<div class="app"
+     data-initial-messages="{{ htmlspecialchars(json_encode($initialMessages), ENT_QUOTES) }}"
+     data-active-conversation="{{ $activeConversationId ?? '' }}">
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-header">
@@ -35,10 +37,11 @@
         <button class="add-btn" title="New chat">+</button>
       </div>
       @foreach($conversations as $conv)
-      <div class="chat-item {{ $loop->first ? 'active' : '' }}">
+      <a href="{{ route('ai-plus.agent-workspace.index', ['conversation_id' => $conv['id']]) }}"
+         class="chat-item {{ $loop->first ? 'active' : '' }}">
         <span class="item-icon chat">💬</span>
         <span class="title">{{ $conv['title'] }}</span>
-      </div>
+      </a>
       @endforeach
 
       <div class="chat-list-section">
@@ -96,7 +99,7 @@
       </div>
       <div class="topbar-right">
         <button class="icon-btn" title="Upload file (attach)">📎</button>
-        <button class="icon-btn" title="Save as Agent">🤖</button>
+        <button class="icon-btn" data-behavior="save-as-agent" title="Save as Agent">🤖</button>
         <button class="icon-btn" title="Export conversation">↓</button>
         <button class="icon-btn" title="Settings">⚙</button>
       </div>
@@ -231,3 +234,5 @@
 @push('scripts')
 <script src="{{ asset('js/agent-workspace-chat.js') }}"></script>
 @endpush
+
+@include('ai-plus.agent-workspace.agents._agent-form-modal')

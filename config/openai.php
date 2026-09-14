@@ -1,0 +1,40 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | OpenAI API Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Đọc từ .env. Key được giữ riêng trong biến môi trường (không commit).
+    | Model mặc định: GPT-5.6 Luna theo cost model đã chốt cho AI+ (kiểm tra giá
+    | lại trước khi deploy thật, giá API có thể đổi).
+    |
+    */
+
+    'api_key' => env('OPENAI_API_KEY'),
+
+    'organization' => env('OPENAI_ORGANIZATION'),
+
+    'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+
+    'model' => env('OPENAI_MODEL', 'gpt-5.6-luna'),
+
+    'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 2048),
+
+    'temperature' => (float) env('OPENAI_TEMPERATURE', 0.7),
+
+    /*
+    | Thời gian chờ tối đa cho mỗi request đến OpenAI.
+    | Nếu external API chậm, fail nhanh để tránh treo worker/request.
+    */
+    'timeout' => (int) env('OPENAI_TIMEOUT', 30),
+
+    /*
+    | Số lần retry + thời gian chờ giữa các lần (milliseconds).
+    | Chỉ retry khi lỗi tạm thời (connection/timeout/5xx), không retry 4xx.
+    */
+    'retry_times' => (int) env('OPENAI_RETRY_TIMES', 2),
+    'retry_delay_ms' => (int) env('OPENAI_RETRY_DELAY_MS', 300),
+];

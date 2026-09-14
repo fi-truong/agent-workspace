@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\PromptLibraryPrompt;
 use App\Models\AgentTemplate;
-use App\Models\ShowcasePost;
 use App\Models\Faq;
+use App\Models\PromptLibraryPrompt;
+use App\Models\ShowcasePost;
 use App\Models\SupportTicket;
 use App\Models\User;
 

@@ -24,8 +24,9 @@ class PromptLibrarySeeder extends Seeder
         ];
 
         // Helper: lấy author_id ngẫu nhiên hoặc cụ thể
-        $getAuthor = function ($email) use ($authors) {
+        $getAuthor = function ($email) {
             $user = User::where('email', $email)->first();
+
             return $user ? $user->id : null;
         };
 

@@ -48,41 +48,7 @@
   </div>
 </div>
 
-<!-- Create/Edit Agent Modal -->
-<div class="modal-overlay" id="agent-modal" style="display:none;">
-  <div class="modal">
-    <div class="modal-header">
-      <h3 id="modal-title">Create Agent</h3>
-      <button class="modal-close" id="modal-close">&times;</button>
-    </div>
-    <form id="agent-form" method="POST">
-      @csrf
-      <input type="hidden" name="_method" value="POST" id="form-method">
-      <input type="hidden" name="agent_id" id="agent-id">
-      <div class="form-group">
-        <label for="title">Title <span class="required">*</span></label>
-        <input type="text" id="title" name="title" required maxlength="255" placeholder="e.g., Math Quiz Generator">
-      </div>
-      <div class="form-group">
-        <label for="description">Description</label>
-        <textarea id="description" name="description" rows="3" placeholder="What does this agent do?"></textarea>
-      </div>
-      <div class="form-group">
-        <label for="system_prompt">System Prompt</label>
-        <textarea id="system_prompt" name="system_prompt" rows="6" placeholder="Instructions for the AI (e.g., 'You are a helpful math teacher...')"></textarea>
-        <small class="form-hint">This prompt guides the agent's behavior. Leave empty to use default.</small>
-      </div>
-      <div class="form-group checkbox-group">
-        <input type="checkbox" id="is_shared" name="is_shared" value="1">
-        <label for="is_shared">Share with team (visible in Sharing & Showcase)</label>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
-        <button type="submit" class="btn btn-primary" id="modal-submit">Save</button>
-      </div>
-    </form>
-  </div>
-</div>
+@include('ai-plus.agent-workspace.agents._agent-form-modal')
 
 @push('styles')
 <style>
@@ -130,6 +96,79 @@
 .form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px rgba(31,56,100,0.1); }
 .form-group textarea { resize: vertical; min-height: 100px; }
 .form-hint { font-size: 12px; color: var(--ink-soft); }
+
+/* Knowledge dropzone */
+.knowledge-dropzone {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(31,56,100,0.03);
+  cursor: pointer;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.knowledge-dropzone:hover {
+  border-color: rgba(31,56,100,0.35);
+  background: rgba(31,56,100,0.05);
+}
+.knowledge-dropzone.is-dragover {
+  border-color: var(--navy);
+  background: rgba(31,56,100,0.08);
+  box-shadow: 0 0 0 3px rgba(31,56,100,0.08);
+}
+.knowledge-dropzone-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+  user-select: none;
+}
+.knowledge-dropzone-title {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 14px;
+}
+.knowledge-dropzone-sub {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.knowledge-file-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.knowledge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  max-width: 100%;
+}
+.knowledge-chip-name {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.knowledge-chip-x {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 14px;
+  padding: 0;
+  line-height: 1;
+}
+.knowledge-chip-x:hover { color: var(--ink); }
+
+.badge-coming { display: inline-block; font-size: 10px; background: var(--gold); color: var(--navy-deep); padding: 2px 8px; border-radius: 999px; font-weight: 500; margin-left: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
 .checkbox-group { flex-direction: row; align-items: center; gap: 10px; }
 .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--navy); }
 .checkbox-group label { margin: 0; font-weight: 400; }
@@ -147,113 +186,22 @@
 </style>
 @endpush
 
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const modal = document.getElementById('agent-modal');
-  const form = document.getElementById('agent-form');
-  const createBtn = document.getElementById('create-agent-btn');
-  const createFirstBtn = document.getElementById('create-first-agent');
-  const closeBtn = document.getElementById('modal-close');
-  const cancelBtn = document.getElementById('modal-cancel');
-  const modalTitle = document.getElementById('modal-title');
-  const formMethod = document.getElementById('form-method');
-  const agentIdInput = document.getElementById('agent-id');
 
-  function openModal(agent = null) {
-    modal.style.display = 'flex';
-    form.reset();
-    if (agent) {
-      modalTitle.textContent = 'Edit Agent';
-      formMethod.value = 'PUT';
-      agentIdInput.value = agent.id;
-      document.getElementById('title').value = agent.title;
-      document.getElementById('description').value = agent.description || '';
-      document.getElementById('system_prompt').value = agent.system_prompt || '';
-      document.getElementById('is_shared').checked = agent.is_shared;
-    } else {
-      modalTitle.textContent = 'Create Agent';
-      formMethod.value = 'POST';
-      agentIdInput.value = '';
-    }
-  }
+/* Knowledge saved files (edit mode) */
+.knowledge-saved-list { display: none; margin-top: 12px; }
+.knowledge-saved-heading { font-size: 12px; color: var(--ink-soft); margin-bottom: 8px; }
+.knowledge-saved-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px;
+  background: var(--paper); margin-bottom: 6px; font-size: 13px; color: var(--ink);
+}
+.knowledge-saved-row.removing { text-decoration: line-through; }
+.knowledge-saved-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  function closeModal() {
-    modal.style.display = 'none';
-    form.reset();
-  }
-
-  createBtn?.addEventListener('click', () => openModal());
-  createFirstBtn?.addEventListener('click', () => openModal());
-  closeBtn.addEventListener('click', closeModal);
-  cancelBtn.addEventListener('click', closeModal);
-  modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-
-  // Edit buttons (delegated)
-  document.getElementById('agents-grid').addEventListener('click', async (e) => {
-    const editBtn = e.target.closest('.edit-agent');
-    const useBtn = e.target.closest('.use-agent');
-    const deleteBtn = e.target.closest('.delete-agent');
-
-    if (editBtn) {
-      const agentId = editBtn.dataset.agentId;
-      const res = await fetch(`/ai-plus/agent-workspace/agents/${agentId}`, { headers: { 'Accept': 'application/json' } });
-      const agent = await res.json();
-      openModal(agent);
-    }
-
-    if (useBtn) {
-      const agentId = useBtn.dataset.agentId;
-      // Store selected agent in sessionStorage for chat tab
-      sessionStorage.setItem('selectedAgentId', agentId);
-      // Switch to Chat tab
-      document.querySelector('.ws-tab[data-tab="chat"]')?.click();
-      // Notify chat to load agent
-      window.dispatchEvent(new CustomEvent('agent-selected', { detail: { agentId } }));
-    }
-
-    if (deleteBtn) {
-      if (!confirm('Delete this agent?')) return;
-      const agentId = deleteBtn.dataset.agentId;
-      const res = await fetch(`/ai-plus/agent-workspace/agents/${agentId}`, {
-        method: 'DELETE',
-        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
-      });
-      if (res.ok) {
-        location.reload();
-      } else {
-        alert('Failed to delete agent');
-      }
-    }
-  });
-
-  // Form submit
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const isEdit = formMethod.value === 'PUT';
-    const agentId = agentIdInput.value;
-    const url = isEdit ? `/ai-plus/agent-workspace/agents/${agentId}` : '/ai-plus/agent-workspace/agents';
-    const method = isEdit ? 'PUT' : 'POST';
-
-    const formData = new FormData(form);
-    // Convert checkbox
-    formData.set('is_shared', formData.get('is_shared') ? '1' : '0');
-
-    const res = await fetch(url, {
-      method,
-      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
-      body: formData
-    });
-
-    if (res.ok) {
-      closeModal();
-      location.reload();
-    } else {
-      const err = await res.json();
-      alert(err.message || 'Failed to save agent');
-    }
-  });
-});
-</script>
+@media (max-width: 640px) {
+  .agents-page { padding: 16px 20px 32px; }
+  .agents-grid { grid-template-columns: 1fr; }
+}
+</style>
 @endpush
 @endsection

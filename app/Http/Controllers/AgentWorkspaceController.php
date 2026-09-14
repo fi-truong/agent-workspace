@@ -4,10 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
 
 class AgentWorkspaceController extends Controller
 {
-    public function index()
+    public function index(Request $request): View
     {
         $user = Auth::user();
 
@@ -19,6 +20,10 @@ class AgentWorkspaceController extends Controller
         $promptsLimit = 50;
         $userName = 'Teacher / Staff';
         $userInitials = 'TS';
+
+        // Tin nhắn initial nếu mở lại conversation cũ qua ?conversation_id=
+        $initialMessages = [];
+        $activeConversationId = $request->query('conversation_id');
 
         if ($user) {
             $conversations = $user->conversations()->latest()->get()->map(fn ($c) => [
@@ -37,6 +42,19 @@ class AgentWorkspaceController extends Controller
             $promptsLimit = $user->daily_prompt_quota;
             $userName = $user->name;
             $userInitials = $user->initials;
+
+            // Load history khi mở lại conversation cũ
+            if ($activeConversationId) {
+                $conversation = $user->conversations()->find($activeConversationId);
+
+                if ($conversation) {
+                    $initialMessages = $conversation->messages()
+                        ->orderBy('id')
+                        ->get()
+                        ->map(fn ($m) => ['role' => $m->role, 'content' => $m->content])
+                        ->toArray();
+                }
+            }
         }
 
         $quickActions = [
@@ -58,6 +76,8 @@ class AgentWorkspaceController extends Controller
             'userInitials' => $userInitials,
             'promptsUsed' => $promptsUsedToday,
             'promptsLimit' => $promptsLimit,
+            'initialMessages' => $initialMessages,
+            'activeConversationId' => $activeConversationId,
         ]);
     }
 }

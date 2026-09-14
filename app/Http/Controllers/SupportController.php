@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Faq;
 use App\Models\SupportTicket;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class SupportController extends Controller
 {
@@ -72,10 +72,10 @@ class SupportController extends Controller
                 <p><strong>Subject:</strong> {$ticket->subject}</p>
                 <hr>
                 <p><strong>Details:</strong></p>
-                <p>" . nl2br(e($ticket->details)) . "</p>
+                <p>".nl2br(e($ticket->details)).'</p>
                 <hr>
-                <p><a href=\"" . route('admin.tickets.show', $ticket) . "\">View in Admin Panel</a></p>
-            ";
+                <p><a href="'.route('admin.tickets.show', $ticket).'">View in Admin Panel</a></p>
+            ';
 
             // Using Mail::raw for simplicity - in production, use a proper Mailable class
             Mail::raw($message, function ($m) use ($to, $subject) {
