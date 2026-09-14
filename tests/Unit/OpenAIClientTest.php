@@ -35,7 +35,8 @@ it('sends correct payload to chat completions', function () {
             && $request->hasHeader('Content-Type', 'application/json')
             && ($payload['model'] ?? null) === 'gpt-5.6-luna'
             && ($payload['messages'][0]['content'] ?? null) === 'Hi'
-            && isset($payload['max_tokens'], $payload['temperature']);
+            && isset($payload['max_completion_tokens'])
+            && ! isset($payload['temperature']);
     });
 });
 

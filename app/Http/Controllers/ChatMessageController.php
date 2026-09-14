@@ -38,7 +38,12 @@ class ChatMessageController extends Controller
             'message' => 'required|string|max:5000',
             'conversation_id' => 'nullable|integer|exists:conversations,id',
             'agent_id' => 'nullable|integer|exists:agents,id',
+            'images' => 'nullable|array',
+            'images.*' => 'string', // data URL base64 (vd data:image/png;base64,...)
         ]);
+
+        // Tối đa 4 ảnh mỗi lượt gửi (tránh payload quá lớn + tốn token).
+        $images = array_slice($request->input('images', []), 0, 4);
 
         $user = $request->user() ?? User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
 
@@ -91,6 +96,18 @@ class ChatMessageController extends Controller
                 ];
             })
             ->toArray();
+
+        // Nếu có ảnh kèm lượt gửi này → message user cuối trong lịch sử
+        // biến thành multimodal (text + ảnh) để OpenAI hiểu.
+        if (! empty($images)) {
+            $history[count($history) - 1]['content'] = [
+                ['type' => 'text', 'text' => $request->message],
+                ...array_map(
+                    fn (string $dataUrl) => ['type' => 'image_url', 'image_url' => ['url' => $dataUrl]],
+                    $images,
+                ),
+            ];
+        }
 
         $systemPrompt = $this->buildSystemPrompt($conversation, $knowledgeService);
 

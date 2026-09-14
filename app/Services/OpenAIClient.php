@@ -11,7 +11,7 @@ class OpenAIClient
     /**
      * Gọi OpenAI Chat Completions API.
      *
-     * @param  array<int, array{role: string, content: string}>  $messages
+     * @param  array<int, array{role: string, content: mixed}>  $messages  content có thể là string hoặc array multimodal
      * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string}
      *
      * @throws \Throwable Ném lại exception sau khi đã map lỗi, để caller xử lý theo kiểu LLM error.
@@ -29,8 +29,9 @@ class OpenAIClient
         $payload = [
             'model' => config('openai.model'),
             'messages' => $messages,
-            'max_tokens' => config('openai.max_tokens'),
-            'temperature' => config('openai.temperature'),
+            // Model GPT-5+ không chấp nhận "max_tokens"; phải dùng "max_completion_tokens".
+            'max_completion_tokens' => config('openai.max_tokens'),
+            // Model GPT-5+ không hỗ trợ "temperature" tùy chỉnh (chỉ dùng giá trị mặc định).
         ];
 
         $response = Http::retry(

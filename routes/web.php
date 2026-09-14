@@ -103,6 +103,14 @@ Route::get('/login', function () {
 })->name('login');
 
 // Local email/password login for dev
+Route::post('/logout', function () {
+    Auth::logout();
+    request()->session()->invalidate();
+    request()->session()->regenerateToken();
+
+    return redirect()->route('login.local.form');
+})->middleware('auth')->name('logout');
+
 Route::get('/ai-plus/access-pending', function () {
     return view('ai-plus.access-pending');
 })->name('ai-plus.access-pending');
@@ -113,7 +121,7 @@ Route::post('/login-local', function () {
     if (auth()->attempt($credentials, request()->boolean('remember'))) {
         request()->session()->regenerate();
 
-        return redirect()->intended(route('admin.dashboard'));
+        return redirect()->intended(route('ai-plus.index'));
     }
 
     return back()->withErrors(['email' => 'Sai email hoặc mật khẩu.'])->onlyInput('email');

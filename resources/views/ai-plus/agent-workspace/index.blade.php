@@ -5,9 +5,8 @@
 @section('breadcrumb', 'Agent Workspace')
 
 @section('content')
-<div class="app"
-     data-initial-messages="{{ htmlspecialchars(json_encode($initialMessages), ENT_QUOTES) }}"
-     data-active-conversation="{{ $activeConversationId ?? '' }}">
+<div class="app">
+  <script>window.__INITIAL_MESSAGES__ = @json($initialMessages);</script>
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-header">
@@ -78,6 +77,10 @@
           </div>
         </div>
       </div>
+      <form method="POST" action="{{ route('logout') }}" style="margin-top:12px;">
+        @csrf
+        <button type="submit" class="logout-btn" title="Đăng xuất">Logout ↗</button>
+      </form>
     </div>
   </aside>
 
@@ -98,10 +101,14 @@
         </div>
       </div>
       <div class="topbar-right">
-        <button class="icon-btn" title="Upload file (attach)">📎</button>
+        <button class="icon-btn" data-behavior="attach-topbar" title="Upload image">📎</button>
         <button class="icon-btn" data-behavior="save-as-agent" title="Save as Agent">🤖</button>
-        <button class="icon-btn" title="Export conversation">↓</button>
-        <button class="icon-btn" title="Settings">⚙</button>
+        <button class="icon-btn" data-behavior="export-chat" title="Export conversation">↓</button>
+        <button class="icon-btn" data-behavior="settings" title="Settings">⚙</button>
+      </div>
+      <div class="settings-popover" id="settings-popover" style="display:none;">
+        <div class="sp-item"><span class="sp-label">Model</span><span class="sp-value">GPT-5.6 Luna</span></div>
+        <div class="sp-item"><span class="sp-label">Khu vực</span><span class="sp-value">School AI</span></div>
       </div>
     </div>
 
@@ -128,10 +135,11 @@
         <div class="input-box">
           <textarea placeholder="Type your message, or describe what you want to build..." rows="1"></textarea>
           <div class="input-actions">
-            <button class="attach-btn" title="Attach file">📎</button>
+            <button class="attach-btn" title="Attach image">📎</button>
             <button class="send-btn">Send →</button>
           </div>
         </div>
+        <input type="file" id="chat-image-input" accept="image/*" multiple style="display:none;">
         <div class="input-hint">
           Press Enter to send, Shift+Enter for new line • Your data is protected by PII filtering • Upload files for analysis
         </div>
@@ -181,6 +189,8 @@
   .user-details{flex:1;min-width:0;}
   .user-name{color: var(--page-header-text);font-size:14px;font-weight:500;}
   .user-quota{color: var(--text-soft);font-size:12px;display:flex;align-items:center;gap:4px;}
+  .logout-btn{width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color: var(--text-soft);font-size:13px;cursor:pointer;transition: background 0.15s, color 0.15s;}
+  .logout-btn:hover{background: rgba(220,53,69,0.08);color: #dc3545;border-color: #dc3545;}
   .quota-bar{height:4px;background: var(--chip-border);border-radius:2px;width:60px;overflow:hidden;margin-top:2px;}
   .quota-fill{height:100%;background: var(--gold);border-radius:2px;}
 
@@ -188,7 +198,7 @@
   .main{flex:1;display:flex;flex-direction:column;background: var(--body-bg);min-width:0;}
 
   /* Topbar */
-  .topbar{padding:16px 24px;background: var(--topbar-bg);border-bottom:1px solid var(--topbar-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .topbar{padding:16px 24px;background: var(--topbar-bg);border-bottom:1px solid var(--topbar-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:relative;}
   .workspace-title{display:flex;align-items:center;gap:10px;}
   .workspace-title h1{font-size:18px;font-weight:600;color: var(--text-main);margin:0;}
   .ws-type-badge{padding:4px 10px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:6px;font-size:11px;font-family:'IBM Plex Mono', monospace;color: var(--text-soft);}
@@ -197,6 +207,10 @@
   .topbar-right{display:flex;align-items:center;gap:8px;}
   .icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--topbar-border);background: var(--topbar-bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color: var(--topbar-crumb);font-size:16px;transition: background 0.15s;}
   .icon-btn:hover{background: var(--surface);color: var(--topbar-link);}
+  .settings-popover{position:absolute;top:54px;right:16px;z-index:50;background: var(--card-bg);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px -12px rgba(31,56,100,0.25);padding:12px;min-width:180px;display:flex;flex-direction:column;gap:8px;}
+  .settings-popover .sp-item{display:flex;justify-content:space-between;align-items:center;gap:16px;font-size:13px;}
+  .settings-popover .sp-label{color: var(--text-soft);}
+  .settings-popover .sp-value{color: var(--text-main);font-family:'IBM Plex Mono',monospace;}
 
   /* Empty State */
   .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center;}
@@ -223,6 +237,22 @@
   .send-btn{padding:8px 16px;background: var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition: background 0.15s;}
   .send-btn:hover{background: var(--navy-light);}
   .input-hint{text-align:center;margin-top:10px;font-size:12px;color: var(--text-soft);}
+  #chat-image-preview img{max-width:100%;}
+  /* Markdown trong bubble AI */
+  [style*="align-self:flex-start"] p{margin:0 0 8px;}
+  [style*="align-self:flex-start"] p:last-child{margin-bottom:0;}
+  [style*="align-self:flex-start"] ul,[style*="align-self:flex-start"] ol{margin:0 0 8px;padding-left:20px;}
+  [style*="align-self:flex-start"] li{margin-bottom:4px;}
+  [style*="align-self:flex-start"] h1,[style*="align-self:flex-start"] h2,[style*="align-self:flex-start"] h3{font-size:16px;font-weight:600;margin:10px 0 6px;}
+  [style*="align-self:flex-start"] code{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  [style*="align-self:flex-start"] pre{background:var(--navy-deep);color:#CCE3DE;padding:12px;border-radius:8px;overflow-x:auto;margin:8px 0;}
+  [style*="align-self:flex-start"] pre code{background:transparent;border:none;padding:0;color:inherit;}
+  [style*="align-self:flex-start"] table{border-collapse:collapse;margin:8px 0;}
+  [style*="align-self:flex-start"] th,[style*="align-self:flex-start"] td{border:1px solid var(--line);padding:6px 10px;font-size:13px;}
+  [style*="align-self:flex-start"] th{background:var(--paper);font-weight:600;}
+  [style*="align-self:flex-start"] a{color:var(--navy);text-decoration:underline;}
+  [style*="align-self:flex-start"] blockquote{border-left:3px solid var(--sage);margin:8px 0;padding-left:12px;color:var(--text-soft);}
+  #chat-messages{max-width:100%;}
 
   @media (max-width: 860px){
     .quick-actions{grid-template-columns:1fr;}
@@ -232,6 +262,7 @@
 @endpush
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="{{ asset('js/agent-workspace-chat.js') }}"></script>
 @endpush
 

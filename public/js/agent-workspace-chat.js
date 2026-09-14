@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const emptyState = document.querySelector('.empty-state');
   const main = document.querySelector('main.main');
   const inputArea = document.querySelector('.input-area');
-  const appEl = document.querySelector('.app');
 
   if (!sendBtn || !textarea || !main) return;
 
@@ -23,16 +22,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Render history từ server khi mở lại conversation cũ.
   function renderInitialMessages() {
-    if (!appEl) return;
-    const raw = appEl.getAttribute('data-initial-messages');
-    if (!raw) return;
-
-    let messages = [];
-    try {
-      messages = JSON.parse(raw);
-    } catch (e) {
-      return;
-    }
+    const messages = window.__INITIAL_MESSAGES__ || [];
     if (messages.length === 0) return;
 
     if (emptyState) emptyState.style.display = 'none';
@@ -54,8 +44,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const bubble = document.createElement('div');
     bubble.style.cssText = role === 'user'
       ? 'align-self:flex-end;background:var(--navy);color:#fff;padding:12px 16px;border-radius:14px;max-width:70%;white-space:pre-wrap;'
-      : 'align-self:flex-start;background:var(--card-bg);border:1px solid var(--line);padding:12px 16px;border-radius:14px;max-width:70%;white-space:pre-wrap;';
-    bubble.textContent = text;
+      : 'align-self:flex-start;background:var(--card-bg);border:1px solid var(--line);padding:12px 16px;border-radius:14px;max-width:85%;white-space:normal;';
+
+    // Câu trả lời của AI → render markdown đẹp; tin nhắn user → text thuần.
+    if (role === 'assistant' && typeof marked !== 'undefined') {
+      bubble.innerHTML = marked.parse(text);
+    } else {
+      bubble.textContent = text;
+    }
+
     container.appendChild(bubble);
     container.scrollTop = container.scrollHeight;
   }
@@ -71,16 +68,69 @@ document.addEventListener('DOMContentLoaded', function () {
 
   let sending = false;
 
+  // Hình ảnh paste (data URL) chưa gửi.
+  let pendingImages = [];
+
+  // Container preview ảnh (đặt giữa input-box và hint).
+  let imagePreviewBox = null;
+
+  function ensureImagePreviewBox() {
+    if (imagePreviewBox) return imagePreviewBox;
+    const inputWrapper = document.querySelector('.input-wrapper');
+    if (!inputWrapper) return null;
+
+    imagePreviewBox = document.createElement('div');
+    imagePreviewBox.id = 'chat-image-preview';
+    imagePreviewBox.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;';
+    inputWrapper.prepend(imagePreviewBox);
+
+    return imagePreviewBox;
+  }
+
+  function renderImagePreviews() {
+    const box = ensureImagePreviewBox();
+    if (!box) return;
+    box.innerHTML = '';
+
+    pendingImages.forEach((dataUrl, idx) => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;width:64px;height:64px;border-radius:8px;overflow:hidden;border:1px solid var(--surface-border);';
+
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+      wrap.appendChild(img);
+
+      const remove = document.createElement('button');
+      remove.textContent = '×';
+      remove.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(0,0,0,0.6);color:#fff;font-size:12px;line-height:1;cursor:pointer;';
+      remove.addEventListener('click', () => {
+        pendingImages.splice(idx, 1);
+        renderImagePreviews();
+      });
+      wrap.appendChild(remove);
+
+      box.appendChild(wrap);
+    });
+
+    box.style.display = pendingImages.length > 0 ? 'flex' : 'none';
+  }
+
   async function sendMessage() {
     const message = textarea.value.trim();
-    if (!message || sending) return;
+    // Cho phép gửi nếu có ít nhất message HOẶC 1 ảnh.
+    if ((!message && pendingImages.length === 0) || sending) return;
 
     sending = true;
     if (sendBtn) sendBtn.textContent = 'Sending…';
 
     if (emptyState) emptyState.style.display = 'none';
-    appendMessage('user', message);
+    appendMessage('user', message || '[Gửi hình ảnh]');
     textarea.value = '';
+
+    const images = pendingImages;
+    pendingImages = [];
+    renderImagePreviews();
 
     const csrfMeta = document.querySelector('meta[name="csrf-token"]');
     const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
@@ -97,6 +147,7 @@ document.addEventListener('DOMContentLoaded', function () {
           message: message,
           conversation_id: conversationId,
           agent_id: selectedAgentId,
+          images: images,
         }),
       });
 
@@ -127,6 +178,85 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  // Paste ảnh vào ô chat (Ctrl/Cmd + V) → preview.
+  textarea.addEventListener('paste', function (e) {
+    const items = e.clipboardData?.items || [];
+
+    for (const item of items) {
+      if (item.type && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+          pendingImages.push(ev.target.result);
+          renderImagePreviews();
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  });
+
+  // Kéo thả ảnh vào vùng chat → thêm vào preview (không mở tab mới).
+  const dropTargets = [document.querySelector('.input-box'), document.querySelector('.input-area'), main];
+
+  dropTargets.filter(Boolean).forEach((target) => {
+    ['dragover', 'dragenter'].forEach((evt) => {
+      target.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        target.style.outline = '2px dashed var(--navy)';
+      });
+    });
+
+    ['dragleave', 'drop'].forEach((evt) => {
+      target.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        target.style.outline = '';
+      });
+    });
+
+    target.addEventListener('drop', (e) => {
+      const files = Array.from(e.dataTransfer?.files || []);
+      files.forEach((file) => {
+        if (!file.type || !file.type.startsWith('image/')) return;
+
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+          pendingImages.push(ev.target.result);
+          renderImagePreviews();
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+  });
+
+  // Nút attach (📎) → mở file picker ảnh → đưa vào preview.
+  const attachBtn = document.querySelector('.attach-btn');
+  const imageInput = document.getElementById('chat-image-input');
+
+  attachBtn?.addEventListener('click', function (e) {
+    e.preventDefault();
+    imageInput?.click();
+  });
+
+  imageInput?.addEventListener('change', function () {
+    const files = Array.from(imageInput.files || []);
+    files.forEach((file) => {
+      if (!file.type || !file.type.startsWith('image/')) return;
+
+      const reader = new FileReader();
+      reader.onload = function (ev) {
+        pendingImages.push(ev.target.result);
+        renderImagePreviews();
+      };
+      reader.readAsDataURL(file);
+    });
+    imageInput.value = '';
+    renderImagePreviews();
+  });
+
   sendBtn.addEventListener('click', function (e) {
     e.preventDefault();
     sendMessage();
@@ -137,6 +267,64 @@ document.addEventListener('DOMContentLoaded', function () {
       e.preventDefault();
       sendMessage();
     }
+  });
+
+  // ==== Topbar actions ====
+  // 📎 Upload → mở file picker ảnh (dùng chung input ảnh ô chat).
+  const topbarAttach = document.querySelector('[data-behavior="attach-topbar"]');
+  topbarAttach?.addEventListener('click', function (e) {
+    e.preventDefault();
+    imageInput?.click();
+  });
+
+  // ↓ Export → tải file .txt toàn bộ message của conversation đang mở.
+  const exportBtn = document.querySelector('[data-behavior="export-chat"]');
+  exportBtn?.addEventListener('click', function () {
+    exportConversationTxt();
+  });
+
+  function exportConversationTxt() {
+    const container = ensureMessagesContainer();
+    const bubbles = Array.from(container.querySelectorAll('div'));
+
+    const lines = [];
+    bubbles.forEach((bubble) => {
+      const text = bubble.textContent?.trim();
+      if (!text) return;
+      const isUser = bubble.style.alignSelf === 'flex-end';
+      lines.push((isUser ? '[Me] ' : '[AI] ') + text);
+    });
+
+    const content = lines.join('\n\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const title = (document.querySelector('.user-name')?.textContent || 'chat').trim().replace(/\s+/g, '_');
+    a.href = url;
+    a.download = 'agent-chat-' + title + '.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ⚙ Settings → dropdown nhỏ (hiện model đang dùng).
+  const settingsBtn = document.querySelector('[data-behavior="settings"]');
+  const settingsPopover = document.getElementById('settings-popover');
+
+  settingsBtn?.addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (settingsPopover) {
+      const visible = settingsPopover.style.display === 'block';
+      settingsPopover.style.display = visible ? 'none' : 'block';
+    }
+  });
+
+  // Click ngoài → đóng popover.
+  document.addEventListener('click', function () {
+    if (settingsPopover) settingsPopover.style.display = 'none';
   });
 
   // Mở lại conversation cũ → render history sau khi DOM sẵn sàng.

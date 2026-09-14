@@ -16,7 +16,7 @@ class ChatCompletionService
      * filter PII mỗi content role=user, gọi OpenAI thật nếu có key,
      * ngược lại fallback mock.
      *
-     * @param  array<int, array{role: string, content: string}>  $messages
+     * @param  array<int, array{role: string, content: mixed}>  $messages  content: string hoặc array multimodal (text + image)
      * @return array{content: string, prompt_tokens: int, completion_tokens: int}
      *
      * @throws \RuntimeException Khi OPENAI_API_KEY có nhưng gọi thất bại (sau khi map lỗi).
@@ -25,7 +25,7 @@ class ChatCompletionService
     {
         $filtered = array_map(
             fn (array $message): array => $message['role'] === 'user'
-                ? ['role' => 'user', 'content' => $this->piiFilter->filter((string) $message['content'])['filtered']]
+                ? ['role' => 'user', 'content' => $this->filterContentPii($message['content'])]
                 : $message,
             $messages,
         );
@@ -52,9 +52,32 @@ class ChatCompletionService
     }
 
     /**
+     * Filter PII trên content. Hỗ trợ string (text thuần) hoặc array (multimodal:
+     * text part được filter, image part giữ nguyên).
+     */
+    private function filterContentPii(mixed $content): mixed
+    {
+        if (is_string($content)) {
+            return $this->piiFilter->filter($content)['filtered'];
+        }
+
+        if (is_array($content)) {
+            return array_map(function (array $part): array {
+                if (($part['type'] ?? '') === 'text') {
+                    $part['text'] = $this->piiFilter->filter((string) ($part['text'] ?? ''))['filtered'];
+                }
+
+                return $part;
+            }, $content);
+        }
+
+        return $content;
+    }
+
+    /**
      * Mock giữ nguyên contract. Lấy message user cuối cùng để trả lời.
      *
-     * @param  array<int, array{role: string, content: string}>  $messages
+     * @param  array<int, array{role: string, content: mixed}>  $messages
      * @return array{content: string, prompt_tokens: int, completion_tokens: int}
      */
     private function mockCompletion(array $messages): array
@@ -63,7 +86,20 @@ class ChatCompletionService
 
         for ($i = count($messages) - 1; $i >= 0; $i--) {
             if (($messages[$i]['role'] ?? '') === 'user') {
-                $lastUser = (string) $messages[$i]['content'];
+                $clientContent = $messages[$i]['content'];
+
+                // Nếu content là array multimodal, lấy text part làm mock.
+                if (is_array($clientContent)) {
+                    foreach ($clientContent as $part) {
+                        if (($part['type'] ?? '') === 'text') {
+                            $lastUser = (string) ($part['text'] ?? '');
+
+                            break;
+                        }
+                    }
+                } else {
+                    $lastUser = (string) $clientContent;
+                }
 
                 break;
             }

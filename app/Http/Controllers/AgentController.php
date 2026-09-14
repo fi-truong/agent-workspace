@@ -45,6 +45,14 @@ class AgentController extends Controller
     {
         $user = Auth::user();
 
+        if (! $user) {
+            if ($request->wantsJson()) {
+                return response()->json(['message' => 'Please login.'], 401);
+            }
+
+            return redirect()->route('login.local.form');
+        }
+
         /** @var Agent $agent */
         $agent = $user->agents()->create([
             'title' => $request->input('title'),

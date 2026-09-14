@@ -183,9 +183,6 @@
   .agents-page { padding: 16px 20px 32px; }
   .agents-grid { grid-template-columns: 1fr; }
 }
-</style>
-@endpush
-
 
 /* Knowledge saved files (edit mode) */
 .knowledge-saved-list { display: none; margin-top: 12px; }
@@ -197,11 +194,6 @@
 }
 .knowledge-saved-row.removing { text-decoration: line-through; }
 .knowledge-saved-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-@media (max-width: 640px) {
-  .agents-page { padding: 16px 20px 32px; }
-  .agents-grid { grid-template-columns: 1fr; }
-}
 </style>
 @endpush
 @endsection

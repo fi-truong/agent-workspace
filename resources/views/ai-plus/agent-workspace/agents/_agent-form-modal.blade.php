@@ -25,7 +25,7 @@
       <div class="form-group">
         <label for="knowledge">Knowledge</label>
         <div class="knowledge-dropzone" id="knowledge-dropzone">
-          <input type="file" id="knowledge" name="knowledge" multiple accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" hidden>
+          <input type="file" id="knowledge" name="knowledge[]" multiple accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" hidden>
           <div class="knowledge-dropzone-inner">
             <div class="knowledge-dropzone-title">Drag & drop files here</div>
             <div class="knowledge-dropzone-sub">or click to select</div>

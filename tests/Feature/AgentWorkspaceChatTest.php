@@ -173,6 +173,31 @@ it('returns friendly error on upstream 429', function () {
         ->assertJson(['retryable' => true]);
 });
 
+it('sends multimodal content when image data URL is provided', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $dataUrl = 'data:image/png;base64,'.base64_encode('fake-png-bytes');
+
+    $response = $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Mô tả hình',
+        'images' => [$dataUrl],
+    ]);
+
+    $response->assertStatus(200);
+
+    Http::assertSent(function (Request $request) {
+        $payload = $request->data();
+        $messages = $payload['messages'] ?? [];
+        $last = end($messages);
+
+        // Message user cuối là multimodal: text + image_url
+        return is_array($last['content'])
+            && count($last['content']) === 2
+            && ($last['content'][0]['type'] ?? '') === 'text'
+            && ($last['content'][1]['type'] ?? '') === 'image_url';
+    });
+});
+
 it('filters PII via guardrail middleware instead of storing raw PII', function () {
     // GuardrailMiddleware (web group) replace PII trước khi tới controller,
     // nên message lưu xuống DB là dạng đã che [SĐT], không phải raw.
