@@ -25,6 +25,13 @@
           <div class="icon">{{ $card['icon'] }}</div>
           <h3>{{ $card['title'] }}</h3>
           <p>{{ $card['description'] }}</p>
+          @if(!empty($card['strip']))
+          <div class="strip">
+            @foreach($card['strip'] as $tag)
+              <span>{{ $tag }}</span>
+            @endforeach
+          </div>
+          @endif
           <a href="{{ $card['url'] }}" class="cta" style="text-decoration:none;">{{ $card['ctaLabel'] }} <span class="arrow">→</span></a>
         </div>
         @endforeach

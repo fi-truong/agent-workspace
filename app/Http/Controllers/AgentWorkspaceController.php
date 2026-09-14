@@ -60,10 +60,6 @@ class AgentWorkspaceController extends Controller
         $quickActions = [
             ['icon' => '💬', 'label' => 'Quick Chat', 'desc' => 'Ask anything, get help'],
             ['icon' => '🤖', 'label' => 'Create Agent', 'desc' => 'Build a custom AI assistant'],
-            ['icon' => '⚡', 'label' => 'New Workflow', 'desc' => 'Automate repetitive tasks'],
-            ['icon' => '📄', 'label' => 'Analyze Document', 'desc' => 'Upload and analyze files'],
-            ['icon' => '📊', 'label' => 'Generate Report', 'desc' => 'Create data summaries'],
-            ['icon' => '📧', 'label' => 'Draft Email', 'desc' => 'Bilingual EN/VI emails'],
         ];
 
         return view('ai-plus.agent-workspace.index', [

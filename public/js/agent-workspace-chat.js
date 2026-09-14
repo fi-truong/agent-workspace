@@ -329,4 +329,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Mở lại conversation cũ → render history sau khi DOM sẵn sàng.
   renderInitialMessages();
+
+  // ==== Quick action buttons (giữa trang) ====
+  const quickBtnBehaviors = {
+    'quick-chat': function () {
+      textarea.focus();
+    },
+    'quick-create-agent': function () {
+      if (window.openAgentModal) window.openAgentModal();
+    },
+    'quick-analyze-document': function () {
+      imageInput?.click();
+    },
+    'quick-draft-email': function () {
+      textarea.value = 'Draft a professional email in Vietnamese for the following situation:\n\n';
+      textarea.focus();
+    },
+    'quick-generate-report': function () {
+      textarea.value = 'Generate a concise report based on the following information:\n\n';
+      textarea.focus();
+    },
+  };
+
+  document.querySelectorAll('.quick-btn').forEach((btn) => {
+    const behavior = quickBtnBehaviors[btn.dataset.behavior];
+    if (behavior) {
+      btn.addEventListener('click', behavior);
+    }
+  });
 });

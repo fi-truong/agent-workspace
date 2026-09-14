@@ -2,12 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AgentTemplate;
+use App\Models\PromptLibraryPrompt;
+use App\Models\ShowcasePost;
+
 class AiPlusController extends Controller
 {
     public function index()
     {
-        // MOCK DATA — sau này thay bằng query thật (vd từ bảng ai_plus_modules,
-        // hoặc từ config nếu 7 mục này ít thay đổi và không cần quản trị qua DB)
+        // Số liệu thật từ DB cho các mục thống kê (không còn mock).
+        $publishedShowcases = ShowcasePost::where('status', 'published');
+        $departmentsSharing = (clone $publishedShowcases)->whereNotNull('department')->distinct('department')->count('department');
+        $totalPrompts = PromptLibraryPrompt::count();
+        $totalTemplates = AgentTemplate::count();
+
         $createCards = [
             [
                 'icon' => 'AW',
@@ -20,6 +28,7 @@ class AiPlusController extends Controller
                 'icon' => 'PL',
                 'title' => 'Prompt Library',
                 'description' => 'Ready-to-use prompts for common tasks, organized by role and subject. Copy, tweak, and go.',
+                'strip' => [$totalPrompts.' prompts ready'],
                 'ctaLabel' => 'Browse prompts',
                 'url' => route('ai-plus.prompt-library.index'),
             ],
@@ -27,6 +36,7 @@ class AiPlusController extends Controller
                 'icon' => 'AT',
                 'title' => 'Agent Templates',
                 'description' => 'Pre-built agents you can clone and customize, instead of starting from a blank page.',
+                'strip' => [$totalTemplates.' templates'],
                 'ctaLabel' => 'View templates',
                 'url' => route('ai-plus.agent-templates.index'),
             ],
@@ -37,7 +47,11 @@ class AiPlusController extends Controller
                 'icon' => 'SH',
                 'title' => 'Sharing & Showcase',
                 'description' => 'Browse agents and AI projects built by colleagues across LSTS. Leave a comment, ask how it works, or get inspired for your own.',
-                'strip' => ['12 departments', 'New this week', 'Open for feedback'], // mock số liệu — thay bằng COUNT() thật sau này
+                'strip' => [
+                    $departmentsSharing.' departments',
+                    $publishedShowcases->count().' showcases',
+                    'Open for feedback',
+                ],
                 'ctaLabel' => 'Explore showcase',
                 'url' => route('ai-plus.sharing-showcase.index'),
             ],
@@ -72,6 +86,8 @@ class AiPlusController extends Controller
             'createCards' => $createCards,
             'communityCards' => $communityCards,
             'guidanceCards' => $guidanceCards,
+            'totalPrompts' => $totalPrompts,
+            'totalTemplates' => $totalTemplates,
             'viewingAs' => 'Teacher / Staff', // sau này lấy từ auth()->user()->role
         ]);
     }

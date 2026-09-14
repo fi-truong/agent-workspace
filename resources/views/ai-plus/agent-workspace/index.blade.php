@@ -16,17 +16,13 @@
 
     <!-- Workspace Type Tabs -->
     <div class="workspace-tabs">
-      <a href="{{ route('ai-plus.agent-workspace.index') }}" class="ws-tab active">
+      <a href="{{ route('ai-plus.agent-workspace.index') }}" class="ws-tab {{ request()->routeIs('ai-plus.agent-workspace.index') ? 'active' : '' }}">
         <span class="icon">💬</span>
         <span>Chat</span>
       </a>
-      <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="ws-tab">
+      <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="ws-tab {{ request()->routeIs('ai-plus.agent-workspace.agents.*') ? 'active' : '' }}">
         <span class="icon">🤖</span>
         <span>Agents</span>
-      </a>
-      <a href="#" class="ws-tab" title="Coming soon">
-        <span class="icon">⚡</span>
-        <span>Workflows</span>
       </a>
     </div>
 
@@ -54,17 +50,7 @@
       </a>
       @endforeach
 
-      <div class="chat-list-section">
-        Workflows
-        <button class="add-btn" title="New workflow">+</button>
       </div>
-      @foreach($workflows as $workflow)
-      <div class="chat-item">
-        <span class="item-icon workflow">⚡</span>
-        <span class="title">{{ $workflow['title'] }}</span>
-      </div>
-      @endforeach
-    </div>
 
     <div class="sidebar-footer">
       <div class="user-info">
@@ -120,7 +106,8 @@
 
       <div class="quick-actions">
         @foreach($quickActions as $action)
-        <button class="quick-btn">
+        @if($action['label'] === 'New Workflow') @continue @endif
+        <button class="quick-btn" type="button" data-behavior="quick-{{ \Illuminate\Support\Str::slug($action['label']) }}">
           <span class="icon">{{ $action['icon'] }}</span>
           <span class="label">{{ $action['label'] }}</span>
           <span class="desc">{{ $action['desc'] }}</span>
@@ -171,6 +158,8 @@
   /* Chat List */
   .chat-list{flex:1;overflow-y:auto;padding:0 12px 16px;}
   .chat-list-section{color: var(--text-soft);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;padding:16px 8px 8px;display:flex;justify-content:space-between;align-items:center;}
+  .section-link{color: var(--text-soft);text-decoration:none;transition:color 0.15s;}
+  .section-link:hover{color: var(--topbar-link, var(--gold-light));}
   .add-btn{background:none;border:none;color: var(--text-soft);cursor:pointer;font-size:16px;padding:0;}
   .add-btn:hover{color: var(--gold-light);}
   .chat-item{padding:10px 12px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:10px;transition: background 0.15s;}
@@ -217,7 +206,7 @@
   .empty-icon{width:auto;min-width:80px;height:auto;padding:16px 28px;border-radius:20px;background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);display:flex;align-items:center;justify-content:center;color: var(--gold-light);font-family:'Fraunces', serif;font-size:32px;font-weight:600;margin-bottom:24px;white-space:nowrap;}
   .empty-state h3{font-family:'Fraunces', serif;font-size:28px;font-weight:600;color: var(--section-title);margin-bottom:12px;}
   .empty-state p{color: var(--text-soft);font-size:15px;max-width:480px;margin-bottom:32px;}
-  .quick-actions{display:grid;grid-template-columns: repeat(3, 1fr);gap:12px;max-width:600px;}
+  .quick-actions{display:grid;grid-template-columns: repeat(2, 1fr);gap:12px;max-width:420px;margin:0 auto;}
   .quick-btn{padding:16px 20px;background: var(--surface);border:1px solid var(--surface-border);border-radius:12px;font-size:14px;color: var(--text-main);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;transition: border-color 0.15s, background 0.15s;}
   .quick-btn:hover{border-color: var(--navy);background: var(--input-bg);}
   .quick-btn .icon{font-size:24px;}
