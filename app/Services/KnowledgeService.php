@@ -9,10 +9,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory as SpreadsheetIOFactory;
-use PhpOffice\PhpWord\Element\ListItem;
-use PhpOffice\PhpWord\Element\Text;
+use PhpOffice\PhpWord\Element\Table;
 use PhpOffice\PhpWord\Element\TextRun;
-use PhpOffice\PhpWord\Element\Title;
 use PhpOffice\PhpWord\IOFactory as WordIOFactory;
 use PhpOffice\PhpWord\PhpWord;
 use Smalot\PdfParser\Parser as PdfParser;
@@ -204,7 +202,9 @@ class KnowledgeService
         }
 
         try {
-            $phpWord = WordIOFactory::load($tmp, 'MsDoc');
+            // Để PhpWord tự detect format (docx = OOXML, doc = MsDoc).
+            // Không cưỡng ép 'MsDoc' — nếu không .docx (OOXML) sẽ bị parse sai thành OLE.
+            $phpWord = WordIOFactory::load($tmp);
             $tmpText = $this->renderWordText($phpWord);
 
             return trim($tmpText);
@@ -271,24 +271,49 @@ class KnowledgeService
         $text = '';
 
         foreach ($phpWord->getSections() as $section) {
-            foreach ($section->getElements() as $element) {
-                if ($element instanceof TextRun) {
-                    foreach ($element->getElements() as $child) {
-                        if ($child instanceof Text) {
-                            $text .= $child->getText()."\n";
-                        }
-                    }
-                } elseif ($element instanceof Text) {
-                    $text .= $element->getText()."\n";
-                } elseif ($element instanceof ListItem) {
-                    $text .= $element->getText()."\n";
-                } elseif ($element instanceof Title) {
-                    $text .= $element->getText()."\n";
-                }
-            }
+            $this->appendElementText($text, $section->getElements());
         }
 
         return $text;
+    }
+
+    /**
+     * Duyệt elements (có thể chứa TextRun/lồng nhau) và append text nếu là string.
+     * Tránh lỗi "Object of class TextRun could not be converted to string".
+     *
+     * @param  array<int, object>  $elements
+     */
+    private function appendElementText(string &$text, array $elements): void
+    {
+        foreach ($elements as $element) {
+            // TextRun / container: duyệt con.
+            if ($element instanceof TextRun) {
+                $this->appendElementText($text, $element->getElements());
+
+                continue;
+            }
+
+            // Element có lấy text (Text, ListItem, Title, ...) — chỉ append nếu string.
+            if (method_exists($element, 'getText')) {
+                try {
+                    $value = $element->getText();
+                    if (is_string($value) && $value !== '') {
+                        $text .= $value."\n";
+                    }
+                } catch (Throwable) {
+                    // Bỏ qua element không lấy được text (vd Table, Image...).
+                }
+            }
+
+            // Table: duyệt row/cell.
+            if ($element instanceof Table) {
+                foreach ($element->getRows() as $row) {
+                    foreach ($row->getCells() as $cell) {
+                        $this->appendElementText($text, $cell->getElements());
+                    }
+                }
+            }
+        }
     }
 
     /**

@@ -745,12 +745,7 @@ parameters:
 			count: 1
 			path: app/Services/Guardrail/RegexPiiFilter.php
 
-		-
-			message: '#^Binary operation "\." between PhpOffice\\PhpWord\\Element\\TextRun\|string and "\\n" results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: app/Services/KnowledgeService.php
-
+		
 		-
 			message: '#^Parameter \#2 \$needle of function str_contains expects string, int\|string given\.$#'
 			identifier: argument.type

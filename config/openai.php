@@ -21,7 +21,7 @@ return [
 
     'model' => env('OPENAI_MODEL', 'gpt-5.6-luna'),
 
-    'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 2048),
+    'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 2000),
 
     'temperature' => (float) env('OPENAI_TEMPERATURE', 0.7),
 
@@ -29,7 +29,7 @@ return [
     | Thời gian chờ tối đa cho mỗi request đến OpenAI.
     | Nếu external API chậm, fail nhanh để tránh treo worker/request.
     */
-    'timeout' => (int) env('OPENAI_TIMEOUT', 30),
+    'timeout' => (int) env('OPENAI_TIMEOUT', 120),
 
     /*
     | Số lần retry + thời gian chờ giữa các lần (milliseconds).

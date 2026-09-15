@@ -54,6 +54,16 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     container.appendChild(bubble);
+
+    // Render lại công thức LaTeX (MathJax) nếu có.
+    if (role === 'assistant' && typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+      try {
+        MathJax.typesetPromise([bubble]);
+      } catch (e) {
+        // bỏ qua nếu typeset fail
+      }
+    }
+
     container.scrollTop = container.scrollHeight;
   }
 

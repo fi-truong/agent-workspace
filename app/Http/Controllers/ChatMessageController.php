@@ -13,6 +13,7 @@ use App\Services\PiiFilterService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ChatMessageController extends Controller
@@ -34,6 +35,8 @@ class ChatMessageController extends Controller
         ChatCompletionService $chatService,
         KnowledgeService $knowledgeService,
     ) {
+        // GPT-5 reasoning + knowledge dài có thể mất >30s; tăng giới hạn cho request chat.
+        set_time_limit(120);
         $request->validate([
             'message' => 'required|string|max:5000',
             'conversation_id' => 'nullable|integer|exists:conversations,id',
@@ -44,6 +47,12 @@ class ChatMessageController extends Controller
 
         // Tối đa 4 ảnh mỗi lượt gửi (tránh payload quá lớn + tốn token).
         $images = array_slice($request->input('images', []), 0, 4);
+
+        Log::info('Chat send received', [
+            'message' => $request->message,
+            'agent_id' => $request->agent_id,
+            'has_images' => count($images) > 0,
+        ]);
 
         $user = $request->user() ?? User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
 
@@ -71,7 +80,18 @@ class ChatMessageController extends Controller
             /** @var Agent|null $agent */
             $agent = Agent::find($request->agent_id);
 
-            if ($agent && $this->canViewAgent($user, $agent)) {
+            $canView = $agent && $this->canViewAgent($user, $agent);
+
+            // Log tạm để debug luồng "Use in Chat" — xoá sau khi ổn định.
+            Log::info('Chat attach agent debug', [
+                'user_id' => $user->id,
+                'agent_id' => $request->agent_id,
+                'conversation_id' => $conversation->id,
+                'agent_found' => $agent ? true : false,
+                'can_view' => $canView,
+            ]);
+
+            if ($canView) {
                 $conversation->update(['agent_id' => $agent->id]);
             }
         }
@@ -83,6 +103,17 @@ class ChatMessageController extends Controller
         ]);
 
         // Gom history (tối đa N tin) + build system prompt từ agent nếu có.
+                // Images: chuyển base64 data URL → OpenAI "image_url" parts (vision).
+        // Mỗi ảnh là data URL (vd data:image/png;base64,...) — gửi kèm trong payload.
+        $imagePayloads = [];
+
+        foreach ($images as $image) {
+            $imagePayloads[] = [
+                'type' => 'image_url',
+                'image_url' => ['url' => $image],
+            ];
+        }
+
         $history = $conversation->messages()
             ->latest('id')
             ->limit(self::CHAT_HISTORY_LIMIT)
@@ -162,6 +193,13 @@ class ChatMessageController extends Controller
 
         if ($agent->knowledge_files) {
             $context = $knowledgeService->buildContext($agent->knowledge_files, $agent->user_id, $agent->id);
+
+            // Log tạm để debug knowledge — xoá sau.
+            Log::info('Chat knowledge debug', [
+                'agent_id' => $agent->id,
+                'knowledge_files' => $agent->knowledge_files,
+                'context_len' => mb_strlen($context),
+            ]);
 
             if ($context !== '') {
                 $systemPrompt = trim($systemPrompt ? $systemPrompt."\n\n".$context : 'Bạn là một trợ lý AI của trường LSTS.'."\n\n".$context);

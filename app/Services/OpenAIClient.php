@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class OpenAIClient
 {
@@ -54,8 +55,23 @@ class OpenAIClient
 
         $data = $response->json();
 
+        Log::info('OpenAI raw response debug', [
+            'response_keys' => is_array($data) ? array_keys($data) : null,
+            'has_choices' => isset($data['choices'][0]),
+            'message_keys' => isset($data['choices'][0]['message']) ? array_keys($data['choices'][0]['message']) : null,
+            'content' => $data['choices'][0]['message']['content'] ?? null,
+            'finish_reason' => $data['choices'][0]['finish_reason'] ?? null,
+        ]);
+
         $content = $data['choices'][0]['message']['content']
             ?? throw new \RuntimeException('OpenAI trả về phản hồi thiếu nội dung.');
+
+        Log::info('OpenAI completion decoded', [
+            'content_len' => is_string($content) ? mb_strlen($content) : gettype($content),
+            'content_preview' => is_string($content) ? mb_substr($content, 0, 300) : null,
+            'finish_reason' => $data['choices'][0]['finish_reason'] ?? null,
+            'raw_message' => $data['choices'][0]['message'] ?? null,
+        ]);
 
         $usage = $data['usage'] ?? [];
 
