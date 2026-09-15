@@ -32,8 +32,6 @@ class OpenAIClient
             'messages' => $messages,
             // Model GPT-5+ không chấp nhận "max_tokens"; phải dùng "max_completion_tokens".
             'max_completion_tokens' => config('openai.max_tokens'),
-            // Giữ reasoning ở mức thấp để tránh model "ăn" hết token budget vào suy luận ẩn.
-            'reasoning_effort' => config('openai.reasoning_effort'),
             // Model GPT-5+ không hỗ trợ "temperature" tùy chỉnh (chỉ dùng giá trị mặc định).
         ];
 
@@ -67,17 +65,6 @@ class OpenAIClient
 
         $content = $data['choices'][0]['message']['content']
             ?? throw new \RuntimeException('OpenAI trả về phản hồi thiếu nội dung.');
-
-        $finishReason = $data['choices'][0]['finish_reason'] ?? null;
-
-        // Reasoning model có thể "ăn" hết max_completion_tokens vào suy luận ẩn,
-        // trả về content rỗng dù status 200. Chặn sớm để UI báo lỗi rõ ràng thay vì im lặng.
-        if ($content === '' && $finishReason === 'length') {
-            throw new \RuntimeException(
-                'Câu trả lời bị cắt vì vượt giới hạn token (thường do prompt/Knowledge quá dài). '
-                .'Hãy thử rút ngắn tin nhắn, hoặc liên hệ CIEC để tăng giới hạn.'
-            );
-        }
 
         Log::info('OpenAI completion decoded', [
             'content_len' => is_string($content) ? mb_strlen($content) : gettype($content),
