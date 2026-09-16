@@ -14,6 +14,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -22,6 +23,7 @@ class ChatMessageController extends Controller
     use AuthorizesRequests;
 
     public const CHAT_HISTORY_LIMIT = 20;
+
     public const MAX_MESSAGE_CHARS = 4000;
 
     /**
@@ -54,7 +56,7 @@ class ChatMessageController extends Controller
             ], 502);
         }
 
-        $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion);
+        $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
 
         return response()->json([
             'blocked' => false,
@@ -77,7 +79,7 @@ class ChatMessageController extends Controller
         PiiFilterService $piiFilter,
         ChatCompletionService $chatService,
         KnowledgeService $knowledgeService,
-    ): StreamedResponse {
+    ): StreamedResponse|JsonResponse {
         set_time_limit(120);
 
         $blocked = $this->validateAndScanPii($request, $piiFilter);
@@ -117,7 +119,7 @@ class ChatMessageController extends Controller
                 return;
             }
 
-            $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion);
+            $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
 
             $send('done', [
                 'conversation_id' => $ctx['conversation']->id,
@@ -161,7 +163,7 @@ class ChatMessageController extends Controller
     /**
      * Chuẩn bị conversation + history + system prompt — logic dùng chung cho store() và stream().
      *
-     * @return array{conversation: Conversation, history: array, systemPrompt: ?string, user: User}
+     * @return array{conversation: Conversation, history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, user: User, createdNew: bool}
      */
     private function prepareTurn(Request $request, KnowledgeService $knowledgeService): array
     {
@@ -175,12 +177,15 @@ class ChatMessageController extends Controller
 
         $user = $request->user() ?? User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
 
+        // Title mặc định: thời gian + vài từ đầu prompt (AI tóm tắt sẽ ghi đè sau lần trả lời đầu).
+        $createdNew = $request->conversation_id ? false : true;
+
         /** @var Conversation $conversation */
         $conversation = $request->conversation_id
             ? Conversation::findOrFail((int) $request->conversation_id)
             : Conversation::create([
                 'user_id' => $user->id,
-                'title' => Str::limit($request->message, 50),
+                'title' => now()->format('Y.m.d H:i').' · '.Str::limit($request->message, 40),
             ]);
 
         if ($request->agent_id && $conversation->agent_id === null) {
@@ -193,10 +198,21 @@ class ChatMessageController extends Controller
             }
         }
 
+        // Lưu ảnh kèm thành file (để hiện lại trong lịch sử chat) + nối path vào content.
+        $attachedPaths = $this->persistChatImages($images, $conversation->id);
+
+        $userContent = $request->message;
+        if ($attachedPaths !== []) {
+            // Markdown: mỗi ảnh hiển thị trong bubble user khi mở lại.
+            foreach ($attachedPaths as $p) {
+                $userContent .= "\n\n![Ảnh đính kèm]({$p})";
+            }
+        }
+
         Message::create([
             'conversation_id' => $conversation->id,
             'role' => 'user',
-            'content' => $request->message,
+            'content' => $userContent,
         ]);
 
         $history = $conversation->messages()
@@ -230,10 +246,14 @@ class ChatMessageController extends Controller
             'history' => $history,
             'systemPrompt' => $systemPrompt,
             'user' => $user,
+            'createdNew' => $createdNew,
         ];
     }
 
-    private function persistAssistantReply(Conversation $conversation, User $user, Request $request, array $completion): void
+    /**
+     * @param  array{content: string, prompt_tokens: int, completion_tokens: int}  $completion
+     */
+    private function persistAssistantReply(Conversation $conversation, User $user, Request $request, array $completion, bool $createdNew = false): void
     {
         Message::create([
             'conversation_id' => $conversation->id,
@@ -242,6 +262,11 @@ class ChatMessageController extends Controller
             'prompt_tokens' => $completion['prompt_tokens'],
             'completion_tokens' => $completion['completion_tokens'],
         ]);
+
+        // Conversation mới → tóm tắt title bằng AI (1 lần duy nhất, fallback giữ title hiện tại nếu lỗi).
+        if ($createdNew) {
+            $this->summarizeConversationTitle($conversation);
+        }
 
         UsageLog::create([
             'user_id' => $user->id,
@@ -272,6 +297,91 @@ class ChatMessageController extends Controller
         }
 
         return $systemPrompt !== null && trim($systemPrompt) !== '' ? $systemPrompt : null;
+    }
+
+    /**
+     * Lưu các ảnh data URL (kèm khi gửi chat) thành file, trả danh sách URL public.
+     *
+     * @param  array<int, string>  $images  data URL base64
+     * @return array<int, string> các URL /storage/chat-attachments/...
+     */
+    private function persistChatImages(array $images, int $conversationId): array
+    {
+        $saved = [];
+
+        foreach ($images as $i => $dataUrl) {
+            if (! str_starts_with($dataUrl, 'data:image/')) {
+                continue;
+            }
+
+            // Tách mime + base64
+            if (! preg_match('#^data:image/(\w+);base64,(.+)$#s', $dataUrl, $m)) {
+                continue;
+            }
+
+            $ext = $m[1] === 'jpeg' ? 'jpg' : $m[1];
+            $base64 = base64_decode((string) $m[2]);
+
+            if ($base64 === '') {
+                continue;
+            }
+
+            $filename = $conversationId.'/'.time().'_'.$i.'.'.$ext;
+            Storage::disk('chat-attachments')->put($filename, $base64);
+
+            $url = Storage::disk('chat-attachments')->url($filename);
+            $saved[] = $url;
+        }
+
+        return $saved;
+    }
+
+    /**
+     * Tóm tắt cuộc hội thoại (tin đầu tiên) thành title ngắn gọn bằng AI.
+     * Chạy 1 lần khi tạo conversation mới; nếu lỗi → giữ title hiện tại (thời gian + vài từ đầu).
+     */
+    /**
+     * Đổi tên (title) của conversation.
+     */
+    public function rename(Request $request, Conversation $conversation): JsonResponse
+    {
+        $request->validate(['title' => 'required|string|max:120']);
+
+        $conversation->update(['title' => trim($request->title)]);
+
+        return response()->json(['ok' => true, 'title' => $conversation->title]);
+    }
+
+    private function summarizeConversationTitle(Conversation $conversation): void
+    {
+        try {
+            $firstMessage = $conversation->messages()->orderBy('id')->first();
+            if (! $firstMessage) {
+                return;
+            }
+
+            $summary = app(ChatCompletionService::class)->complete(
+                [
+                    [
+                        'role' => 'user',
+                        'content' => 'Tạo tiêu đề ngắn gọn (tối đa 60 ký tự, tiếng Việt, không dấu chấm câu) '
+                            .'cho đoạn yêu cầu sau. Chỉ trả về tiêu đề, không gì khác: "'.$firstMessage->content.'"',
+                    ],
+                ],
+                null,
+            );
+
+            $title = trim($summary['content']);
+
+            if ($title !== '' && mb_strlen($title) <= 80) {
+                $conversation->update([
+                    'title' => now()->format('Y.m.d H:i').' · '.$title,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // Giữ title mặc định (thời gian + vài từ đầu) nếu tóm tắt lỗi — không làm hỏng request.
+            Log::info('Summarize conversation title skipped', ['conversation_id' => $conversation->id]);
+        }
     }
 
     private function canViewAgent(User $user, Agent $agent): bool

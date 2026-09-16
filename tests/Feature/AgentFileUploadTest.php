@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Agent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -33,6 +34,18 @@ it('stores uploaded txt file into knowledge path', function () {
         ->and($knowledge[0]['original_name'])->toBe('tai-lieu.txt');
 
     Storage::disk('knowledge')->assertExists($knowledge[0]['path']);
+});
+
+it('stores a pdf file with correct mime', function () {
+    $file = UploadedFile::fake()->create('tai-lieu.pdf', 20, 'application/pdf');
+
+    $response = $this->post('/ai-plus/agent-workspace/agents', [
+        'title' => 'Agent pdf',
+        'knowledge' => [$file],
+    ], ['Accept' => 'application/json']);
+
+    $response->assertStatus(201);
+    Storage::disk('knowledge')->assertExists(Agent::first()->knowledge_files[0]['path']);
 });
 
 it('rejects disallowed file extension', function () {

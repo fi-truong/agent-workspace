@@ -27,6 +27,10 @@ class Agent extends Model
         'is_shared' => 'boolean',
     ];
 
+    // Đưa accessor knowledge_files vào JSON (toArray/toJson) để frontend đọc được
+    // khi mở lại agent (Edit modal hiển thị file đã lưu).
+    protected $appends = ['knowledge_files'];
+
     /**
      * @return BelongsTo<User, $this>
      */

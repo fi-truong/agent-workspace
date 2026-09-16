@@ -26,12 +26,24 @@ document.addEventListener('DOMContentLoaded', function () {
   let savedFiles = [];
   let removedPaths = [];
 
+  // Danh sách file user đã chọn (tích lũy) — vì <input type=file> tự reset mỗi lần mở dialog.
+  let allFiles = [];
+
+  function syncInputFromAllFiles() {
+    if (!fileInput) return;
+    const dt = new DataTransfer();
+    allFiles.forEach((f) => dt.items.add(f));
+    fileInput.files = dt.files;
+    renderChips(allFiles);
+  }
+
   function clearKnowledgeUI() {
     if (fileInput) fileInput.value = '';
     if (chipsContainer) chipsContainer.innerHTML = '';
     if (savedList) savedList.innerHTML = '';
     savedFiles = [];
     removedPaths = [];
+    allFiles = [];
   }
 
   function renderChips(files) {
@@ -52,11 +64,8 @@ document.addEventListener('DOMContentLoaded', function () {
       x.setAttribute('aria-label', 'Remove file ' + f.name);
       x.textContent = '×';
       x.addEventListener('click', () => {
-        const dt = new DataTransfer();
-        const current = Array.from(fileInput.files || []);
-        current.filter((_, j) => j !== idx).forEach((rf) => dt.items.add(rf));
-        fileInput.files = dt.files;
-        renderChips(fileInput.files);
+        allFiles.splice(idx, 1);
+        syncInputFromAllFiles();
       });
 
       chip.appendChild(name);
@@ -141,14 +150,25 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     });
 
+    // Gộp file vào danh sách tích lũy (không ghi đè file đã chọn trước đó).
+    function mergeFiles(newFiles) {
+      Array.from(newFiles || []).forEach((f) => {
+        // Tránh trùng file trùng tên (chọn lại) — ghi đè mới nhất.
+        const existingIdx = allFiles.findIndex((ef) => ef.name === f.name && ef.size === f.size);
+        if (existingIdx >= 0) allFiles[existingIdx] = f;
+        else allFiles.push(f);
+      });
+      syncInputFromAllFiles();
+    }
+
     dropzone.addEventListener('drop', (e) => {
-      const dt = new DataTransfer();
-      Array.from(e.dataTransfer.files || []).forEach((f) => dt.items.add(f));
-      fileInput.files = dt.files;
-      renderChips(fileInput.files);
+      e.preventDefault();
+      mergeFiles(e.dataTransfer.files);
     });
 
-    fileInput.addEventListener('change', () => renderChips(fileInput.files));
+    fileInput.addEventListener('change', (e) => {
+      mergeFiles(e.target.files);
+    });
   }
 
   function escapeHtml(str) {

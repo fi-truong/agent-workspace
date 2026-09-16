@@ -6,7 +6,10 @@
 
 @section('content')
 <div class="app">
-  <script>window.__INITIAL_MESSAGES__ = @json($initialMessages);</script>
+  <script>
+  window.__INITIAL_MESSAGES__ = @json($initialMessages);
+  window.__MY_AGENTS__ = @json($myAgents);
+</script>
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-header">
@@ -33,7 +36,8 @@
       </div>
       @foreach($conversations as $conv)
       <a href="{{ route('ai-plus.agent-workspace.index', ['conversation_id' => $conv['id']]) }}"
-         class="chat-item {{ $loop->first ? 'active' : '' }}">
+         class="chat-item {{ $loop->first ? 'active' : '' }}"
+         data-conversation-id="{{ $conv['id'] }}" data-conversation-title="{{ $conv['title'] }}">
         <span class="item-icon chat">💬</span>
         <span class="title">{{ $conv['title'] }}</span>
       </a>
@@ -85,6 +89,11 @@
           GPT-5.6 Luna
           <span class="badge">School AI</span>
         </div>
+        @if($activeAgent)
+        <div class="active-agent-badge" data-agent-name="{{ $activeAgent->title }}">
+          🤖 {{ $activeAgent->title }}
+        </div>
+        @endif
       </div>
       <div class="topbar-right">
         <button class="icon-btn" data-behavior="attach-topbar" title="Upload image">📎</button>
@@ -193,6 +202,8 @@
   .ws-type-badge{padding:4px 10px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:6px;font-size:11px;font-family:'IBM Plex Mono', monospace;color: var(--text-soft);}
   .model-selector{padding:8px 12px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:8px;font-size:13px;color: var(--input-text);cursor:pointer;display:flex;align-items:center;gap:8px;}
   .model-selector .badge{background: var(--navy);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-family:'IBM Plex Mono', monospace;}
+  .topbar-left{display:flex;flex-direction:column;align-items:flex-start;gap:6px;}
+  .active-agent-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background: linear-gradient(135deg, var(--gold) 0%, #E5AB45 100%);color:#fff;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
   .topbar-right{display:flex;align-items:center;gap:8px;}
   .icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--topbar-border);background: var(--topbar-bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color: var(--topbar-crumb);font-size:16px;transition: background 0.15s;}
   .icon-btn:hover{background: var(--surface);color: var(--topbar-link);}

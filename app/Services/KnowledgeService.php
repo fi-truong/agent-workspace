@@ -24,8 +24,8 @@ class KnowledgeService
     /** Cap ký tự nội dung mỗi file (tránh 1 file quá lớn nuốt context). */
     public const MAX_FILE_CHARS = 20000;
 
-    /** Các extension được phép upload. */
-    public const ALLOWED_EXTENSIONS = ['txt', 'csv', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
+    /** Các extension được phép upload (tài liệu + csv + ảnh). */
+    public const ALLOWED_EXTENSIONS = ['txt', 'csv', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
 
     /** Dung lượng tối đa mỗi file (5MB). */
     public const MAX_FILE_SIZE_KB = 5120;
@@ -164,6 +164,8 @@ class KnowledgeService
                 'pdf' => $this->readPdf($disk, $path),
                 'doc', 'docx' => $this->readWord($disk, $path),
                 'xls', 'xlsx' => $this->readExcel($disk, $path),
+                // Ảnh: lưu được nhưng chưa trích xuất text (OCR để sau).
+                'png', 'jpg', 'jpeg', 'gif', 'webp' => '',
                 default => '',
             };
         } catch (Throwable $e) {

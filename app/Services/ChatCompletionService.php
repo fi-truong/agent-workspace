@@ -57,7 +57,8 @@ class ChatCompletionService
     }
 
     /**
-     * @return array{0: array, 1: array} [$payload, $filteredMessages]
+     * @param  array<int, array{role: string, content: mixed}>  $messages
+     * @return array{0: array<int, array{role: string, content: mixed}>, 1: array<int, array{role: string, content: mixed}>} [$payload, $filteredMessages]
      */
     private function buildPayload(array $messages, ?string $systemPrompt): array
     {
@@ -122,6 +123,9 @@ class ChatCompletionService
     /**
      * Bản streaming của mock: chia câu trả lời giả lập thành từng từ,
      * gọi $onDelta cho từng từ kèm delay nhỏ để giả lập hiệu ứng gõ chữ khi test local (chưa có API key).
+     *
+     * @param  array<int, array{role: string, content: mixed}>  $messages
+     * @return array{content: string, prompt_tokens: int, completion_tokens: int}
      */
     private function mockStreamCompletion(array $messages, callable $onDelta): array
     {
@@ -141,6 +145,9 @@ class ChatCompletionService
         return $result;
     }
 
+    /**
+     * @param  array<int, array{role: string, content: mixed}>  $messages
+     */
     private function extractLastUserText(array $messages): string
     {
         for ($i = count($messages) - 1; $i >= 0; $i--) {

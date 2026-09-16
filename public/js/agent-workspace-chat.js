@@ -18,6 +18,26 @@ document.addEventListener('DOMContentLoaded', function () {
     conversationId = urlConversationId;
   }
 
+  // Hiển thị badge tên agent ở topbar (từ selectedAgentId hoặc activeAgent server-side).
+  function syncAgentBadge() {
+    const topbarLeft = document.querySelector('.topbar-left');
+    if (!topbarLeft) return;
+
+    // Nếu server đã render badge activeAgent → giữ nguyên.
+    if (topbarLeft.querySelector('.active-agent-badge')) return;
+
+    if (!selectedAgentId) return;
+    const agent = (window.__MY_AGENTS__ || []).find((a) => String(a.id) === String(selectedAgentId));
+    if (!agent) return;
+
+    const badge = document.createElement('div');
+    badge.className = 'active-agent-badge';
+    badge.textContent = '🤖 ' + agent.title;
+    topbarLeft.appendChild(badge);
+
+    // Khi có badge từ selectedAgent, không cho topbar-right bị đẩy — giữ flex OK.
+  }
+
   function renderInitialMessages() {
     const messages = window.__INITIAL_MESSAGES__ || [];
     if (messages.length === 0) return;
@@ -42,7 +62,9 @@ document.addEventListener('DOMContentLoaded', function () {
       ? 'align-self:flex-end;background:var(--navy);color:#fff;padding:12px 16px;border-radius:14px;max-width:70%;white-space:pre-wrap;'
       : 'align-self:flex-start;background:var(--card-bg);border:1px solid var(--line);padding:12px 16px;border-radius:14px;max-width:85%;white-space:normal;';
 
-    if (role === 'assistant' && typeof marked !== 'undefined') {
+    // Render markdown cho assistant + user (nếu có ảnh kèm) — để ảnh hiện trong lịch sử.
+    const hasImageMd = typeof text === 'string' && text.includes('![');
+    if (typeof marked !== 'undefined' && (role === 'assistant' || hasImageMd)) {
       bubble.innerHTML = marked.parse(text);
     } else {
       bubble.textContent = text;
@@ -200,7 +222,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (sendBtn) sendBtn.textContent = 'Sending…';
 
     if (emptyState) emptyState.style.display = 'none';
-    appendMessage('user', message || '[Gửi hình ảnh]');
+
+    // Hiện ảnh kèm trong bubble user ngay khi gửi (dùng pendingImages trước khi clear).
+    const pendingSnapshot = pendingImages.slice();
+    if (pendingSnapshot.length > 0) {
+      const mdImg = pendingSnapshot.map((d) => `![Ảnh đính kèm](${d})`).join('\n');
+      appendMessage('user', message ? message + '\n\n' + mdImg : mdImg);
+    } else {
+      appendMessage('user', message || '[Gửi hình ảnh]');
+    }
     textarea.value = '';
 
     const images = pendingImages;
@@ -394,6 +424,30 @@ document.addEventListener('DOMContentLoaded', function () {
     renderImagePreviews();
   });
 
+  // ==== Right-click Rename conversation ====
+  document.querySelectorAll('.chat-item[data-conversation-id]').forEach((item) => {
+    item.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const convId = item.dataset.conversationId;
+      const currentTitle = item.dataset.conversationTitle || '';
+      const newTitle = window.prompt('Đổi tên cuộc hội thoại:', currentTitle);
+
+      if (newTitle !== null && newTitle.trim() !== '' && newTitle.trim() !== currentTitle) {
+        fetch('/ai-plus/agent-workspace/conversations/' + convId, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+          },
+          body: JSON.stringify({ title: newTitle.trim() }),
+        }).then((res) => {
+          if (res.ok) location.reload();
+        });
+      }
+    });
+  });
+
   sendBtn.addEventListener('click', function (e) {
     e.preventDefault();
     sendMessage();
@@ -460,6 +514,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   renderInitialMessages();
+  syncAgentBadge();
 
   const quickBtnBehaviors = {
     'quick-chat': function () {
