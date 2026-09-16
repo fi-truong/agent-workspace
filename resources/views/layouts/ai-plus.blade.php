@@ -26,9 +26,15 @@
     <a href="{{ route('ai-plus.index') }}" class="back-link">← Back to AI+</a>
     <span class="crumb-current">@yield('breadcrumb')</span>
     @auth
-    <span class="user-badge" style="margin-left:auto;">
-      Viewing as: {{ $currentUser->name ?? '' }}
-    </span>
+    <div class="user-badge-wrap" style="margin-left:auto;">
+      <a href="{{ route('account.password') }}" class="user-badge user-badge-link" title="View account & change password">
+        Viewing as: {{ $currentUser->name ?? '' }}
+      </a>
+      <form method="POST" action="{{ route('logout') }}" class="header-logout-form">
+        @csrf
+        <button type="submit" class="header-logout-btn" title="Logout">Logout</button>
+      </form>
+    </div>
     @endauth
   </div>
 </div>

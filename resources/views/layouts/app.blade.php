@@ -25,7 +25,19 @@
       <div class="crumb-trail">
         <a href="{{ route('ai-plus.index') }}" class="crumb-link">LSTS Staff Portal</a> <span class="crumb-sep">/</span> <b>AI+</b>
       </div>
-      <div class="role-pill"><span class="dot"></span>Viewing as: {{ $currentUser->name ?? 'Teacher / Staff' }}</div>
+      <div class="role-pill role-pill-account">
+        @auth
+        <a href="{{ route('account.password') }}" title="View account & change password" class="role-pill-link">
+          <span class="dot"></span>Viewing as: {{ $currentUser->name ?? 'Teacher / Staff' }}
+        </a>
+        <form method="POST" action="{{ route('logout') }}" class="header-logout-form">
+          @csrf
+          <button type="submit" class="header-logout-btn">Logout</button>
+        </form>
+        @else
+        <span class="dot"></span>Viewing as: Teacher / Staff
+        @endauth
+      </div>
     </div>
   </div>
 

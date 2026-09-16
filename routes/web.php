@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountPasswordController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\PromptController;
@@ -121,6 +122,14 @@ Route::post('/logout', function () {
 Route::get('/ai-plus/access-pending', function () {
     return view('ai-plus.access-pending');
 })->name('ai-plus.access-pending');
+
+// Đổi mật khẩu (cần đăng nhập).
+Route::middleware('auth')->group(function () {
+    Route::get('/account/password', [AccountPasswordController::class, 'show'])
+        ->name('account.password');
+    Route::post('/account/password', [AccountPasswordController::class, 'update'])
+        ->name('account.password.update');
+});
 
 Route::get('/login-local', fn () => view('auth.login'))->name('login.local.form');
 Route::post('/login-local', function () {
