@@ -56,6 +56,14 @@ class Agent extends Model
     }
 
     /**
+     * @return HasMany<KnowledgeChunk, $this>
+     */
+    public function chunks(): HasMany
+    {
+        return $this->hasMany(KnowledgeChunk::class);
+    }
+
+    /**
      * Đọc cột knowledge (JSON string) thành mảng các file.
      *
      * @return array<int, array{path: string, original_name: string}>

@@ -35,12 +35,15 @@
         <button class="add-btn" title="New chat">+</button>
       </div>
       @foreach($conversations as $conv)
-      <a href="{{ route('ai-plus.agent-workspace.index', ['conversation_id' => $conv['id']]) }}"
-         class="chat-item {{ $loop->first ? 'active' : '' }}"
-         data-conversation-id="{{ $conv['id'] }}" data-conversation-title="{{ $conv['title'] }}">
-        <span class="item-icon chat">💬</span>
-        <span class="title">{{ $conv['title'] }}</span>
-      </a>
+      <div class="chat-item-wrap">
+        <a href="{{ route('ai-plus.agent-workspace.index', ['conversation_id' => $conv['id']]) }}"
+           class="chat-item {{ $loop->first ? 'active' : '' }}"
+           data-conversation-id="{{ $conv['id'] }}" data-conversation-title="{{ $conv['title'] }}">
+          <span class="item-icon chat">💬</span>
+          <span class="title">{{ $conv['title'] }}</span>
+        </a>
+        <button class="conv-delete-btn" data-conversation-id="{{ $conv['id'] }}" title="Delete prompt">×</button>
+      </div>
       @endforeach
 
       <div class="chat-list-section">
@@ -90,8 +93,12 @@
           <span class="badge">School AI</span>
         </div>
         @if($activeAgent)
-        <div class="active-agent-badge" data-agent-name="{{ $activeAgent->title }}">
-          🤖 {{ $activeAgent->title }}
+        <div class="active-agent-breadcrumb">
+          <span class="agent-breadcrumb-name">🤖 {{ $activeAgent->title }}</span>
+          @if($activeConversationTitle)
+          <span class="agent-breadcrumb-sep">→</span>
+          <span class="agent-breadcrumb-prompt">{{ $activeConversationTitle }}</span>
+          @endif
         </div>
         @endif
       </div>
@@ -174,6 +181,11 @@
   .chat-item{padding:10px 12px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:10px;transition: background 0.15s;}
   .chat-item:hover{background: var(--input-bg);}
   .chat-item.active{background: var(--surface);}
+  .chat-item-wrap{position:relative;}
+  .chat-item-wrap .chat-item{width:100%;box-sizing:border-box;padding-right:32px;}
+  .conv-delete-btn{position:absolute;top:6px;right:8px;width:22px;height:22px;border-radius:50%;border:none;background:transparent;color:var(--text-soft);cursor:pointer;font-size:14px;line-height:1;display:none;align-items:center;justify-content:center;}
+  .chat-item-wrap:hover .conv-delete-btn{display:flex;}
+  .conv-delete-btn:hover{background:rgba(220,53,69,0.15);color:#dc3545;}
   .item-icon{width:28px;height:28px;border-radius:6px;background: var(--chip-bg);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
   .item-icon.chat{background: var(--navy-light);}
   .item-icon.agent{background: linear-gradient(135deg, var(--gold) 0%, #E5AB45 100%);}
@@ -203,7 +215,10 @@
   .model-selector{padding:8px 12px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:8px;font-size:13px;color: var(--input-text);cursor:pointer;display:flex;align-items:center;gap:8px;}
   .model-selector .badge{background: var(--navy);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-family:'IBM Plex Mono', monospace;}
   .topbar-left{display:flex;flex-direction:column;align-items:flex-start;gap:6px;}
-  .active-agent-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background: linear-gradient(135deg, var(--gold) 0%, #E5AB45 100%);color:#fff;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+  .active-agent-breadcrumb{display:flex;align-items:center;gap:8px;max-width:100%;}
+  .agent-breadcrumb-name{display:inline-block;padding:6px 12px;background: linear-gradient(135deg, var(--gold) 0%, #E5AB45 100%);color:#fff;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;}
+  .agent-breadcrumb-sep{color:var(--text-soft,#5B6B7C);font-size:14px;}
+  .agent-breadcrumb-prompt{color:var(--text-main);font-size:13px;white-space:nowrap;}
   .topbar-right{display:flex;align-items:center;gap:8px;}
   .icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--topbar-border);background: var(--topbar-bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color: var(--topbar-crumb);font-size:16px;transition: background 0.15s;}
   .icon-btn:hover{background: var(--surface);color: var(--topbar-link);}

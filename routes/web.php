@@ -39,6 +39,8 @@ Route::get('/ai-plus', [AiPlusController::class, 'index'])->name('ai-plus.index'
 Route::prefix('ai-plus')->name('ai-plus.')->group(function () {
     Route::patch('/agent-workspace/conversations/{conversation}', [ChatMessageController::class, 'rename'])
         ->name('conversations.rename');
+    Route::delete('/agent-workspace/conversations/{conversation}', [ChatMessageController::class, 'destroy'])
+        ->name('conversations.destroy');
     Route::get('/agent-workspace', [AgentWorkspaceController::class, 'index'])->name('agent-workspace.index');
     Route::get('/agent-workspace/agents', [AgentController::class, 'index'])->name('agent-workspace.agents.index');
     Route::post('/agent-workspace/agents', [AgentController::class, 'store'])->name('agent-workspace.agents.store');

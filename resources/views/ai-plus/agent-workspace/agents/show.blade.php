@@ -125,6 +125,47 @@ document.addEventListener('DOMContentLoaded', () => {
   const editBtn = document.querySelector('.edit-agent-btn');
   const deleteBtn = document.querySelector('.delete-agent-btn');
 
+  // Modal xác nhận tùy chỉnh (thay confirm() trình duyệt).
+  function showDeleteConfirm() {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+      const box = document.createElement('div');
+      box.style.cssText = 'background:var(--card-bg,#fff);border-radius:16px;width:100%;max-width:400px;box-shadow:0 24px 48px -12px rgba(31,56,100,0.35);overflow:hidden;';
+
+      const header = document.createElement('div');
+      header.style.cssText = 'padding:20px 24px;border-bottom:1px solid var(--line,#E1DACB);font-family:Fraunces,serif;font-size:20px;font-weight:600;color:var(--navy,#1F3864);';
+      header.textContent = 'Delete agent';
+      box.appendChild(header);
+
+      const body = document.createElement('div');
+      body.style.cssText = 'padding:20px 24px;font-size:14px;color:var(--ink,#22303F);line-height:1.5;';
+      body.textContent = 'Are you sure you want to delete this agent? This cannot be undone.';
+      box.appendChild(body);
+
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.cssText = 'padding:10px 20px;border-radius:8px;background:var(--paper,#F6F3EC);color:var(--ink,#22303F);border:1px solid var(--line,#E1DACB);cursor:pointer;font-size:14px;';
+      cancelBtn.addEventListener('click', () => { overlay.remove(); resolve(false); });
+      footer.appendChild(cancelBtn);
+
+      const okBtn = document.createElement('button');
+      okBtn.textContent = 'Delete';
+      okBtn.style.cssText = 'padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:14px;color:#fff;background:#dc3545;';
+      okBtn.addEventListener('click', () => { overlay.remove(); resolve(true); });
+      footer.appendChild(okBtn);
+
+      box.appendChild(footer);
+      overlay.appendChild(box);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
+      document.body.appendChild(overlay);
+    });
+  }
+
   useBtn?.addEventListener('click', () => {
     const agentId = useBtn.dataset.agentId;
     sessionStorage.setItem('selectedAgentId', agentId);
@@ -137,7 +178,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   deleteBtn?.addEventListener('click', async () => {
-    if (!confirm('Delete this agent?')) return;
+    const ok = await showDeleteConfirm();
+    if (!ok) return;
     const agentId = deleteBtn.dataset.agentId;
     const res = await fetch(`{{ route('ai-plus.agent-workspace.agents.destroy', ':id') }}`.replace(':id', agentId), {
       method: 'DELETE',

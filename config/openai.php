@@ -2,17 +2,6 @@
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | OpenAI API Configuration
-    |--------------------------------------------------------------------------
-    |
-    | Đọc từ .env. Key được giữ riêng trong biến môi trường (không commit).
-    | Model mặc định: GPT-5.6 Luna theo cost model đã chốt cho AI+ (kiểm tra giá
-    | lại trước khi deploy thật, giá API có thể đổi).
-    |
-    */
-
     'api_key' => env('OPENAI_API_KEY'),
 
     'organization' => env('OPENAI_ORGANIZATION'),
@@ -21,24 +10,31 @@ return [
 
     'model' => env('OPENAI_MODEL', 'gpt-5.6-luna'),
 
-    'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 8000),
+    // GPT-5+ dùng max_completion_tokens (đúng 8192 như đang chạy).
+    'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 8192),
 
-    // Giữ reasoning ở mức thấp để tránh model "ăn" hết token budget vào suy luận ẩn
-    // trước khi sinh ra nội dung hiển thị (xem log lỗi finish_reason=length, content rỗng).
+    // Tuỳ chọn — chưa nối vào OpenAIClient (để sau nếu cần điều chỉnh mức suy luận).
     'reasoning_effort' => env('OPENAI_REASONING_EFFORT', 'low'),
 
-    'temperature' => (float) env('OPENAI_TEMPERATURE', 0.7),
-
-    /*
-    | Thời gian chờ tối đa cho mỗi request đến OpenAI.
-    | Nếu external API chậm, fail nhanh để tránh treo worker/request.
-    */
+    // KHÔNG dùng temperature cho GPT-5.6 Luna (client không gửi) — bỏ hẳn khỏi config.
     'timeout' => (int) env('OPENAI_TIMEOUT', 120),
 
-    /*
-    | Số lần retry + thời gian chờ giữa các lần (milliseconds).
-    | Chỉ retry khi lỗi tạm thời (connection/timeout/5xx), không retry 4xx.
-    */
     'retry_times' => (int) env('OPENAI_RETRY_TIMES', 2),
     'retry_delay_ms' => (int) env('OPENAI_RETRY_DELAY_MS', 300),
+
+    /*
+    |--------------------------------------------------------------------------
+    | RAG (Knowledge retrieval)
+    |--------------------------------------------------------------------------
+    */
+    'embedding_model' => env('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
+
+    // Số đoạn liên quan nhất lấy vào system prompt mỗi lượt hỏi.
+    'rag_top_k' => (int) env('RAG_TOP_K', 4),
+
+    // Kích thước mỗi đoạn (ký tự) khi cắt file Knowledge.
+    'rag_chunk_chars' => (int) env('RAG_CHUNK_CHARS', 900),
+
+    // Số ký tự chồng lấn giữa 2 đoạn liền kề (giữ ngữ cảnh không bị đứt).
+    'rag_chunk_overlap' => (int) env('RAG_CHUNK_OVERLAP', 150),
 ];

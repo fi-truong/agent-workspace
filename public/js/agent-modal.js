@@ -233,18 +233,78 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       if (deleteBtn) {
-        if (!confirm('Delete this agent?')) return;
+        const okConfirmed = await confirmDialog('Are you sure you want to delete this agent? This cannot be undone.');
+        if (!okConfirmed) return;
         const agentId = deleteBtn.dataset.agentId;
         const res = await fetch(`/ai-plus/agent-workspace/agents/${agentId}`, {
           method: 'DELETE',
           headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
         });
         if (res.ok) {
-          window.location.reload();
+          showToast('🗑️ Agent deleted');
+          setTimeout(() => window.location.reload(), 1000);
         } else {
           alert('Failed to delete agent');
         }
       }
+    });
+  }
+
+  // Toast nhỏ thông báo lưu thành công.
+  function showToast(message) {
+    const existing = document.getElementById('agent-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'agent-toast';
+    toast.textContent = message;
+    toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:2000;background:#1F3864;color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,0.2);opacity:0;transition:opacity .25s;';
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => { toast.style.opacity = '1'; });
+    setTimeout(() => { toast.style.opacity = '0'; }, 1000);
+  }
+
+  // Modal xác nhận tùy chỉnh (thay cho confirm() trình duyệt).
+  // Trả về Promise<boolean> — true nếu nhấn Yes, false nếu No / đóng.
+  function confirmDialog(message, { title = 'Delete agent', confirmText = 'Delete', danger = true } = {}) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+      const box = document.createElement('div');
+      box.style.cssText = 'background:var(--card-bg,#fff);border-radius:16px;width:100%;max-width:400px;box-shadow:0 24px 48px -12px rgba(31,56,100,0.35);overflow:hidden;';
+
+      const header = document.createElement('div');
+      header.style.cssText = 'padding:20px 24px;border-bottom:1px solid var(--line,#E1DACB);font-family:Fraunces,serif;font-size:20px;font-weight:600;color:var(--navy,#1F3864);';
+      header.textContent = title;
+      box.appendChild(header);
+
+      const body = document.createElement('div');
+      body.style.cssText = 'padding:20px 24px;font-size:14px;color:var(--ink,#22303F);line-height:1.5;';
+      body.textContent = message;
+      box.appendChild(body);
+
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.cssText = 'padding:10px 20px;border-radius:8px;background:var(--paper,#F6F3EC);color:var(--ink,#22303F);border:1px solid var(--line,#E1DACB);cursor:pointer;font-size:14px;';
+      cancelBtn.addEventListener('click', () => { overlay.remove(); resolve(false); });
+      footer.appendChild(cancelBtn);
+
+      const okBtn = document.createElement('button');
+      okBtn.type = 'button';
+      okBtn.textContent = confirmText;
+      okBtn.style.cssText = 'padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:14px;color:#fff;'+(danger?'background:#dc3545;':'background:#1F3864;');
+      okBtn.addEventListener('click', () => { overlay.remove(); resolve(true); });
+      footer.appendChild(okBtn);
+
+      box.appendChild(footer);
+      overlay.appendChild(box);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
+      document.body.appendChild(overlay);
     });
   }
 
@@ -275,7 +335,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (res.ok) {
       closeModal();
-      window.location.reload();
+      showToast('✅ Agent saved successfully');
+      setTimeout(() => window.location.reload(), 1200);
     } else {
       const err = await res.json();
       const message = err.message || (err.errors ? Object.values(err.errors).flat().join(' ') : 'Failed to save agent');

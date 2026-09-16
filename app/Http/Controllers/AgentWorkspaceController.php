@@ -24,6 +24,7 @@ class AgentWorkspaceController extends Controller
         // Tin nhắn initial nếu mở lại conversation cũ qua ?conversation_id=
         $initialMessages = [];
         $activeAgent = null;
+        $activeConversationTitle = null;
         $activeConversationId = $request->query('conversation_id');
 
         if ($user) {
@@ -55,8 +56,9 @@ class AgentWorkspaceController extends Controller
                         ->map(fn ($m) => ['role' => $m->role, 'content' => $m->content])
                         ->toArray();
 
-                    // Agent gắn với conversation → hiển thị tên trong chat.
+                    // Agent + tên prompt (conversation) gắn → hiển thị trong chat.
                     $activeAgent = $conversation->agent;
+                    $activeConversationTitle = $conversation->title;
                 }
             }
         }
@@ -75,6 +77,7 @@ class AgentWorkspaceController extends Controller
             'userName' => $userName,
             'userInitials' => $userInitials,
             'activeAgent' => $activeAgent,
+            'activeConversationTitle' => $activeConversationTitle,
             'promptsUsed' => $promptsUsedToday,
             'promptsLimit' => $promptsLimit,
             'initialMessages' => $initialMessages,

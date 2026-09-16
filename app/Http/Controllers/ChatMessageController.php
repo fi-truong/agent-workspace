@@ -239,7 +239,7 @@ class ChatMessageController extends Controller
             ];
         }
 
-        $systemPrompt = $this->buildSystemPrompt($conversation, $knowledgeService);
+        $systemPrompt = $this->buildSystemPrompt($conversation, $knowledgeService, $request->message);
 
         return [
             'conversation' => $conversation,
@@ -278,7 +278,7 @@ class ChatMessageController extends Controller
         ]);
     }
 
-    private function buildSystemPrompt(Conversation $conversation, KnowledgeService $knowledgeService): ?string
+    private function buildSystemPrompt(Conversation $conversation, KnowledgeService $knowledgeService, string $query): ?string
     {
         $agent = $conversation->agent;
 
@@ -289,7 +289,12 @@ class ChatMessageController extends Controller
         $systemPrompt = $agent->system_prompt;
 
         if ($agent->knowledge_files) {
-            $context = $knowledgeService->buildContext($agent->knowledge_files, $agent->user_id, $agent->id);
+            // RAG: lấy đoạn liên quan nhất đến câu hỏi; nếu rỗng (chưa index/embed lỗi) → fallback đọc nguyên file.
+            $context = $knowledgeService->retrieveContext($agent, $query);
+
+            if ($context === '') {
+                $context = $knowledgeService->buildContext($agent->knowledge_files, $agent->user_id, $agent->id);
+            }
 
             if ($context !== '') {
                 $systemPrompt = trim($systemPrompt ? $systemPrompt."\n\n".$context : 'Bạn là một trợ lý AI của trường LSTS.'."\n\n".$context);
@@ -350,6 +355,16 @@ class ChatMessageController extends Controller
         $conversation->update(['title' => trim($request->title)]);
 
         return response()->json(['ok' => true, 'title' => $conversation->title]);
+    }
+
+    /**
+     * Xóa một conversation (prompt) — messages cascade theo FK.
+     */
+    public function destroy(Conversation $conversation): JsonResponse
+    {
+        $conversation->delete();
+
+        return response()->json(['ok' => true]);
     }
 
     private function summarizeConversationTitle(Conversation $conversation): void

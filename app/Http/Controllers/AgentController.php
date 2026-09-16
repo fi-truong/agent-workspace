@@ -62,6 +62,7 @@ class AgentController extends Controller
         ]);
 
         $this->saveKnowledgeFiles($request->file('knowledge', []), $user->id, $agent);
+        $this->knowledgeService->indexAgent($agent);
 
         if ($request->wantsJson()) {
             return response()->json($agent, 201);
@@ -94,6 +95,7 @@ class AgentController extends Controller
         ]);
 
         $this->syncKnowledgeFiles($request, $agent);
+        $this->knowledgeService->indexAgent($agent);
 
         if ($request->wantsJson()) {
             return response()->json($agent);
@@ -108,6 +110,9 @@ class AgentController extends Controller
         $this->authorize('delete', $agent);
 
         $this->knowledgeService->deleteAgentKnowledge($agent->user_id, $agent->id);
+
+        // Xóa luôn conversations (prompt) từng gắn agent này.
+        $agent->conversations()->delete();
 
         $agent->delete();
 
@@ -145,7 +150,7 @@ class AgentController extends Controller
         /** @var array<int, array{path: string, original_name: string}> $existing */
         $existing = $agent->knowledge_files;
         $newFiles = $request->file('knowledge', []);
-        $removePaths = $request->input('knowledge_remove', []);
+        $removePaths = $request->input('knowledge_remove', []) ?? [];
 
         // Khi không gửi file mới và không có yêu cầu xóa → giữ nguyên.
         if ($newFiles === [] && $removePaths === []) {

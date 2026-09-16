@@ -18,24 +18,40 @@ document.addEventListener('DOMContentLoaded', function () {
     conversationId = urlConversationId;
   }
 
-  // Hiển thị badge tên agent ở topbar (từ selectedAgentId hoặc activeAgent server-side).
+  // Hiển thị breadcrumb tên agent ở topbar (từ selectedAgentId hoặc activeAgent server-side).
   function syncAgentBadge() {
     const topbarLeft = document.querySelector('.topbar-left');
     if (!topbarLeft) return;
 
-    // Nếu server đã render badge activeAgent → giữ nguyên.
+    // Server đã render breadcrumb (có conversation) → giữ nguyên, đừng tạo thêm.
+    if (topbarLeft.querySelector('.active-agent-breadcrumb')) return;
+    // Cũng bỏ qua nếu có badge cũ (trước khi có breadcrumb).
     if (topbarLeft.querySelector('.active-agent-badge')) return;
 
     if (!selectedAgentId) return;
     const agent = (window.__MY_AGENTS__ || []).find((a) => String(a.id) === String(selectedAgentId));
     if (!agent) return;
 
-    const badge = document.createElement('div');
-    badge.className = 'active-agent-badge';
-    badge.textContent = '🤖 ' + agent.title;
-    topbarLeft.appendChild(badge);
+    const crumb = document.createElement('div');
+    crumb.className = 'active-agent-breadcrumb';
+    const n = document.createElement('span');
+    n.className = 'agent-breadcrumb-name';
+    n.textContent = '🤖 ' + agent.title;
+    crumb.appendChild(n);
+    topbarLeft.appendChild(crumb);
+  }
 
-    // Khi có badge từ selectedAgent, không cho topbar-right bị đẩy — giữ flex OK.
+  function showMiniToast(message) {
+    const existing = document.getElementById('mini-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'mini-toast';
+    toast.textContent = message;
+    toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:2000;background:#1F3864;color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,0.2);opacity:0;transition:opacity .25s;';
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => { toast.style.opacity = '1'; });
+    setTimeout(() => { toast.style.opacity = '0'; }, 850);
   }
 
   function renderInitialMessages() {
@@ -57,10 +73,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function appendMessage(role, text) {
     const container = ensureMessagesContainer();
+
+    // Wrapper chứa bubble + nút copy (để copy nằm ở góc).
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-msg-wrap';
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-width:85%;'+(role === 'user' ? 'align-self:flex-end;' : 'align-self:flex-start;');
+
     const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
     bubble.style.cssText = role === 'user'
-      ? 'align-self:flex-end;background:var(--navy);color:#fff;padding:12px 16px;border-radius:14px;max-width:70%;white-space:pre-wrap;'
-      : 'align-self:flex-start;background:var(--card-bg);border:1px solid var(--line);padding:12px 16px;border-radius:14px;max-width:85%;white-space:normal;';
+      ? 'background:var(--navy);color:#fff;padding:12px 16px;border-radius:14px;white-space:pre-wrap;'
+      : 'background:var(--card-bg);border:1px solid var(--line);padding:12px 16px;border-radius:14px;white-space:normal;';
 
     // Render markdown cho assistant + user (nếu có ảnh kèm) — để ảnh hiện trong lịch sử.
     const hasImageMd = typeof text === 'string' && text.includes('![');
@@ -70,7 +93,38 @@ document.addEventListener('DOMContentLoaded', function () {
       bubble.textContent = text;
     }
 
-    container.appendChild(bubble);
+    // Nút copy ở góc phải wrapper.
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.textContent = '⧉';
+    copyBtn.title = 'Copy';
+    copyBtn.style.cssText = 'align-self:flex-end;background:transparent;border:none;cursor:pointer;color:var(--text-soft,#5B6B7C);font-size:14px;padding:2px 6px;border-radius:6px;transition:background .15s;';
+    copyBtn.addEventListener('mouseenter', () => { copyBtn.style.background = 'var(--input-bg, rgba(0,0,0,0.05))'; });
+    copyBtn.addEventListener('mouseleave', () => { copyBtn.style.background = 'transparent'; });
+    copyBtn.addEventListener('click', () => {
+      const plainText = bubble.innerText || bubble.textContent || '';
+
+      // Dùng fallback textarea luôn (clipboard API yêu cầu HTTPS, không hoạt động trên http://LAN).
+      const ta = document.createElement('textarea');
+      ta.value = plainText;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, plainText.length);
+      let ok = false;
+      try {
+        ok = document.execCommand('copy');
+      } catch (e) {
+        ok = false;
+      }
+      document.body.removeChild(ta);
+      showMiniToast(ok ? '✅ Copied to clipboard' : '⚠️ Copy failed — select manually and copy');
+    });
+
+    wrap.appendChild(bubble);
+    wrap.appendChild(copyBtn);
+    container.appendChild(wrap);
 
     if (role === 'assistant' && typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
       try {
@@ -81,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     container.scrollTop = container.scrollHeight;
-    return bubble;
+    return wrap;
   }
 
   function appendWarning(text) {
@@ -442,9 +496,80 @@ document.addEventListener('DOMContentLoaded', function () {
           },
           body: JSON.stringify({ title: newTitle.trim() }),
         }).then((res) => {
-          if (res.ok) location.reload();
+          if (res.ok) {
+            showMiniToast('✏️ Conversation renamed');
+            setTimeout(() => location.reload(), 1000);
+          }
         });
       }
+    });
+  });
+
+  // Modal xác nhận tùy chỉnh (thay cho confirm() trình duyệt).
+  function confirmDialog(message, { title = 'Delete prompt', confirmText = 'Delete', danger = true } = {}) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+      const box = document.createElement('div');
+      box.style.cssText = 'background:var(--card-bg,#fff);border-radius:16px;width:100%;max-width:400px;box-shadow:0 24px 48px -12px rgba(31,56,100,0.35);overflow:hidden;';
+
+      const header = document.createElement('div');
+      header.style.cssText = 'padding:20px 24px;border-bottom:1px solid var(--line,#E1DACB);font-family:Fraunces,serif;font-size:20px;font-weight:600;color:var(--navy,#1F3864);';
+      header.textContent = title;
+      box.appendChild(header);
+
+      const body = document.createElement('div');
+      body.style.cssText = 'padding:20px 24px;font-size:14px;color:var(--ink,#22303F);line-height:1.5;';
+      body.textContent = message;
+      box.appendChild(body);
+
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.cssText = 'padding:10px 20px;border-radius:8px;background:var(--paper,#F6F3EC);color:var(--ink,#22303F);border:1px solid var(--line,#E1DACB);cursor:pointer;font-size:14px;';
+      cancelBtn.addEventListener('click', () => { overlay.remove(); resolve(false); });
+      footer.appendChild(cancelBtn);
+
+      const okBtn = document.createElement('button');
+      okBtn.textContent = confirmText;
+      okBtn.style.cssText = 'padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:14px;color:#fff;'+(danger?'background:#dc3545;':'background:#1F3864;');
+      okBtn.addEventListener('click', () => { overlay.remove(); resolve(true); });
+      footer.appendChild(okBtn);
+
+      box.appendChild(footer);
+      overlay.appendChild(box);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
+      document.body.appendChild(overlay);
+    });
+  }
+
+  // ==== Delete conversation (prompt) — nút × trong sidebar ====
+  document.querySelectorAll('.conv-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const convId = btn.dataset.conversationId;
+      if (!convId) return;
+
+      const ok = await confirmDialog('Are you sure you want to delete this prompt? This cannot be undone.');
+      if (!ok) return;
+
+      fetch('/ai-plus/agent-workspace/conversations/' + convId, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        },
+      }).then((res) => {
+        if (res.ok) {
+          showMiniToast('🗑️ Prompt deleted');
+          setTimeout(() => location.reload(), 1000);
+        }
+      });
     });
   });
 
