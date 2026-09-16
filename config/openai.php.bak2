@@ -23,8 +23,6 @@ return [
 
     'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 8000),
 
-    // Giữ reasoning ở mức thấp để tránh model "ăn" hết token budget vào suy luận ẩn
-    // trước khi sinh ra nội dung hiển thị (xem log lỗi finish_reason=length, content rỗng).
     'reasoning_effort' => env('OPENAI_REASONING_EFFORT', 'low'),
 
     'temperature' => (float) env('OPENAI_TEMPERATURE', 0.7),

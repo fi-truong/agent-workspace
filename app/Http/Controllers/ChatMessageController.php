@@ -15,18 +15,18 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ChatMessageController extends Controller
 {
     use AuthorizesRequests;
 
-    /** Số tin nhắn gần nhất gom vào context khi gửi tiếp trong conversation. */
     public const CHAT_HISTORY_LIMIT = 20;
-
-    /** Cap ký tự mỗi message trong history (tránh vượt context). */
     public const MAX_MESSAGE_CHARS = 4000;
 
     /**
+     * Bản KHÔNG streaming — giữ nguyên hành vi cũ, dùng cho nơi nào chưa chuyển sang stream().
+     *
      * @return JsonResponse
      */
     public function store(
@@ -35,26 +35,114 @@ class ChatMessageController extends Controller
         ChatCompletionService $chatService,
         KnowledgeService $knowledgeService,
     ) {
-        // GPT-5 reasoning + knowledge dài có thể mất >30s; tăng giới hạn cho request chat.
         set_time_limit(120);
+
+        $blocked = $this->validateAndScanPii($request, $piiFilter);
+        if ($blocked) {
+            return $blocked;
+        }
+
+        $ctx = $this->prepareTurn($request, $knowledgeService);
+
+        try {
+            $completion = $chatService->complete($ctx['history'], $ctx['systemPrompt']);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'blocked' => false,
+                'error' => $e->getMessage(),
+                'retryable' => true,
+            ], 502);
+        }
+
+        $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion);
+
+        return response()->json([
+            'blocked' => false,
+            'conversation_id' => $ctx['conversation']->id,
+            'reply' => $completion['content'],
+        ]);
+    }
+
+    /**
+     * Bản STREAMING — đẩy từng đoạn nội dung ra ngay khi OpenAI trả về, qua Server-Sent Events.
+     * Frontend đọc bằng fetch() + ReadableStream (không dùng EventSource vì đây là POST).
+     *
+     * Các event gửi về:
+     *   event: delta  data: {"text": "..."}      → nối thêm vào bong bóng chat đang gõ dở
+     *   event: error  data: {"message": "..."}   → hiển thị lỗi, dừng streaming
+     *   event: done   data: {"conversation_id":.., "reply": "..."} → hoàn tất, có thể render lại markdown/MathJax
+     */
+    public function stream(
+        Request $request,
+        PiiFilterService $piiFilter,
+        ChatCompletionService $chatService,
+        KnowledgeService $knowledgeService,
+    ): StreamedResponse {
+        set_time_limit(120);
+
+        $blocked = $this->validateAndScanPii($request, $piiFilter);
+        if ($blocked) {
+            // Chặn PII: trả JSON thường (chưa mở stream), giữ hành vi giống store().
+            return $blocked;
+        }
+
+        $ctx = $this->prepareTurn($request, $knowledgeService);
+
+        return response()->stream(function () use ($ctx, $chatService, $request) {
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+            ob_implicit_flush(true);
+
+            $send = function (string $event, array $data) {
+                echo "event: {$event}\n";
+                echo 'data: '.json_encode($data, JSON_UNESCAPED_UNICODE)."\n\n";
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            };
+
+            try {
+                $completion = $chatService->streamComplete(
+                    $ctx['history'],
+                    $ctx['systemPrompt'],
+                    function (string $delta) use ($send) {
+                        $send('delta', ['text' => $delta]);
+                    },
+                );
+            } catch (\RuntimeException $e) {
+                $send('error', ['message' => $e->getMessage()]);
+
+                return;
+            }
+
+            $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion);
+
+            $send('done', [
+                'conversation_id' => $ctx['conversation']->id,
+                'reply' => $completion['content'],
+            ]);
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no', // quan trọng nếu sau này chạy sau Nginx — chặn Nginx tự buffer
+            'Connection' => 'keep-alive',
+        ]);
+    }
+
+    /**
+     * Validate input + scan PII. Trả về JsonResponse nếu cần chặn ngay, null nếu ok để đi tiếp.
+     */
+    private function validateAndScanPii(Request $request, PiiFilterService $piiFilter): ?JsonResponse
+    {
         $request->validate([
             'message' => 'required|string|max:5000',
             'conversation_id' => 'nullable|integer|exists:conversations,id',
             'agent_id' => 'nullable|integer|exists:agents,id',
             'images' => 'nullable|array',
-            'images.*' => 'string', // data URL base64 (vd data:image/png;base64,...)
+            'images.*' => 'string',
         ]);
-
-        // Tối đa 4 ảnh mỗi lượt gửi (tránh payload quá lớn + tốn token).
-        $images = array_slice($request->input('images', []), 0, 4);
-
-        Log::info('Chat send received', [
-            'message' => $request->message,
-            'agent_id' => $request->agent_id,
-            'has_images' => count($images) > 0,
-        ]);
-
-        $user = $request->user() ?? User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
 
         $scan = $piiFilter->scan($request->message);
 
@@ -67,6 +155,26 @@ class ChatMessageController extends Controller
             ], 422);
         }
 
+        return null;
+    }
+
+    /**
+     * Chuẩn bị conversation + history + system prompt — logic dùng chung cho store() và stream().
+     *
+     * @return array{conversation: Conversation, history: array, systemPrompt: ?string, user: User}
+     */
+    private function prepareTurn(Request $request, KnowledgeService $knowledgeService): array
+    {
+        $images = array_slice($request->input('images', []), 0, 4);
+
+        Log::info('Chat send received', [
+            'message' => $request->message,
+            'agent_id' => $request->agent_id,
+            'has_images' => count($images) > 0,
+        ]);
+
+        $user = $request->user() ?? User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
+
         /** @var Conversation $conversation */
         $conversation = $request->conversation_id
             ? Conversation::findOrFail((int) $request->conversation_id)
@@ -75,21 +183,10 @@ class ChatMessageController extends Controller
                 'title' => Str::limit($request->message, 50),
             ]);
 
-        // Gắn agent vào conversation (nếu được truyền agent_id và thuộc quyền).
         if ($request->agent_id && $conversation->agent_id === null) {
             /** @var Agent|null $agent */
             $agent = Agent::find($request->agent_id);
-
             $canView = $agent && $this->canViewAgent($user, $agent);
-
-            // Log tạm để debug luồng "Use in Chat" — xoá sau khi ổn định.
-            Log::info('Chat attach agent debug', [
-                'user_id' => $user->id,
-                'agent_id' => $request->agent_id,
-                'conversation_id' => $conversation->id,
-                'agent_found' => $agent ? true : false,
-                'can_view' => $canView,
-            ]);
 
             if ($canView) {
                 $conversation->update(['agent_id' => $agent->id]);
@@ -101,18 +198,6 @@ class ChatMessageController extends Controller
             'role' => 'user',
             'content' => $request->message,
         ]);
-
-        // Gom history (tối đa N tin) + build system prompt từ agent nếu có.
-                // Images: chuyển base64 data URL → OpenAI "image_url" parts (vision).
-        // Mỗi ảnh là data URL (vd data:image/png;base64,...) — gửi kèm trong payload.
-        $imagePayloads = [];
-
-        foreach ($images as $image) {
-            $imagePayloads[] = [
-                'type' => 'image_url',
-                'image_url' => ['url' => $image],
-            ];
-        }
 
         $history = $conversation->messages()
             ->latest('id')
@@ -128,8 +213,6 @@ class ChatMessageController extends Controller
             })
             ->toArray();
 
-        // Nếu có ảnh kèm lượt gửi này → message user cuối trong lịch sử
-        // biến thành multimodal (text + ảnh) để OpenAI hiểu.
         if (! empty($images)) {
             $history[count($history) - 1]['content'] = [
                 ['type' => 'text', 'text' => $request->message],
@@ -142,17 +225,16 @@ class ChatMessageController extends Controller
 
         $systemPrompt = $this->buildSystemPrompt($conversation, $knowledgeService);
 
-        try {
-            $completion = $chatService->complete($history, $systemPrompt);
-        } catch (\RuntimeException $e) {
-            // Lỗi đã được map sang message thân thiện; không để UI vỡ với 500.
-            return response()->json([
-                'blocked' => false,
-                'error' => $e->getMessage(),
-                'retryable' => true,
-            ], 502);
-        }
+        return [
+            'conversation' => $conversation,
+            'history' => $history,
+            'systemPrompt' => $systemPrompt,
+            'user' => $user,
+        ];
+    }
 
+    private function persistAssistantReply(Conversation $conversation, User $user, Request $request, array $completion): void
+    {
         Message::create([
             'conversation_id' => $conversation->id,
             'role' => 'assistant',
@@ -169,18 +251,8 @@ class ChatMessageController extends Controller
             'prompt_tokens' => $completion['prompt_tokens'],
             'completion_tokens' => $completion['completion_tokens'],
         ]);
-
-        return response()->json([
-            'blocked' => false,
-            'conversation_id' => $conversation->id,
-            'reply' => $completion['content'],
-        ]);
     }
 
-    /**
-     * Build system prompt: nếu conversation gắn agent → dùng system_prompt của agent
-     * + nối knowledge text (nếu có). Ngược lại → null (service dùng default).
-     */
     private function buildSystemPrompt(Conversation $conversation, KnowledgeService $knowledgeService): ?string
     {
         $agent = $conversation->agent;
@@ -193,13 +265,6 @@ class ChatMessageController extends Controller
 
         if ($agent->knowledge_files) {
             $context = $knowledgeService->buildContext($agent->knowledge_files, $agent->user_id, $agent->id);
-
-            // Log tạm để debug knowledge — xoá sau.
-            Log::info('Chat knowledge debug', [
-                'agent_id' => $agent->id,
-                'knowledge_files' => $agent->knowledge_files,
-                'context_len' => mb_strlen($context),
-            ]);
 
             if ($context !== '') {
                 $systemPrompt = trim($systemPrompt ? $systemPrompt."\n\n".$context : 'Bạn là một trợ lý AI của trường LSTS.'."\n\n".$context);

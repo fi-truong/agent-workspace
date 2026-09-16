@@ -10,12 +10,12 @@ use Illuminate\Support\Facades\Log;
 class OpenAIClient
 {
     /**
-     * Gọi OpenAI Chat Completions API (không streaming — giữ nguyên cho các chỗ khác đang dùng).
+     * Gọi OpenAI Chat Completions API.
      *
-     * @param  array<int, array{role: string, content: mixed}>  $messages
+     * @param  array<int, array{role: string, content: mixed}>  $messages  content có thể là string hoặc array multimodal
      * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string}
      *
-     * @throws \Throwable
+     * @throws \Throwable Ném lại exception sau khi đã map lỗi, để caller xử lý theo kiểu LLM error.
      */
     public function chat(array $messages): array
     {
@@ -30,8 +30,11 @@ class OpenAIClient
         $payload = [
             'model' => config('openai.model'),
             'messages' => $messages,
+            // Model GPT-5+ không chấp nhận "max_tokens"; phải dùng "max_completion_tokens".
             'max_completion_tokens' => config('openai.max_tokens'),
+            // Giữ reasoning ở mức thấp để tránh model "ăn" hết token budget vào suy luận ẩn.
             'reasoning_effort' => config('openai.reasoning_effort'),
+            // Model GPT-5+ không hỗ trợ "temperature" tùy chỉnh (chỉ dùng giá trị mặc định).
         ];
 
         $response = Http::retry(
@@ -54,17 +57,34 @@ class OpenAIClient
 
         $data = $response->json();
 
+        Log::info('OpenAI raw response debug', [
+            'response_keys' => is_array($data) ? array_keys($data) : null,
+            'has_choices' => isset($data['choices'][0]),
+            'message_keys' => isset($data['choices'][0]['message']) ? array_keys($data['choices'][0]['message']) : null,
+            'content' => $data['choices'][0]['message']['content'] ?? null,
+            'finish_reason' => $data['choices'][0]['finish_reason'] ?? null,
+        ]);
+
         $content = $data['choices'][0]['message']['content']
             ?? throw new \RuntimeException('OpenAI trả về phản hồi thiếu nội dung.');
 
         $finishReason = $data['choices'][0]['finish_reason'] ?? null;
 
+        // Reasoning model có thể "ăn" hết max_completion_tokens vào suy luận ẩn,
+        // trả về content rỗng dù status 200. Chặn sớm để UI báo lỗi rõ ràng thay vì im lặng.
         if ($content === '' && $finishReason === 'length') {
             throw new \RuntimeException(
                 'Câu trả lời bị cắt vì vượt giới hạn token (thường do prompt/Knowledge quá dài). '
                 .'Hãy thử rút ngắn tin nhắn, hoặc liên hệ CIEC để tăng giới hạn.'
             );
         }
+
+        Log::info('OpenAI completion decoded', [
+            'content_len' => is_string($content) ? mb_strlen($content) : gettype($content),
+            'content_preview' => is_string($content) ? mb_substr($content, 0, 300) : null,
+            'finish_reason' => $data['choices'][0]['finish_reason'] ?? null,
+            'raw_message' => $data['choices'][0]['message'] ?? null,
+        ]);
 
         $usage = $data['usage'] ?? [];
 
@@ -77,126 +97,8 @@ class OpenAIClient
     }
 
     /**
-     * Gọi OpenAI Chat Completions API dạng STREAMING (Server-Sent Events từ OpenAI).
-     * Mỗi khi nhận được 1 đoạn nội dung mới, gọi $onDelta($textChunk) ngay lập tức
-     * để caller (controller) đẩy tiếp ra trình duyệt theo thời gian thực.
-     *
-     * @param  array<int, array{role: string, content: mixed}>  $messages
-     * @param  callable(string): void  $onDelta
-     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string}
-     *
-     * @throws \Throwable
+     * Chỉ retry lỗi tạm thời: mất kết nối / timeout, hoặc 5xx từ upstream.
      */
-    public function streamChat(array $messages, callable $onDelta): array
-    {
-        $apiKey = config('openai.api_key');
-
-        if (! $apiKey) {
-            throw new \RuntimeException(
-                'OPENAI_API_KEY chưa được cấu hình. Thêm vào .env trước khi gọi OpenAI.',
-            );
-        }
-
-        $payload = [
-            'model' => config('openai.model'),
-            'messages' => $messages,
-            'max_completion_tokens' => config('openai.max_tokens'),
-            'reasoning_effort' => config('openai.reasoning_effort'),
-            'stream' => true,
-            'stream_options' => ['include_usage' => true],
-        ];
-
-        $response = Http::withOptions(['stream' => true])
-            ->baseUrl(config('openai.base_url'))
-            ->timeout(config('openai.timeout'))
-            ->connectTimeout(5)
-            ->withToken($apiKey)
-            ->asJson()
-            ->post('/chat/completions', $payload);
-
-        if (! $response->successful()) {
-            $response->throw();
-        }
-
-        $body = $response->toPsrResponse()->getBody();
-
-        $buffer = '';
-        $fullContent = '';
-        $finishReason = null;
-        $usage = [];
-        $model = config('openai.model');
-        $streamDone = false;
-
-        while (! $body->eof() && ! $streamDone) {
-            $chunk = $body->read(1024);
-
-            if ($chunk === '') {
-                continue;
-            }
-
-            $buffer .= $chunk;
-
-            while (($pos = strpos($buffer, "\n\n")) !== false) {
-                $rawEvent = substr($buffer, 0, $pos);
-                $buffer = substr($buffer, $pos + 2);
-
-                foreach (explode("\n", $rawEvent) as $line) {
-                    $line = trim($line);
-
-                    if ($line === '' || ! str_starts_with($line, 'data:')) {
-                        continue;
-                    }
-
-                    $data = trim(substr($line, 5));
-
-                    if ($data === '[DONE]') {
-                        $streamDone = true;
-                        break 2;
-                    }
-
-                    $json = json_decode($data, true);
-
-                    if (! is_array($json)) {
-                        continue;
-                    }
-
-                    $delta = $json['choices'][0]['delta']['content'] ?? null;
-
-                    if (is_string($delta) && $delta !== '') {
-                        $fullContent .= $delta;
-                        $onDelta($delta);
-                    }
-
-                    $finishReason = $json['choices'][0]['finish_reason'] ?? $finishReason;
-                    $model = $json['model'] ?? $model;
-
-                    if (isset($json['usage'])) {
-                        $usage = $json['usage'];
-                    }
-                }
-            }
-        }
-
-        Log::info('OpenAI stream completion decoded', [
-            'content_len' => mb_strlen($fullContent),
-            'finish_reason' => $finishReason,
-        ]);
-
-        if ($fullContent === '' && $finishReason === 'length') {
-            throw new \RuntimeException(
-                'Câu trả lời bị cắt vì vượt giới hạn token (thường do prompt/Knowledge quá dài). '
-                .'Hãy thử rút ngắn tin nhắn, hoặc liên hệ CIEC để tăng giới hạn.'
-            );
-        }
-
-        return [
-            'content' => $fullContent,
-            'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
-            'completion_tokens' => (int) ($usage['completion_tokens'] ?? 0),
-            'model' => $model,
-        ];
-    }
-
     private function shouldRetry(\Throwable $exception): bool
     {
         if ($exception instanceof ConnectionException) {
@@ -211,6 +113,8 @@ class OpenAIClient
     }
 
     /**
+     * Verify API key bằng endpoint /models (không tính phí token).
+     *
      * @return array{ok: bool, error?: string, count?: int, models?: array<int, string>}
      */
     public function verifyKey(): array
@@ -243,6 +147,7 @@ class OpenAIClient
 
             $models = $response->json('data');
 
+            /** @var array<int, string> $names */
             $names = [];
             if (is_array($models)) {
                 $names = array_values(array_filter(array_map(

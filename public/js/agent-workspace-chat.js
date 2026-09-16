@@ -10,17 +10,14 @@ document.addEventListener('DOMContentLoaded', function () {
   let conversationId = null;
   let messagesContainer = null;
 
-  // Đọc selectedAgentId từ sessionStorage (set bởi trang Agents/show).
   const selectedAgentId = sessionStorage.getItem('selectedAgentId');
 
-  // Nếu URL có ?conversation_id= → mở lại cuộc cũ (load đúng history).
   const urlParams = new URLSearchParams(window.location.search);
   const urlConversationId = urlParams.get('conversation_id');
   if (urlConversationId) {
     conversationId = urlConversationId;
   }
 
-  // Render history từ server khi mở lại conversation cũ.
   function renderInitialMessages() {
     const messages = window.__INITIAL_MESSAGES__ || [];
     if (messages.length === 0) return;
@@ -29,7 +26,6 @@ document.addEventListener('DOMContentLoaded', function () {
     messages.forEach((m) => appendMessage(m.role, m.content));
   }
 
-  // Hàm tạo bubble
   function ensureMessagesContainer() {
     if (messagesContainer) return messagesContainer;
     messagesContainer = document.createElement('div');
@@ -46,7 +42,6 @@ document.addEventListener('DOMContentLoaded', function () {
       ? 'align-self:flex-end;background:var(--navy);color:#fff;padding:12px 16px;border-radius:14px;max-width:70%;white-space:pre-wrap;'
       : 'align-self:flex-start;background:var(--card-bg);border:1px solid var(--line);padding:12px 16px;border-radius:14px;max-width:85%;white-space:normal;';
 
-    // Câu trả lời của AI → render markdown đẹp; tin nhắn user → text thuần.
     if (role === 'assistant' && typeof marked !== 'undefined') {
       bubble.innerHTML = marked.parse(text);
     } else {
@@ -55,7 +50,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     container.appendChild(bubble);
 
-    // Render lại công thức LaTeX (MathJax) nếu có.
     if (role === 'assistant' && typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
       try {
         MathJax.typesetPromise([bubble]);
@@ -65,6 +59,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     container.scrollTop = container.scrollHeight;
+    return bubble;
   }
 
   function appendWarning(text) {
@@ -76,12 +71,83 @@ document.addEventListener('DOMContentLoaded', function () {
     container.scrollTop = container.scrollHeight;
   }
 
+  // ==== Streaming helpers (mới) ====
+
+  // Chèn CSS cho hiệu ứng 3 chấm nhấp nháy ("đang suy nghĩ") — chỉ chèn 1 lần.
+  (function injectTypingStyles() {
+    if (document.getElementById('aiplus-typing-style')) return;
+    const style = document.createElement('style');
+    style.id = 'aiplus-typing-style';
+    style.textContent = `
+      @keyframes aiplusTypingBounce {
+        0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+        40% { transform: translateY(-4px); opacity: 1; }
+      }
+      .aiplus-typing-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 4px;
+        border-radius: 50%;
+        background: var(--text-soft, #999);
+        animation: aiplusTypingBounce 1.2s infinite ease-in-out;
+      }
+      .aiplus-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+      .aiplus-typing-dot:nth-child(3) { animation-delay: 0.3s; margin-right:0; }
+    `;
+    document.head.appendChild(style);
+  })();
+
+  function createTypingBubble() {
+    const container = ensureMessagesContainer();
+    const bubble = document.createElement('div');
+    bubble.style.cssText = 'align-self:flex-start;background:var(--card-bg);border:1px solid var(--line);padding:12px 16px;border-radius:14px;max-width:85%;white-space:normal;';
+    bubble.innerHTML = '<span class="aiplus-typing-dot"></span><span class="aiplus-typing-dot"></span><span class="aiplus-typing-dot"></span>';
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+    return bubble;
+  }
+
+  function renderAssistantMarkdown(bubble, text) {
+    if (typeof marked !== 'undefined') {
+      bubble.innerHTML = marked.parse(text);
+    } else {
+      bubble.textContent = text;
+    }
+
+    if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+      try {
+        MathJax.typesetPromise([bubble]);
+      } catch (e) {
+        // bỏ qua nếu typeset fail
+      }
+    }
+  }
+
+  // Parse 1 khối SSE thô (đã tách bằng \n\n) → {event, data} hoặc null nếu không hợp lệ.
+  function parseSseBlock(rawBlock) {
+    let eventName = 'message';
+    let dataLines = [];
+
+    rawBlock.split('\n').forEach((line) => {
+      if (line.startsWith('event:')) {
+        eventName = line.slice(6).trim();
+      } else if (line.startsWith('data:')) {
+        dataLines.push(line.slice(5).trim());
+      }
+    });
+
+    if (dataLines.length === 0) return null;
+
+    try {
+      return { event: eventName, data: JSON.parse(dataLines.join('\n')) };
+    } catch (e) {
+      return null;
+    }
+  }
+
   let sending = false;
-
-  // Hình ảnh paste (data URL) chưa gửi.
   let pendingImages = [];
-
-  // Container preview ảnh (đặt giữa input-box và hint).
   let imagePreviewBox = null;
 
   function ensureImagePreviewBox() {
@@ -128,7 +194,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   async function sendMessage() {
     const message = textarea.value.trim();
-    // Cho phép gửi nếu có ít nhất message HOẶC 1 ảnh.
     if ((!message && pendingImages.length === 0) || sending) return;
 
     sending = true;
@@ -145,13 +210,19 @@ document.addEventListener('DOMContentLoaded', function () {
     const csrfMeta = document.querySelector('meta[name="csrf-token"]');
     const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
 
+    // Bubble "đang suy nghĩ" hiện ngay lập tức, trước khi có delta đầu tiên.
+    const assistantBubble = createTypingBubble();
+    let rawText = '';
+    let firstDeltaReceived = false;
+    let sawDoneOrError = false;
+
     try {
-      const response = await fetch('/ai-plus/agent-workspace/send', {
+      const response = await fetch('/ai-plus/agent-workspace/send-stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-TOKEN': csrfToken,
-          'Accept': 'application/json',
+          'Accept': 'text/event-stream',
         },
         body: JSON.stringify({
           message: message,
@@ -161,26 +232,85 @@ document.addEventListener('DOMContentLoaded', function () {
         }),
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get('content-type') || '';
 
-      if (data.blocked) {
-        appendWarning(data.warning || 'Nội dung của bạn chứa thông tin nhạy cảm.');
+      // Trường hợp bị chặn PII (server trả JSON thường, không mở stream).
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        assistantBubble.remove();
+
+        if (data.blocked) {
+          appendWarning(data.warning || 'Nội dung của bạn chứa thông tin nhạy cảm.');
+        } else if (data.error) {
+          appendWarning(data.error);
+        } else {
+          appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
+        }
         return;
       }
 
-      if (!response.ok && data.error) {
-        appendWarning(data.error);
-        return;
-      }
-
-      if (!response.ok) {
+      if (!response.ok || !response.body) {
+        assistantBubble.remove();
         appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
         return;
       }
 
-      conversationId = data.conversation_id;
-      appendMessage('assistant', data.reply);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      const container = ensureMessagesContainer();
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        let sepIndex;
+        while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
+          const rawBlock = buffer.slice(0, sepIndex);
+          buffer = buffer.slice(sepIndex + 2);
+
+          const parsed = parseSseBlock(rawBlock);
+          if (!parsed) continue;
+
+          if (parsed.event === 'delta') {
+            if (!firstDeltaReceived) {
+              firstDeltaReceived = true;
+              if (sendBtn) sendBtn.textContent = 'Generating…';
+              assistantBubble.innerHTML = '';
+              assistantBubble.style.whiteSpace = 'pre-wrap';
+            }
+            rawText += parsed.data.text || '';
+            assistantBubble.textContent = rawText;
+            container.scrollTop = container.scrollHeight;
+          } else if (parsed.event === 'error') {
+            sawDoneOrError = true;
+            assistantBubble.remove();
+            appendWarning(parsed.data.message || 'Có lỗi xảy ra, vui lòng thử lại.');
+          } else if (parsed.event === 'done') {
+            sawDoneOrError = true;
+            conversationId = parsed.data.conversation_id;
+            assistantBubble.style.whiteSpace = 'normal';
+            renderAssistantMarkdown(assistantBubble, parsed.data.reply || rawText);
+            container.scrollTop = container.scrollHeight;
+          }
+        }
+      }
+
+      // Phòng trường hợp stream đóng đột ngột mà chưa nhận được "done"/"error"
+      // (vd mất mạng giữa chừng) — vẫn hiển thị phần đã nhận được thay vì để bubble "..." treo mãi.
+      if (!sawDoneOrError) {
+        if (rawText !== '') {
+          assistantBubble.style.whiteSpace = 'normal';
+          renderAssistantMarkdown(assistantBubble, rawText);
+        } else {
+          assistantBubble.remove();
+          appendWarning('Kết nối bị gián đoạn trước khi có phản hồi. Vui lòng thử lại.');
+        }
+      }
     } catch (err) {
+      assistantBubble.remove();
       appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
     } finally {
       sending = false;
@@ -188,7 +318,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // Paste ảnh vào ô chat (Ctrl/Cmd + V) → preview.
   textarea.addEventListener('paste', function (e) {
     const items = e.clipboardData?.items || [];
 
@@ -207,7 +336,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // Kéo thả ảnh vào vùng chat → thêm vào preview (không mở tab mới).
   const dropTargets = [document.querySelector('.input-box'), document.querySelector('.input-area'), main];
 
   dropTargets.filter(Boolean).forEach((target) => {
@@ -242,7 +370,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  // Nút attach (📎) → mở file picker ảnh → đưa vào preview.
   const attachBtn = document.querySelector('.attach-btn');
   const imageInput = document.getElementById('chat-image-input');
 
@@ -279,15 +406,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // ==== Topbar actions ====
-  // 📎 Upload → mở file picker ảnh (dùng chung input ảnh ô chat).
   const topbarAttach = document.querySelector('[data-behavior="attach-topbar"]');
   topbarAttach?.addEventListener('click', function (e) {
     e.preventDefault();
     imageInput?.click();
   });
 
-  // ↓ Export → tải file .txt toàn bộ message của conversation đang mở.
   const exportBtn = document.querySelector('[data-behavior="export-chat"]');
   exportBtn?.addEventListener('click', function () {
     exportConversationTxt();
@@ -318,7 +442,6 @@ document.addEventListener('DOMContentLoaded', function () {
     URL.revokeObjectURL(url);
   }
 
-  // ⚙ Settings → dropdown nhỏ (hiện model đang dùng).
   const settingsBtn = document.querySelector('[data-behavior="settings"]');
   const settingsPopover = document.getElementById('settings-popover');
 
@@ -332,15 +455,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  // Click ngoài → đóng popover.
   document.addEventListener('click', function () {
     if (settingsPopover) settingsPopover.style.display = 'none';
   });
 
-  // Mở lại conversation cũ → render history sau khi DOM sẵn sàng.
   renderInitialMessages();
 
-  // ==== Quick action buttons (giữa trang) ====
   const quickBtnBehaviors = {
     'quick-chat': function () {
       textarea.focus();

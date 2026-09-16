@@ -26,6 +26,9 @@ use Illuminate\Support\Facades\Route;
 Route::post('/ai-plus/agent-workspace/send', [ChatMessageController::class, 'store'])
     ->name('ai-plus.agent-workspace.send');
 
+Route::post('/ai-plus/agent-workspace/send-stream', [ChatMessageController::class, 'stream'])
+    ->name('ai-plus.agent-workspace.send-stream');
+
 Route::inertia('/', 'welcome')->name('home');
 
 // Routes tạm thời để xem trước UI, chưa yêu cầu đăng nhập/team
