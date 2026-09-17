@@ -585,6 +585,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
+  // Auto-grow textarea: tự giãn chiều cao theo nội dung nhập vào (xem hết prompt dài).
+  textarea.addEventListener('input', function () {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 400) + 'px';
+  });
+
   const topbarAttach = document.querySelector('[data-behavior="attach-topbar"]');
   topbarAttach?.addEventListener('click', function (e) {
     e.preventDefault();

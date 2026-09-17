@@ -244,7 +244,7 @@
   .input-wrapper{max-width:760px;margin:0 auto;}
   .input-box{display:flex;align-items:flex-end;gap:12px;background: var(--surface);border:1px solid var(--surface-border);border-radius:14px;padding:12px 16px;transition: border-color 0.15s, box-shadow 0.15s;}
   .input-box:focus-within{border-color: var(--navy);box-shadow: 0 0 0 3px rgba(31,56,100,0.1);}
-  .input-box textarea{flex:1;border:none;outline:none;resize:none;font-family: inherit;font-size:15px;line-height:1.5;min-height:24px;max-height:200px;color: var(--text-main);background: transparent;}
+  .input-box textarea{flex:1;border:none;outline:none;resize:vertical;font-family: inherit;font-size:15px;line-height:1.5;min-height:40px;max-height:400px;color: var(--text-main);background: transparent;}
   .input-box textarea::placeholder{color: var(--text-soft);}
   .input-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
   .attach-btn{width:32px;height:32px;border-radius:8px;border:none;background: transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color: var(--text-soft);font-size:18px;transition: background 0.15s, color 0.15s;}
