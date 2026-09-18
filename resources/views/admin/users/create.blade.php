@@ -51,6 +51,13 @@
             <label>Employee ID</label>
             <input type="text" name="employee_id" class="form-input" placeholder="Employee/Student ID" value="{{ old('employee_id') }}">
         </div>
+        <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" name="is_active" value="1" {{ old('is_active', '1') ? 'checked' : '' }}>
+                Active account
+            </label>
+            <p class="form-hint">Inactive users cannot sign in or access the admin panel.</p>
+        </div>
         <div style="display:flex;gap:12px;justify-content:flex-end;padding-top:16px;border-top:1px solid var(--line);">
             <a href="{{ route('admin.users.index') }}" class="btn-secondary">Cancel</a>
             <button type="submit" class="btn-primary">Create User</button>

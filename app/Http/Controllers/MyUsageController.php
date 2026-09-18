@@ -3,15 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\TokenQuotaService;
 use Carbon\CarbonInterface;
+use Illuminate\Http\Request;
 
 class MyUsageController extends Controller
 {
-    public function index()
+    public function index(Request $request, TokenQuotaService $tokenQuotaService)
     {
-        // TODO-SSO-DEPLOY: thay bằng auth()->user() khi deploy server có SSO thật
-        $user = User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
+        /** @var User $user */
+        $user = $request->user();
         $logs = $user->usageLogs();
+        $tokenQuota = $tokenQuotaService->summary($user);
 
         $totalTokens = (clone $logs)->selectRaw('SUM(prompt_tokens + completion_tokens) as total')->value('total') ?? 0;
 
@@ -25,7 +28,7 @@ class MyUsageController extends Controller
             'agentsShared' => $user->agents()->where('is_shared', true)->count(),
         ];
 
-        $activities = (clone $logs)->latest()->take(5)->get()->map(function ($log) {
+        $activities = (clone $logs)->whereNull('hidden_at')->latest()->take(5)->get()->map(function ($log) {
             return [
                 'icon' => $log->source === 'template_used' ? '📋' : '💬',
                 'title' => $log->activity_title,
@@ -33,6 +36,9 @@ class MyUsageController extends Controller
                 'time' => $this->formatRelativeTime($log->created_at),
                 'tokens' => number_format($log->prompt_tokens + $log->completion_tokens).' tok',
                 'isTemplate' => $log->source === 'template_used',
+                'workspaceUrl' => $log->related_conversation_id
+                    ? route('ai-plus.agent-workspace.index', ['conversation_id' => $log->related_conversation_id])
+                    : null,
             ];
         })->toArray();
 
@@ -57,8 +63,7 @@ class MyUsageController extends Controller
             'userName' => $user->name,
             'userInitials' => $user->initials,
             'userRole' => $user->role,
-            'promptsUsed' => (clone $logs)->whereDate('created_at', today())->count(),
-            'promptsLimit' => $user->daily_prompt_quota,
+            'tokenQuota' => $tokenQuota,
         ]);
     }
 

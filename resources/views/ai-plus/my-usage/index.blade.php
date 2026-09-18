@@ -52,15 +52,15 @@
     <!-- Quota Section -->
     <div class="quota-section">
       <div class="quota-header">
-        <h2 class="quota-title">Daily Quota</h2>
-        <span class="quota-remaining">{{ $promptsLimit - $promptsUsed }} of {{ $promptsLimit }} prompts remaining</span>
+        <h2 class="quota-title">Token quota · {{ ucfirst($tokenQuota['phase']) }} · {{ $tokenQuota['month_name'] }}</h2>
+        <span class="quota-remaining">{{ number_format($tokenQuota['remaining']) }} of {{ number_format($tokenQuota['limit']) }} tokens remaining (in {{ $tokenQuota['month_name'] }})</span>
       </div>
       <div class="quota-bar">
-        <div class="quota-fill" style="width: {{ ($promptsUsed / $promptsLimit) * 100 }}%"></div>
+        <div class="quota-fill" style="width: {{ $tokenQuota['percentage'] }}%"></div>
       </div>
       <div class="quota-details">
-        <span>Resets at <span class="quota-reset">12:00 AM tomorrow</span></span>
-        <span>{{ round(($promptsUsed / $promptsLimit) * 100) }}% used today</span>
+        <span>{{ number_format($tokenQuota['used']) }} tokens used in {{ $tokenQuota['month_name'] }} · Resets on the 1st</span>
+        <span>{{ round($tokenQuota['percentage'], 2) }}% used in this phase</span>
       </div>
     </div>
 
@@ -71,14 +71,22 @@
         <h2 class="section-title">Recent Activity</h2>
         <div class="activity-list">
           @foreach($activities as $activity)
+          @if($activity['workspaceUrl'])
+          <a class="activity-item activity-link" href="{{ $activity['workspaceUrl'] }}">
+          @else
           <div class="activity-item">
+          @endif
             <div class="activity-icon {{ $activity['isTemplate'] ? 'template' : '' }}">{{ $activity['icon'] }}</div>
             <div class="activity-content">
               <div class="activity-title">{{ $activity['title'] }}</div>
               <div class="activity-meta">{{ $activity['source'] }} • {{ $activity['time'] }}</div>
             </div>
             <span class="activity-tokens">{{ $activity['tokens'] }}</span>
+          @if($activity['workspaceUrl'])
+          </a>
+          @else
           </div>
+          @endif
           @endforeach
         </div>
       </div>
@@ -147,6 +155,8 @@
   .section-title{font-family:'Fraunces', serif;font-size:18px;font-weight:600;color: var(--section-title);margin-bottom:20px;}
   .activity-list{display:flex;flex-direction:column;gap:12px;}
   .activity-item{display:flex;gap:12px;padding:12px;background: var(--input-bg);border-radius:8px;align-items:flex-start;}
+  .activity-link{text-decoration:none;transition:background 0.15s, transform 0.15s;}
+  .activity-link:hover{background:var(--chip-bg);transform:translateY(-1px);}
   .activity-icon{width:36px;height:36px;border-radius:8px;background: var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
   .activity-icon.template{background: var(--gold);color: var(--navy-deep);}
   .activity-content{flex:1;min-width:0;}

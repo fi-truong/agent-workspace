@@ -12,14 +12,16 @@
             <input type="text" name="title" class="form-input" placeholder="Showcase title" required value="{{ old('title') }}">
         </div>
         <div class="form-group">
-            <label>Content <span class="text-danger">*</span></label>
-            <textarea name="content" class="form-textarea" placeholder="Showcase content (Markdown supported)" required rows="12">{{ old('content') }}</textarea>
+            <label>Description <span class="text-danger">*</span></label>
+            <textarea name="description" class="form-textarea" placeholder="Describe the showcase" required rows="12">{{ old('description') }}</textarea>
         </div>
         <div class="form-group">
             <label>Status <span class="text-danger">*</span></label>
             <select name="status" class="form-select" required>
                 <option value="draft" {{ old('status', 'draft') == 'draft' ? 'selected' : '' }}>Draft</option>
+                <option value="pending" {{ old('status') == 'pending' ? 'selected' : '' }}>Pending review</option>
                 <option value="published" {{ old('status') == 'published' ? 'selected' : '' }}>Published</option>
+                <option value="rejected" {{ old('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
             </select>
         </div>
         <div style="display:flex;gap:12px;justify-content:flex-end;padding-top:16px;border-top:1px solid var(--line);">

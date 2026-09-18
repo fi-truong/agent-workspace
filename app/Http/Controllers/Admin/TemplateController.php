@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\AgentTemplate;
 use App\Models\AgentTemplateFeature;
 use Illuminate\Http\Request;
@@ -78,15 +79,9 @@ class TemplateController extends Controller
                 'icon' => $feat['icon'] ?? '',
             ]);
         }
+        AdminAuditLog::record('template.created', $template, ['status' => $template->status]);
 
         return redirect()->route('admin.templates.index')->with('success', 'Template created successfully.');
-    }
-
-    public function show(AgentTemplate $template)
-    {
-        $template->load('features');
-
-        return view('admin.templates.show', compact('template'));
     }
 
     public function edit(AgentTemplate $template)
@@ -122,14 +117,14 @@ class TemplateController extends Controller
         // Handle features
         foreach ($data['features'] ?? [] as $feat) {
             if ($feat['_delete'] ?? false) {
-                if ($feat['id']) {
-                    AgentTemplateFeature::find($feat['id'])?->delete();
+                if ($feat['id'] ?? null) {
+                    $template->features()->whereKey($feat['id'])->delete();
                 }
 
                 continue;
             }
-            if ($feat['id']) {
-                AgentTemplateFeature::find($feat['id'])?->update([
+            if ($feat['id'] ?? null) {
+                $template->features()->whereKey($feat['id'])->update([
                     'title' => $feat['title'],
                     'description' => $feat['description'] ?? '',
                     'icon' => $feat['icon'] ?? '',
@@ -143,12 +138,14 @@ class TemplateController extends Controller
                 ]);
             }
         }
+        AdminAuditLog::record('template.updated', $template, ['status' => $template->status]);
 
         return redirect()->route('admin.templates.index')->with('success', 'Template updated successfully.');
     }
 
     public function destroy(AgentTemplate $template)
     {
+        AdminAuditLog::record('template.deleted', $template, ['name' => $template->name]);
         $template->delete();
 
         return redirect()->route('admin.templates.index')->with('success', 'Template deleted successfully.');

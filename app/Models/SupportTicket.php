@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class SupportTicket extends Model
 {
     protected $fillable = [
-        'name', 'email', 'type', 'priority', 'subject', 'details', 'status', 'assigned_to', 'admin_notes', 'resolved_at',
+        'user_id', 'name', 'email', 'type', 'priority', 'subject', 'details', 'status', 'assigned_to', 'admin_notes', 'resolved_at',
     ];
 
     protected $casts = [

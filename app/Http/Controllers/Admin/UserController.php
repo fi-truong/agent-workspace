@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -29,6 +30,10 @@ class UserController extends Controller
             $query->where('department', $request->department);
         }
 
+        if ($request->filled('active')) {
+            $query->where('is_active', $request->boolean('active'));
+        }
+
         $sort = $request->get('sort', 'newest');
         match ($sort) {
             'oldest' => $query->oldest(),
@@ -40,7 +45,9 @@ class UserController extends Controller
         $roles = ['admin', 'staff', 'teacher', 'student'];
         $departments = User::distinct()->pluck('department')->filter()->all();
 
-        return view('admin.users.index', compact('users', 'roles', 'departments'));
+        $activeStatuses = ['1' => 'Active', '0' => 'Inactive'];
+
+        return view('admin.users.index', compact('users', 'roles', 'departments', 'activeStatuses'));
     }
 
     public function create()
@@ -57,18 +64,16 @@ class UserController extends Controller
             'role' => 'required|in:admin,staff,teacher,student',
             'department' => 'nullable|string|max:100',
             'employee_id' => 'nullable|string|max:50',
+            'is_active' => 'boolean',
         ]);
 
         $data['password'] = Hash::make($data['password']);
+        $data['is_active'] = $request->boolean('is_active', true);
 
-        User::create($data);
+        $user = User::create($data);
+        AdminAuditLog::record('user.created', $user, ['role' => $user->role]);
 
         return redirect()->route('admin.users.index')->with('success', 'User created successfully.');
-    }
-
-    public function show(User $user)
-    {
-        return view('admin.users.show', compact('user'));
     }
 
     public function edit(User $user)
@@ -85,6 +90,7 @@ class UserController extends Controller
             'role' => 'required|in:admin,staff,teacher,student',
             'department' => 'nullable|string|max:100',
             'employee_id' => 'nullable|string|max:50',
+            'is_active' => 'boolean',
         ]);
 
         if ($request->filled('password')) {
@@ -98,7 +104,14 @@ class UserController extends Controller
             return back()->withErrors(['role' => 'Cannot change your own admin role.']);
         }
 
+        if ($user->id === auth()->id() && ! $request->boolean('is_active', true)) {
+            return back()->withErrors(['is_active' => 'You cannot deactivate your own account.']);
+        }
+
+        $data['is_active'] = $request->boolean('is_active', true);
+
         $user->update($data);
+        AdminAuditLog::record('user.updated', $user, ['role' => $user->role, 'is_active' => $user->is_active]);
 
         return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
     }
@@ -110,6 +123,7 @@ class UserController extends Controller
             return back()->withErrors(['user' => 'Cannot delete your own account.']);
         }
 
+        AdminAuditLog::record('user.deleted', $user, ['email' => $user->email]);
         $user->delete();
 
         return redirect()->route('admin.users.index')->with('success', 'User deleted successfully.');

@@ -19,6 +19,11 @@
 @stack('styles')
 </head>
 <body>
+<script>
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted) window.location.reload();
+  });
+</script>
 
   <div class="crumbbar">
     <div class="wrap">
@@ -30,6 +35,9 @@
         <a href="{{ route('account.password') }}" title="View account & change password" class="role-pill-link">
           <span class="dot"></span>Viewing as: {{ $currentUser->name ?? 'Teacher / Staff' }}
         </a>
+        @if(auth()->user()?->role === 'admin')
+        <a href="{{ route('admin.dashboard') }}" class="admin-panel-link">Admin Panel</a>
+        @endif
         <form method="POST" action="{{ route('logout') }}" class="header-logout-form">
           @csrf
           <button type="submit" class="header-logout-btn">Logout</button>

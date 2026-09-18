@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\PromptLibraryPrompt;
 use App\Models\Tag;
 use Illuminate\Http\Request;
@@ -74,13 +75,9 @@ class PromptController extends Controller
         // Attach subject tag
         $tag = Tag::firstOrCreate(['name' => $data['subject'], 'category' => 'subject']);
         $prompt->tags()->attach($tag->id);
+        AdminAuditLog::record('prompt.created', $prompt, ['status' => $prompt->status]);
 
         return redirect()->route('admin.prompts.index')->with('success', 'Prompt created successfully.');
-    }
-
-    public function show(PromptLibraryPrompt $prompt)
-    {
-        return view('admin.prompts.show', compact('prompt'));
     }
 
     public function edit(PromptLibraryPrompt $prompt)
@@ -112,12 +109,14 @@ class PromptController extends Controller
         $prompt->tags()->wherePivotIn('tag_id', Tag::where('category', 'subject')->pluck('id'))->detach();
         $tag = Tag::firstOrCreate(['name' => $data['subject'], 'category' => 'subject']);
         $prompt->tags()->attach($tag->id);
+        AdminAuditLog::record('prompt.updated', $prompt, ['status' => $prompt->status]);
 
         return redirect()->route('admin.prompts.index')->with('success', 'Prompt updated successfully.');
     }
 
     public function destroy(PromptLibraryPrompt $prompt)
     {
+        AdminAuditLog::record('prompt.deleted', $prompt, ['title' => $prompt->title]);
         $prompt->delete();
 
         return redirect()->route('admin.prompts.index')->with('success', 'Prompt deleted successfully.');

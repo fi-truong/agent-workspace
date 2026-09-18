@@ -46,9 +46,10 @@
         </div>
 
         <div class="post-actions">
-          <button class="action-btn use-btn" data-post-id="{{ $post['id'] }}">
-            <span>⭐</span> Use This Agent
-          </button>
+          <form method="POST" action="{{ route('ai-plus.sharing-showcase.use', $post['id']) }}">
+            @csrf
+            <button class="action-btn use-btn" type="submit"><span>⭐</span> Use This Agent</button>
+          </form>
           <button class="action-btn share-btn">
             <span>🔗</span> Share
           </button>
@@ -456,14 +457,6 @@ document.addEventListener('DOMContentLoaded', () => {
       // In production: fetch POST to comment endpoint
       // For now just show placeholder
       alert('Comment submission would go to backend. Connect to your comments API.');
-    });
-  }
-
-  // Use button (placeholder)
-  const useBtn = document.querySelector('.use-btn');
-  if (useBtn) {
-    useBtn.addEventListener('click', () => {
-      alert('This would redirect to Agent Workspace with this agent pre-loaded. Connect to your agent system.');
     });
   }
 

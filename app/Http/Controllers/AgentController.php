@@ -6,6 +6,7 @@ use App\Http\Requests\StoreAgentRequest;
 use App\Http\Requests\UpdateAgentRequest;
 use App\Models\Agent;
 use App\Services\KnowledgeService;
+use App\Services\SharedAgentTemplateSyncService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +21,10 @@ class AgentController extends Controller
 {
     use AuthorizesRequests;
 
-    public function __construct(private readonly KnowledgeService $knowledgeService) {}
+    public function __construct(
+        private readonly KnowledgeService $knowledgeService,
+        private readonly SharedAgentTemplateSyncService $sharedAgentTemplateSyncService,
+    ) {}
 
     public function index(Request $request): JsonResponse|View
     {
@@ -59,10 +63,13 @@ class AgentController extends Controller
             'description' => $request->input('description'),
             'system_prompt' => $request->input('system_prompt'),
             'is_shared' => $request->boolean('is_shared'),
+            'shared_with_team_id' => null,
         ]);
 
         $this->saveKnowledgeFiles($request->file('knowledge', []), $user->id, $agent);
         $this->knowledgeService->indexAgent($agent);
+        $agent->refresh();
+        $this->sharedAgentTemplateSyncService->sync($agent);
 
         if ($request->wantsJson()) {
             return response()->json($agent, 201);
@@ -86,16 +93,18 @@ class AgentController extends Controller
     public function update(UpdateAgentRequest $request, Agent $agent): JsonResponse|RedirectResponse
     {
         $this->authorize('update', $agent);
-
         $agent->update([
             'title' => $request->input('title'),
             'description' => $request->input('description'),
             'system_prompt' => $request->input('system_prompt'),
             'is_shared' => $request->boolean('is_shared'),
+            'shared_with_team_id' => null,
         ]);
 
         $this->syncKnowledgeFiles($request, $agent);
         $this->knowledgeService->indexAgent($agent);
+        $agent->refresh();
+        $this->sharedAgentTemplateSyncService->sync($agent);
 
         if ($request->wantsJson()) {
             return response()->json($agent);
@@ -113,6 +122,7 @@ class AgentController extends Controller
 
         // Xóa luôn conversations (prompt) từng gắn agent này.
         $agent->conversations()->delete();
+        $agent->showcasePosts()->delete();
 
         $agent->delete();
 

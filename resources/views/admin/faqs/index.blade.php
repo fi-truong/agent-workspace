@@ -23,7 +23,7 @@
         $csrf = csrf_field();
         $method = method_field('DELETE');
         return [
-            '<div><div class="item-title">' . e($faq->question) . '</div><div class="item-sub">' . Str::limit($faq->answer, 80) . '</div></div>',
+            '<div><div class="item-title">' . e($faq->question) . '</div><div class="item-sub">' . e(Str::limit($faq->answer, 80)) . '</div></div>',
             '<span class="badge new">' . e($faq->category ?? 'General') . '</span>',
             '<span class="badge ' . ($faq->is_published ? 'published' : 'draft') . '">' . ($faq->is_published ? 'Published' : 'Draft') . '</span>',
             $faq->sort_order ?? 0,

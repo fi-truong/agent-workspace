@@ -9,6 +9,7 @@
   <script>
   window.__INITIAL_MESSAGES__ = @json($initialMessages);
   window.__MY_AGENTS__ = @json($myAgents);
+  window.__SELECTED_AGENT_ID__ = @json($selectedAgentId);
 </script>
   <!-- Sidebar -->
   <aside class="sidebar">
@@ -64,16 +65,14 @@
         <div class="user-avatar">{{ $userInitials }}</div>
         <div class="user-details">
           <div class="user-name">{{ $userName }}</div>
-          <div class="user-quota">
-            {{ $promptsUsed }}/{{ $promptsLimit }} prompts today
-            <div class="quota-bar"><div class="quota-fill" style="width: {{ ($promptsUsed / $promptsLimit) * 100 }}%"></div></div>
+          <div class="user-quota" data-token-quota>
+            @if($tokenQuota)
+            <span data-token-quota-text>{{ number_format($tokenQuota['used']) }} / {{ number_format($tokenQuota['limit']) }} tokens (in {{ $tokenQuota['month_name'] }})</span>
+            <div class="quota-bar"><div class="quota-fill" data-token-quota-fill style="width: {{ $tokenQuota['percentage'] }}%"></div></div>
+            @endif
           </div>
         </div>
       </div>
-      <form method="POST" action="{{ route('logout') }}" style="margin-top:12px;">
-        @csrf
-        <button type="submit" class="logout-btn" title="Đăng xuất">Logout ↗</button>
-      </form>
     </div>
   </aside>
 
@@ -92,12 +91,14 @@
           GPT-5.6 Luna
           <span class="badge">School AI</span>
         </div>
-        @if($activeAgent)
+        @if($activeConversationTitle)
         <div class="active-agent-breadcrumb">
+          @if($activeAgent)
           <span class="agent-breadcrumb-name">🤖 {{ $activeAgent->title }}</span>
-          @if($activeConversationTitle)
           <span class="agent-breadcrumb-sep">→</span>
           <span class="agent-breadcrumb-prompt">{{ $activeConversationTitle }}</span>
+          @else
+          <span class="conversation-breadcrumb-name">💬 {{ $activeConversationTitle }}</span>
           @endif
         </div>
         @endif
@@ -199,8 +200,6 @@
   .user-details{flex:1;min-width:0;}
   .user-name{color: var(--page-header-text);font-size:14px;font-weight:500;}
   .user-quota{color: var(--text-soft);font-size:12px;display:flex;align-items:center;gap:4px;}
-  .logout-btn{width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color: var(--text-soft);font-size:13px;cursor:pointer;transition: background 0.15s, color 0.15s;}
-  .logout-btn:hover{background: rgba(220,53,69,0.08);color: #dc3545;border-color: #dc3545;}
   .quota-bar{height:4px;background: var(--chip-border);border-radius:2px;width:60px;overflow:hidden;margin-top:2px;}
   .quota-fill{height:100%;background: var(--gold);border-radius:2px;}
 
@@ -219,6 +218,7 @@
   .agent-breadcrumb-name{display:inline-block;padding:6px 12px;background: linear-gradient(135deg, var(--gold) 0%, #E5AB45 100%);color:#fff;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;}
   .agent-breadcrumb-sep{color:var(--text-soft,#5B6B7C);font-size:14px;}
   .agent-breadcrumb-prompt{color:var(--text-main);font-size:13px;white-space:nowrap;}
+  .conversation-breadcrumb-name{display:inline-block;padding:6px 12px;background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-main);border-radius:8px;font-size:13px;white-space:nowrap;}
   .topbar-right{display:flex;align-items:center;gap:8px;}
   .icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--topbar-border);background: var(--topbar-bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color: var(--topbar-crumb);font-size:16px;transition: background 0.15s;}
   .icon-btn:hover{background: var(--surface);color: var(--topbar-link);}

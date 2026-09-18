@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TokenQuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class AgentWorkspaceController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, TokenQuotaService $tokenQuotaService): View
     {
         $user = Auth::user();
 
@@ -16,8 +17,7 @@ class AgentWorkspaceController extends Controller
         $conversations = [];
         $myAgents = [];
         $workflows = [];
-        $promptsUsedToday = 0;
-        $promptsLimit = 50;
+        $tokenQuota = null;
         $userName = 'Teacher / Staff';
         $userInitials = 'TS';
 
@@ -26,6 +26,7 @@ class AgentWorkspaceController extends Controller
         $activeAgent = null;
         $activeConversationTitle = null;
         $activeConversationId = $request->query('conversation_id');
+        $selectedAgentId = null;
 
         if ($user) {
             $conversations = $user->conversations()->latest()->get()->map(fn ($c) => [
@@ -40,10 +41,13 @@ class AgentWorkspaceController extends Controller
                 'id' => $w->id, 'title' => $w->title, 'type' => 'workflow',
             ])->toArray();
 
-            $promptsUsedToday = $user->usageLogs()->whereDate('created_at', today())->count();
-            $promptsLimit = $user->daily_prompt_quota;
+            $tokenQuota = $tokenQuotaService->summary($user);
             $userName = $user->name;
             $userInitials = $user->initials;
+
+            if ($request->filled('agent_id')) {
+                $selectedAgentId = $user->agents()->whereKey($request->integer('agent_id'))->value('id');
+            }
 
             // Load history khi mở lại conversation cũ
             if ($activeConversationId) {
@@ -53,7 +57,7 @@ class AgentWorkspaceController extends Controller
                     $initialMessages = $conversation->messages()
                         ->orderBy('id')
                         ->get()
-                        ->map(fn ($m) => ['role' => $m->role, 'content' => $m->content])
+                        ->map(fn ($m) => ['role' => $m->role, 'content' => $this->secureAttachmentUrls($m->content)])
                         ->toArray();
 
                     // Agent + tên prompt (conversation) gắn → hiển thị trong chat.
@@ -78,10 +82,22 @@ class AgentWorkspaceController extends Controller
             'userInitials' => $userInitials,
             'activeAgent' => $activeAgent,
             'activeConversationTitle' => $activeConversationTitle,
-            'promptsUsed' => $promptsUsedToday,
-            'promptsLimit' => $promptsLimit,
+            'tokenQuota' => $tokenQuota,
             'initialMessages' => $initialMessages,
             'activeConversationId' => $activeConversationId,
+            'selectedAgentId' => $selectedAgentId,
         ]);
+    }
+
+    private function secureAttachmentUrls(string $content): string
+    {
+        return preg_replace_callback(
+            '#/storage/chat-attachments/(\d+)/([A-Za-z0-9_.-]+)#',
+            fn (array $matches): string => route('ai-plus.agent-workspace.attachments.show', [
+                'conversation' => $matches[1],
+                'filename' => $matches[2],
+            ], false),
+            $content,
+        ) ?? $content;
     }
 }

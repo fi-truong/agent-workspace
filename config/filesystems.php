@@ -49,7 +49,7 @@ return [
             'driver' => 'local',
             'root' => storage_path('app/chat-attachments'),
             'url' => rtrim((string) env('APP_URL', 'http://localhost'), '/').'/storage/chat-attachments',
-            'visibility' => 'public',
+            'visibility' => 'private',
             'throw' => false,
             'report' => false,
         ],
@@ -91,7 +91,6 @@ return [
 
     'links' => [
         public_path('storage') => storage_path('app/public'),
-        public_path('storage/chat-attachments') => storage_path('app/chat-attachments'),
     ],
 
 ];

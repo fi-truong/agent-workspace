@@ -10,7 +10,10 @@ document.addEventListener('DOMContentLoaded', function () {
   let conversationId = null;
   let messagesContainer = null;
 
-  const selectedAgentId = sessionStorage.getItem('selectedAgentId');
+  const selectedAgentId = window.__SELECTED_AGENT_ID__ || sessionStorage.getItem('selectedAgentId');
+  if (window.__SELECTED_AGENT_ID__) {
+    sessionStorage.setItem('selectedAgentId', window.__SELECTED_AGENT_ID__);
+  }
 
   const urlParams = new URLSearchParams(window.location.search);
   const urlConversationId = urlParams.get('conversation_id');
@@ -39,6 +42,46 @@ document.addEventListener('DOMContentLoaded', function () {
     n.textContent = '🤖 ' + agent.title;
     crumb.appendChild(n);
     topbarLeft.appendChild(crumb);
+  }
+
+  function syncConversationTitle(title) {
+    if (!title) return;
+
+    const topbarLeft = document.querySelector('.topbar-left');
+    if (!topbarLeft) return;
+
+    let crumb = topbarLeft.querySelector('.active-agent-breadcrumb');
+    if (!crumb) {
+      crumb = document.createElement('div');
+      crumb.className = 'active-agent-breadcrumb';
+      topbarLeft.appendChild(crumb);
+    }
+
+    let hasAgent = Boolean(crumb.querySelector('.agent-breadcrumb-name'));
+    if (!hasAgent && selectedAgentId) {
+      const agent = (window.__MY_AGENTS__ || []).find((a) => String(a.id) === String(selectedAgentId));
+      if (agent) {
+        const agentName = document.createElement('span');
+        agentName.className = 'agent-breadcrumb-name';
+        agentName.textContent = '🤖 ' + agent.title;
+        crumb.appendChild(agentName);
+        hasAgent = true;
+      }
+    }
+
+    crumb.querySelectorAll('.agent-breadcrumb-sep, .agent-breadcrumb-prompt, .conversation-breadcrumb-name').forEach((element) => element.remove());
+
+    if (hasAgent) {
+      const separator = document.createElement('span');
+      separator.className = 'agent-breadcrumb-sep';
+      separator.textContent = '→';
+      crumb.appendChild(separator);
+    }
+
+    const conversationName = document.createElement('span');
+    conversationName.className = hasAgent ? 'agent-breadcrumb-prompt' : 'conversation-breadcrumb-name';
+    conversationName.textContent = (hasAgent ? '' : '💬 ') + title;
+    crumb.appendChild(conversationName);
   }
 
   function showMiniToast(message) {
@@ -88,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Render markdown cho assistant + user (nếu có ảnh kèm) — để ảnh hiện trong lịch sử.
     const hasImageMd = typeof text === 'string' && text.includes('![');
     if (typeof marked !== 'undefined' && (role === 'assistant' || hasImageMd)) {
-      bubble.innerHTML = marked.parse(text);
+      bubble.innerHTML = renderSafeMarkdown(text);
     } else {
       bubble.textContent = text;
     }
@@ -186,7 +229,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderAssistantMarkdown(bubble, text) {
     if (typeof marked !== 'undefined') {
-      bubble.innerHTML = marked.parse(text);
+      bubble.innerHTML = renderSafeMarkdown(text);
     } else {
       bubble.textContent = text;
     }
@@ -198,6 +241,50 @@ document.addEventListener('DOMContentLoaded', function () {
         // bỏ qua nếu typeset fail
       }
     }
+  }
+
+  // marked turns Markdown into HTML but does not sanitize it. Keep only the HTML that
+  // Markdown needs; AI output and shared-agent prompts must never run browser code.
+  function renderSafeMarkdown(text) {
+    const template = document.createElement('template');
+    template.innerHTML = marked.parse(text);
+    const allowedTags = new Set(['a', 'b', 'blockquote', 'br', 'code', 'del', 'div', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'li', 'ol', 'p', 'pre', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'th', 'thead', 'tr', 'ul']);
+    const removeTags = new Set(['base', 'embed', 'form', 'iframe', 'link', 'meta', 'object', 'script', 'style', 'svg']);
+
+    [...template.content.querySelectorAll('*')].forEach((element) => {
+      const tag = element.tagName.toLowerCase();
+      if (removeTags.has(tag)) {
+        element.remove();
+        return;
+      }
+      if (!allowedTags.has(tag)) {
+        element.replaceWith(...element.childNodes);
+        return;
+      }
+      if (tag === 'a') {
+        const href = element.getAttribute('href') || '';
+        [...element.attributes].forEach((attribute) => element.removeAttribute(attribute.name));
+        if (!/^https?:\/\//i.test(href)) {
+          element.removeAttribute('href');
+        } else {
+          element.setAttribute('target', '_blank');
+          element.setAttribute('rel', 'noopener noreferrer');
+        }
+      }
+      if (tag === 'img') {
+        const src = element.getAttribute('src') || '';
+        [...element.attributes].forEach((attribute) => element.removeAttribute(attribute.name));
+        if (!src.startsWith('/ai-plus/agent-workspace/attachments/')) {
+          element.remove();
+        } else {
+          element.setAttribute('src', src);
+        }
+      } else if (tag !== 'a') {
+        [...element.attributes].forEach((attribute) => element.removeAttribute(attribute.name));
+      }
+    });
+
+    return template.innerHTML;
   }
 
   // Parse 1 khối SSE thô (đã tách bằng \n\n) → {event, data} hoặc null nếu không hợp lệ.
@@ -393,6 +480,19 @@ document.addEventListener('DOMContentLoaded', function () {
       },
     );
 
+    const updateTokenQuota = (quota) => {
+      if (!quota) return;
+
+      const quotaText = document.querySelector('[data-token-quota-text]');
+      const quotaFill = document.querySelector('[data-token-quota-fill]');
+      if (quotaText) {
+        quotaText.textContent = `${Number(quota.used).toLocaleString()} / ${Number(quota.limit).toLocaleString()} tokens (in ${quota.month_name})`;
+      }
+      if (quotaFill) {
+        quotaFill.style.width = `${quota.percentage}%`;
+      }
+    };
+
     try {
       let response = await sendChatRequest(conversationId);
 
@@ -417,6 +517,8 @@ document.addEventListener('DOMContentLoaded', function () {
           if (response.ok && data.reply) {
             sawDoneOrError = true;
             conversationId = data.conversation_id;
+            syncConversationTitle(data.title);
+            updateTokenQuota(data.token_quota);
             assistantBubble.style.whiteSpace = 'normal';
             renderAssistantMarkdown(assistantBubble, data.reply);
             ensureMessagesContainer().scrollTop = ensureMessagesContainer().scrollHeight;
@@ -463,6 +565,8 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (parsed.event === 'done') {
           sawDoneOrError = true;
           conversationId = parsed.data.conversation_id;
+          syncConversationTitle(parsed.data.title);
+          updateTokenQuota(parsed.data.token_quota);
           assistantBubble.style.whiteSpace = 'normal';
           renderAssistantMarkdown(assistantBubble, parsed.data.reply || rawText);
           container.scrollTop = container.scrollHeight;

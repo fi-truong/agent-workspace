@@ -15,7 +15,7 @@
     </div>
     <div class="stat-card">
         <div class="stat-value">{{ $stats['showcases'] }}</div>
-        <div class="stat-label">Showcase Posts</div>
+        <div class="stat-label">Showcase Posts · {{ $stats['showcases_pending'] }} pending</div>
     </div>
     <div class="stat-card">
         <div class="stat-value">{{ $stats['faqs'] }}</div>
@@ -26,8 +26,28 @@
         <div class="stat-label">Tickets (Open / Total)</div>
     </div>
     <div class="stat-card">
-        <div class="stat-value">{{ $stats['users'] }}</div>
-        <div class="stat-label">Users</div>
+        <div class="stat-value">{{ $stats['users_active'] }} / {{ $stats['users'] }}</div>
+        <div class="stat-label">Active Users / Total</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ $stats['usage_7d'] }} / {{ $stats['usage_30d'] }}</div>
+        <div class="stat-label">AI activity · 7 / 30 days</div>
+    </div>
+</div>
+
+<div class="table-section" style="margin-top:24px;">
+    <div class="table-toolbar">
+        <h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Recent Admin Activity</h3>
+    </div>
+    <div style="padding:0 20px 12px;">
+        @forelse($recentActivity as $activity)
+        <div style="display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;">
+            <span><strong>{{ $activity->user?->name ?? 'System' }}</strong> · {{ str_replace('.', ' ', $activity->event) }}</span>
+            <span class="text-muted">{{ $activity->created_at->diffForHumans() }}</span>
+        </div>
+        @empty
+        <p class="text-muted">No admin actions have been logged yet.</p>
+        @endforelse
     </div>
 </div>
 

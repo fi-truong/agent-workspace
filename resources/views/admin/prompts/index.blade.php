@@ -25,7 +25,7 @@
         $csrf = csrf_field();
         $method = method_field('DELETE');
         return [
-            '<div><div class="item-title">' . e($prompt->title) . '</div><div class="item-sub">' . Str::limit($prompt->description, 60) . '</div></div>',
+            '<div><div class="item-title">' . e($prompt->title) . '</div><div class="item-sub">' . e(Str::limit($prompt->description, 60)) . '</div></div>',
             '<span class="badge new">' . e($subject) . '</span>',
             '<span class="badge ' . ($prompt->status === 'published' ? 'published' : 'draft') . '">' . ucfirst($prompt->status) . '</span>',
             $prompt->created_at?->format('d/m/Y') ?? '—',

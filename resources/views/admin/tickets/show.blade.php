@@ -10,7 +10,7 @@
             <div>
                 <h2 style="font-family:'Fraunces',serif;font-size:22px;margin:0 0 8px;">{{ $ticket->subject }}</h2>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink-soft);">
-                    <span><strong>User:</strong> {{ $ticket->user->name }} ({{ $ticket->user->email }})</span>
+                    <span><strong>User:</strong> {{ $ticket->user?->name ?? $ticket->name }} ({{ $ticket->user?->email ?? $ticket->email }})</span>
                     <span><strong>Created:</strong> {{ $ticket->created_at->format('d/m/Y H:i') }}</span>
                     <span><strong>Priority:</strong> <span class="badge {{ $ticket->priority === 'high' ? 'pending' : ($ticket->priority === 'medium' ? 'new' : 'published') }}">{{ ucfirst($ticket->priority) }}</span></span>
                 </div>
@@ -19,7 +19,7 @@
 
         <div style="margin-bottom:24px;padding:16px;background:var(--paper);border-radius:8px;">
             <strong style="display:block;margin-bottom:8px;">Description</strong>
-            <div style="white-space:pre-wrap;">{{ $ticket->description }}</div>
+            <div style="white-space:pre-wrap;">{{ $ticket->details }}</div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
@@ -55,8 +55,8 @@
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                 <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:0;">Admin Notes</h3>
             </div>
-            <form action="{{ route('admin.tickets.show', $ticket) }}" method="POST" id="notesForm">
-                @csrf @method('PUT')
+            <form action="{{ route('admin.tickets.notes', $ticket) }}" method="POST" id="notesForm">
+                @csrf @method('PATCH')
                 <div class="form-group" style="margin-bottom:12px;">
                     <textarea name="admin_notes" class="form-textarea" placeholder="Internal notes for admin team..." rows="4">{{ $ticket->admin_notes }}</textarea>
                 </div>

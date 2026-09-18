@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\ChatCompletionService;
 use App\Services\KnowledgeService;
 use App\Services\PiiFilterService;
+use App\Services\TokenQuotaService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,12 +41,16 @@ class ChatMessageController extends Controller
         PiiFilterService $piiFilter,
         ChatCompletionService $chatService,
         KnowledgeService $knowledgeService,
+        TokenQuotaService $tokenQuotaService,
     ) {
         set_time_limit(120);
 
         $blocked = $this->validateAndScanPii($request, $piiFilter);
         if ($blocked) {
             return $blocked;
+        }
+        if ($tokenQuotaService->isExhausted($request->user())) {
+            return $this->tokenQuotaExceededResponse();
         }
 
         $ctx = $this->prepareTurn($request, $knowledgeService);
@@ -65,7 +70,9 @@ class ChatMessageController extends Controller
         return response()->json([
             'blocked' => false,
             'conversation_id' => $ctx['conversation']->id,
+            'title' => $ctx['conversation']->fresh()->title,
             'reply' => $completion['content'],
+            'token_quota' => $tokenQuotaService->summary($ctx['user']),
         ]);
     }
 
@@ -83,6 +90,7 @@ class ChatMessageController extends Controller
         PiiFilterService $piiFilter,
         ChatCompletionService $chatService,
         KnowledgeService $knowledgeService,
+        TokenQuotaService $tokenQuotaService,
     ): StreamedResponse|JsonResponse {
         set_time_limit(120);
 
@@ -91,10 +99,13 @@ class ChatMessageController extends Controller
             // Chặn PII: trả JSON thường (chưa mở stream), giữ hành vi giống store().
             return $blocked;
         }
+        if ($tokenQuotaService->isExhausted($request->user())) {
+            return $this->tokenQuotaExceededResponse();
+        }
 
         $ctx = $this->prepareTurn($request, $knowledgeService);
 
-        return response()->stream(function () use ($ctx, $chatService, $request) {
+        return response()->stream(function () use ($ctx, $chatService, $request, $tokenQuotaService) {
             while (ob_get_level() > 0) {
                 ob_end_flush();
             }
@@ -122,7 +133,9 @@ class ChatMessageController extends Controller
 
                 $send('done', [
                     'conversation_id' => $ctx['conversation']->id,
+                    'title' => $ctx['conversation']->fresh()->title,
                     'reply' => $completion['content'],
+                    'token_quota' => $tokenQuotaService->summary($ctx['user']),
                 ]);
             } catch (\Throwable $e) {
                 Log::error('Streaming chat response failed', [
@@ -207,14 +220,17 @@ class ChatMessageController extends Controller
             'has_documents' => count($documents) > 0,
         ]);
 
-        $user = $request->user() ?? User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
+        /** @var User $user */
+        $user = $request->user();
 
         // Title mặc định: thời gian + vài từ đầu prompt (AI tóm tắt sẽ ghi đè sau lần trả lời đầu).
         $createdNew = $request->conversation_id ? false : true;
 
         /** @var Conversation $conversation */
         $conversation = $request->conversation_id
-            ? Conversation::findOrFail((int) $request->conversation_id)
+            ? Conversation::whereKey((int) $request->conversation_id)
+                ->where('user_id', $user->id)
+                ->firstOrFail()
             : Conversation::create([
                 'user_id' => $user->id,
                 'title' => now()->format('Y.m.d H:i').' · '.Str::limit($request->message, 40),
@@ -365,25 +381,39 @@ class ChatMessageController extends Controller
             }
 
             // Tách mime + base64
-            if (! preg_match('#^data:image/(\w+);base64,(.+)$#s', $dataUrl, $m)) {
+            if (! preg_match('#^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)$#s', $dataUrl, $m)) {
                 continue;
             }
 
             $ext = $m[1] === 'jpeg' ? 'jpg' : $m[1];
-            $base64 = base64_decode((string) $m[2]);
+            $base64 = base64_decode((string) $m[2], true);
 
-            if ($base64 === '') {
+            if ($base64 === false || $base64 === '') {
                 continue;
             }
 
-            $filename = $conversationId.'/'.time().'_'.$i.'.'.$ext;
-            Storage::disk('chat-attachments')->put($filename, $base64);
+            $filename = Str::uuid().'.'.$ext;
+            $path = $conversationId.'/'.$filename;
+            Storage::disk('chat-attachments')->put($path, $base64);
 
-            // Relative URL keeps attachments visible regardless of the local hostname/IP used to open the app.
-            $saved[] = '/storage/chat-attachments/'.$filename;
+            $saved[] = route('ai-plus.agent-workspace.attachments.show', [
+                'conversation' => $conversationId,
+                'filename' => $filename,
+            ], false);
         }
 
         return $saved;
+    }
+
+    public function attachment(Request $request, Conversation $conversation, string $filename)
+    {
+        $this->ensureOwnsConversation($request, $conversation);
+        abort_unless(preg_match('/^[A-Za-z0-9_.-]+$/', $filename), 404);
+
+        $path = $conversation->id.'/'.$filename;
+        abort_unless(Storage::disk('chat-attachments')->exists($path), 404);
+
+        return Storage::disk('chat-attachments')->response($path);
     }
 
     /**
@@ -448,6 +478,7 @@ class ChatMessageController extends Controller
      */
     public function rename(Request $request, Conversation $conversation): JsonResponse
     {
+        $this->ensureOwnsConversation($request, $conversation);
         $request->validate(['title' => 'required|string|max:120']);
 
         $conversation->update(['title' => trim($request->title)]);
@@ -458,11 +489,28 @@ class ChatMessageController extends Controller
     /**
      * Xóa một conversation (prompt) — messages cascade theo FK.
      */
-    public function destroy(Conversation $conversation): JsonResponse
+    public function destroy(Request $request, Conversation $conversation): JsonResponse
     {
+        $this->ensureOwnsConversation($request, $conversation);
+        // Keep token accounting intact, but remove the deleted chat from My Usage activity.
+        $conversation->usageLogs()->update(['hidden_at' => now()]);
         $conversation->delete();
 
         return response()->json(['ok' => true]);
+    }
+
+    private function ensureOwnsConversation(Request $request, Conversation $conversation): void
+    {
+        abort_unless($conversation->user_id === $request->user()?->id, 403);
+    }
+
+    private function tokenQuotaExceededResponse(): JsonResponse
+    {
+        return response()->json([
+            'blocked' => false,
+            'error' => 'Bạn đã dùng hết quota token cho giai đoạn hiện tại. Vui lòng liên hệ quản trị viên.',
+            'retryable' => false,
+        ], 429);
     }
 
     private function summarizeConversationTitle(Conversation $conversation): void
@@ -499,6 +547,6 @@ class ChatMessageController extends Controller
 
     private function canViewAgent(User $user, Agent $agent): bool
     {
-        return $user->id === $agent->user_id || $agent->is_shared;
+        return $user->can('view', $agent);
     }
 }

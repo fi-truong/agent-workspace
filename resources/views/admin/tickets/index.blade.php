@@ -22,10 +22,10 @@
     'rows' => $tickets,
     'renderRow' => function($ticket) {
         return [
-            '<div><div class="item-title">' . e($ticket->subject) . '</div><div class="item-sub">' . Str::limit($ticket->description, 80) . '</div></div>',
-            $ticket->user?->name . ' (' . $ticket->user?->email . ')',
+            '<div><div class="item-title">' . e($ticket->subject) . '</div><div class="item-sub">' . e(Str::limit($ticket->details, 80)) . '</div></div>',
+            e($ticket->user?->name . ' (' . $ticket->user?->email . ')'),
             '<span class="badge ' . ($ticket->status === 'resolved' ? 'resolved' : ($ticket->status === 'in_progress' ? 'in_progress' : ($ticket->status === 'closed' ? 'draft' : 'pending'))) . '">' . ucfirst(str_replace('_', ' ', $ticket->status)) . '</span>',
-            $ticket->assignee?->name ?? '<span class="text-muted">Unassigned</span>',
+            $ticket->assignee ? e($ticket->assignee->name) : '<span class="text-muted">Unassigned</span>',
             '<span class="badge ' . ($ticket->priority === 'high' ? 'pending' : ($ticket->priority === 'medium' ? 'new' : 'published')) . '">' . ucfirst($ticket->priority) . '</span>',
             $ticket->created_at?->format('d/m/Y H:i') ?? '—',
             '<div class="action-group">

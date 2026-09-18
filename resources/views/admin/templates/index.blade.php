@@ -24,7 +24,7 @@
         $csrf = csrf_field();
         $method = method_field('DELETE');
         return [
-            '<div><div class="item-title">' . e($template->name) . '</div><div class="item-sub">' . Str::limit($template->description, 60) . '</div></div>',
+            '<div><div class="item-title">' . e($template->name) . '</div><div class="item-sub">' . e(Str::limit($template->description, 60)) . '</div></div>',
             '<span class="badge new">' . e($template->category ?? '—') . '</span>',
             '<span class="badge ' . ($template->status === 'published' ? 'published' : ($template->status === 'archived' ? 'draft' : 'pending')) . '">' . ucfirst($template->status) . '</span>',
             $template->features_count ?? $template->features->count(),

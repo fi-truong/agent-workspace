@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\ShowcasePost;
 use Illuminate\Http\Request;
 
@@ -16,7 +17,7 @@ class ShowcaseController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                    ->orWhere('content', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -33,7 +34,7 @@ class ShowcaseController extends Controller
         };
 
         $showcases = $query->paginate(15)->withQueryString();
-        $statuses = ['draft' => 'Draft', 'published' => 'Published'];
+        $statuses = ['pending' => 'Pending review', 'draft' => 'Draft', 'published' => 'Published', 'rejected' => 'Rejected'];
 
         return view('admin.showcases.index', compact('showcases', 'statuses'));
     }
@@ -47,22 +48,20 @@ class ShowcaseController extends Controller
     {
         $data = $request->validate([
             'title' => 'required|string|max:255',
-            'content' => 'required|string',
-            'status' => 'required|in:draft,published',
+            'description' => 'required|string',
+            'department' => 'nullable|string|max:100',
+            'status' => 'required|in:draft,pending,published,rejected',
             'author_id' => 'nullable|exists:users,id',
         ]);
 
         $data['author_id'] = $data['author_id'] ?? auth()->id();
+        $data['department'] = $data['department'] ?? auth()->user()?->department ?? 'General';
         $data['published_at'] = $data['status'] === 'published' ? now() : null;
 
-        ShowcasePost::create($data);
+        $showcase = ShowcasePost::create($data);
+        AdminAuditLog::record('showcase.created', $showcase, ['status' => $showcase->status]);
 
         return redirect()->route('admin.showcases.index')->with('success', 'Showcase created successfully.');
-    }
-
-    public function show(ShowcasePost $showcase)
-    {
-        return view('admin.showcases.show', compact('showcase'));
     }
 
     public function edit(ShowcasePost $showcase)
@@ -74,21 +73,24 @@ class ShowcaseController extends Controller
     {
         $data = $request->validate([
             'title' => 'required|string|max:255',
-            'content' => 'required|string',
-            'status' => 'required|in:draft,published',
+            'description' => 'required|string',
+            'department' => 'nullable|string|max:100',
+            'status' => 'required|in:draft,pending,published,rejected',
         ]);
 
-        if ($showcase->status !== 'published' && $data['status'] === 'published') {
-            $data['published_at'] = now();
-        }
+        $data['published_at'] = $data['status'] === 'published'
+            ? ($showcase->published_at ?? now())
+            : null;
 
         $showcase->update($data);
+        AdminAuditLog::record('showcase.updated', $showcase, ['status' => $showcase->status]);
 
         return redirect()->route('admin.showcases.index')->with('success', 'Showcase updated successfully.');
     }
 
     public function destroy(ShowcasePost $showcase)
     {
+        AdminAuditLog::record('showcase.deleted', $showcase, ['title' => $showcase->title]);
         $showcase->delete();
 
         return redirect()->route('admin.showcases.index')->with('success', 'Showcase deleted successfully.');

@@ -33,6 +33,7 @@ class SupportController extends Controller
             'type' => 'required|string|in:Technical Issue / Bug Report,Feature Request,Question / How-To,Access / Account Issue,Training Request,Other',
             'subject' => 'required|string|max:200',
             'details' => 'required|string|min:10',
+            'priority' => 'nullable|in:low,medium,high',
         ]);
 
         if (auth()->check()) {

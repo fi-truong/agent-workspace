@@ -6,7 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class AgentTemplate extends Model
 {
-    protected $fillable = ['icon', 'name', 'description', 'preview_class', 'badge', 'uses_count', 'category', 'status'];
+    protected $fillable = ['source_agent_id', 'icon', 'name', 'description', 'preview_class', 'badge', 'uses_count', 'category', 'status'];
+
+    public function sourceAgent()
+    {
+        return $this->belongsTo(Agent::class, 'source_agent_id');
+    }
 
     public function features()
     {

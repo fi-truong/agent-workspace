@@ -25,9 +25,11 @@ use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/ai-plus/agent-workspace/send', [ChatMessageController::class, 'store'])
+    ->middleware(['auth', 'throttle:chat'])
     ->name('ai-plus.agent-workspace.send');
 
 Route::post('/ai-plus/agent-workspace/send-stream', [ChatMessageController::class, 'stream'])
+    ->middleware(['auth', 'throttle:chat'])
     ->name('ai-plus.agent-workspace.send-stream');
 
 Route::inertia('/', 'welcome')->name('home');
@@ -37,51 +39,57 @@ Route::inertia('/', 'welcome')->name('home');
 Route::get('/ai-plus', [AiPlusController::class, 'index'])->name('ai-plus.index');
 
 // AI+ Module Routes
-Route::prefix('ai-plus')->name('ai-plus.')->group(function () {
+Route::prefix('ai-plus')->name('ai-plus.')->middleware('auth')->group(function () {
+    Route::get('/agent-workspace/attachments/{conversation}/{filename}', [ChatMessageController::class, 'attachment'])
+        ->where('filename', '[A-Za-z0-9_.-]+')
+        ->name('agent-workspace.attachments.show');
     Route::patch('/agent-workspace/conversations/{conversation}', [ChatMessageController::class, 'rename'])
         ->name('conversations.rename');
     Route::delete('/agent-workspace/conversations/{conversation}', [ChatMessageController::class, 'destroy'])
         ->name('conversations.destroy');
     Route::get('/agent-workspace', [AgentWorkspaceController::class, 'index'])->name('agent-workspace.index');
     Route::get('/agent-workspace/agents', [AgentController::class, 'index'])->name('agent-workspace.agents.index');
-    Route::post('/agent-workspace/agents', [AgentController::class, 'store'])->name('agent-workspace.agents.store');
+    Route::post('/agent-workspace/agents', [AgentController::class, 'store'])->middleware('throttle:agent-upload')->name('agent-workspace.agents.store');
     Route::get('/agent-workspace/agents/{agent}', [AgentController::class, 'show'])->name('agent-workspace.agents.show');
-    Route::put('/agent-workspace/agents/{agent}', [AgentController::class, 'update'])->name('agent-workspace.agents.update');
+    Route::put('/agent-workspace/agents/{agent}', [AgentController::class, 'update'])->middleware('throttle:agent-upload')->name('agent-workspace.agents.update');
     Route::delete('/agent-workspace/agents/{agent}', [AgentController::class, 'destroy'])->name('agent-workspace.agents.destroy');
     Route::get('/prompt-library', [PromptLibraryController::class, 'index'])->name('prompt-library.index');
     Route::get('/agent-templates', [AgentTemplateController::class, 'index'])->name('agent-templates.index');
+    Route::post('/agent-templates/{template}/use', [AgentTemplateController::class, 'useTemplate'])->name('agent-templates.use');
     Route::get('/sharing-showcase', [SharingShowcaseController::class, 'index'])->name('sharing-showcase.index');
     Route::post('/sharing-showcase', [SharingShowcaseController::class, 'store'])->name('sharing-showcase.store');
     Route::get('/sharing-showcase/{showcase}', [SharingShowcaseController::class, 'show'])->name('sharing-showcase.show');
+    Route::post('/sharing-showcase/{showcase}/use', [SharingShowcaseController::class, 'use'])->name('sharing-showcase.use');
     Route::get('/my-usage', [MyUsageController::class, 'index'])->name('my-usage.index');
     Route::get('/ai-policy', [AiPolicyController::class, 'index'])->name('ai-policy.index');
     Route::get('/support', [SupportController::class, 'index'])->name('support.index');
-    Route::post('/support', [SupportController::class, 'store'])->name('support.store');
+    Route::post('/support', [SupportController::class, 'store'])->middleware('throttle:support')->name('support.store');
 });
 
 // Admin Panel Routes
-Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(function () {
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
 
     // Prompts
-    Route::resource('prompts', PromptController::class);
+    Route::resource('prompts', PromptController::class)->except('show');
 
     // Agent Templates
-    Route::resource('templates', TemplateController::class);
+    Route::resource('templates', TemplateController::class)->except('show');
 
     // Showcases
-    Route::resource('showcases', ShowcaseController::class);
+    Route::resource('showcases', ShowcaseController::class)->except('show');
 
     // FAQs
-    Route::resource('faqs', FaqController::class);
+    Route::resource('faqs', FaqController::class)->except('show');
 
     // Support Tickets
-    Route::resource('tickets', TicketController::class);
+    Route::resource('tickets', TicketController::class)->only(['index', 'show', 'destroy']);
     Route::patch('tickets/{ticket}/assign', [TicketController::class, 'assign'])->name('tickets.assign');
     Route::patch('tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.status');
+    Route::patch('tickets/{ticket}/notes', [TicketController::class, 'storeNote'])->name('tickets.notes');
 
     // Users & Roles
-    Route::resource('users', UserController::class);
+    Route::resource('users', UserController::class)->except('show');
 });
 
 // Legacy route redirect
@@ -107,7 +115,7 @@ Route::get('/auth/microsoft/callback', [MicrosoftAuthController::class, 'callbac
     ->name('auth.microsoft.callback');
 
 Route::get('/login', function () {
-    return inertia('auth/login');
+    return redirect()->route('login.local.form');
 })->name('login');
 
 // Local email/password login for dev
@@ -117,7 +125,7 @@ Route::post('/logout', function () {
     request()->session()->regenerateToken();
 
     return redirect()->route('login.local.form');
-})->middleware('auth')->name('logout');
+})->name('logout');
 
 Route::get('/ai-plus/access-pending', function () {
     return view('ai-plus.access-pending');
@@ -134,6 +142,7 @@ Route::middleware('auth')->group(function () {
 Route::get('/login-local', fn () => view('auth.login'))->name('login.local.form');
 Route::post('/login-local', function () {
     $credentials = request()->validate(['email' => 'required|email', 'password' => 'required']);
+    $credentials['is_active'] = true;
     if (auth()->attempt($credentials, request()->boolean('remember'))) {
         request()->session()->regenerate();
 
@@ -141,6 +150,6 @@ Route::post('/login-local', function () {
     }
 
     return back()->withErrors(['email' => 'Sai email hoặc mật khẩu.'])->onlyInput('email');
-})->name('login.local');
+})->middleware('throttle:login')->name('login.local');
 
 require __DIR__.'/settings.php';

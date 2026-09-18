@@ -3,13 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\AgentTemplate;
+use App\Models\UsageLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AgentTemplateController extends Controller
 {
     public function index(Request $request)
     {
-        $query = AgentTemplate::with('features')->latest();
+        $query = AgentTemplate::with('features')->whereNull('source_agent_id')->latest();
 
         // Search
         if ($request->filled('search')) {
@@ -54,6 +56,7 @@ class AgentTemplateController extends Controller
                     default => null,
                 },
                 'category' => $t->category,
+                'is_shared_agent' => $t->source_agent_id !== null,
             ];
         })->toArray();
 
@@ -67,6 +70,7 @@ class AgentTemplateController extends Controller
             'communication' => '📧 Communication',
             'admin' => '📊 Admin',
             'subject' => '🔬 Subject-Specific',
+            'shared' => '👥 Team Shared',
         ];
 
         // Total count for current filter (search + category)
@@ -82,5 +86,32 @@ class AgentTemplateController extends Controller
             'filteredTotal' => $filteredTotal,
             'totalCategories' => count($categories),
         ]);
+    }
+
+    public function useTemplate(Request $request, AgentTemplate $template)
+    {
+        $user = $request->user();
+        $template->load('sourceAgent');
+
+        $sourceAgent = $template->sourceAgent;
+        abort_if($sourceAgent, 404);
+        $agent = $user->agents()->create([
+            'title' => $template->name,
+            'description' => $template->description,
+            'system_prompt' => $sourceAgent?->system_prompt
+                ?: 'You are '.$template->name.".\n\n".$template->description,
+            'is_shared' => false,
+        ]);
+
+        $template->increment('uses_count');
+        UsageLog::create([
+            'user_id' => $user->id,
+            'activity_title' => 'Used template: '.Str::limit($template->name, 80),
+            'source' => 'template_used',
+            'related_agent_template_id' => $template->id,
+        ]);
+
+        return redirect()->route('ai-plus.agent-workspace.index', ['agent_id' => $agent->id])
+            ->with('success', 'Agent added to your workspace. You can start chatting now.');
     }
 }

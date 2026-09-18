@@ -10,6 +10,7 @@
     'filters' => [
         ['key' => 'role', 'label' => 'Role', 'options' => collect($roles)->mapWithKeys(fn($r) => [$r => ucfirst($r)])->all(), 'selected' => request('role')],
         ['key' => 'department', 'label' => 'Department', 'options' => collect($departments)->mapWithKeys(fn($d) => [$d => $d])->all(), 'selected' => request('department')],
+        ['key' => 'active', 'label' => 'Account status', 'options' => $activeStatuses, 'selected' => request('active')],
     ],
     'sortOptions' => ['newest' => 'Newest', 'oldest' => 'Oldest', 'alpha' => 'A–Z'],
     'sortValue' => request('sort', 'newest'),
@@ -18,7 +19,7 @@
 ])
 
 @include('admin.partials.table', [
-    'headers' => ['Name', 'Email', 'Role', 'Department', 'Employee ID', 'Created', 'Actions'],
+    'headers' => ['Name', 'Email', 'Role', 'Status', 'Department', 'Employee ID', 'Created', 'Actions'],
     'rows' => $users,
     'renderRow' => function($user) {
         $roleBadge = match($user->role) {
@@ -34,11 +35,12 @@
             ? '<form action="' . route('admin.users.destroy', $user) . '" method="POST" style="display:inline" onsubmit="return confirm(\'Delete this user?\')">' . $csrf . $method . '<button type="submit" class="action-btn danger">Delete</button></form>'
             : '';
         return [
-            '<div><div class="item-title">' . e($user->name) . '</div><div class="item-sub">' . e($user->email) . '</div></div>',
-            '',
+            '<div class="item-title">' . e($user->name) . '</div>',
+            e($user->email),
             '<span class="badge ' . $roleBadge . '">' . ucfirst($user->role) . '</span>',
-            $user->department ?? '<span class="text-muted">—</span>',
-            $user->employee_id ?? '<span class="text-muted">—</span>',
+            '<span class="badge ' . ($user->is_active ? 'published' : 'draft') . '">' . ($user->is_active ? 'Active' : 'Inactive') . '</span>',
+            $user->department ? e($user->department) : '<span class="text-muted">—</span>',
+            $user->employee_id ? e($user->employee_id) : '<span class="text-muted">—</span>',
             $user->created_at?->format('d/m/Y') ?? '—',
             '<div class="action-group">
                 <a href="' . route('admin.users.edit', $user) . '" class="action-btn">Edit</a>

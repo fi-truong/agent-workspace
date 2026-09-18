@@ -68,7 +68,9 @@
         <div class="template-card" data-category="{{ $template['category'] ?? '' }}" data-id="{{ $template['id'] }}" data-uses="{{ $template['uses'] ?? 0 }}">
           <div class="template-preview {{ $template['preview_class'] ?? '' }}">
             <div class="template-icon">{{ $template['icon'] }}</div>
-            @if($template['badge'])
+            @if($template['is_shared_agent'])
+            <span class="template-badge">Team shared</span>
+            @elseif($template['badge'])
             <span class="template-badge">{{ $template['badge'] }}</span>
             @endif
           </div>
@@ -81,7 +83,10 @@
               @endforeach
             </div>
             <div class="template-footer">
-              <button class="use-btn" data-template-id="{{ $template['id'] }}">Use Template</button>
+              <form method="POST" action="{{ route('ai-plus.agent-templates.use', $template['id']) }}">
+                @csrf
+                <button type="submit" class="use-btn" data-template-id="{{ $template['id'] }}">Use Template</button>
+              </form>
             </div>
           </div>
         </div>

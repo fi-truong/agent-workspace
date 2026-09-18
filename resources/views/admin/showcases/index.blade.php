@@ -23,9 +23,9 @@
         $csrf = csrf_field();
         $method = method_field('DELETE');
         return [
-            '<div><div class="item-title">' . e($showcase->title) . '</div><div class="item-sub">' . Str::limit($showcase->content, 80) . '</div></div>',
-            $showcase->author?->name ?? '—',
-            '<span class="badge ' . ($showcase->status === 'published' ? 'published' : 'draft') . '">' . ucfirst($showcase->status) . '</span>',
+            '<div><div class="item-title">' . e($showcase->title) . '</div><div class="item-sub">' . e(Str::limit($showcase->description, 80)) . '</div></div>',
+            e($showcase->author?->name ?? '—'),
+            '<span class="badge ' . ($showcase->status === 'published' ? 'published' : ($showcase->status === 'pending' ? 'pending' : 'draft')) . '">' . ucfirst($showcase->status) . '</span>',
             $showcase->views_count ?? 0,
             $showcase->published_at?->format('d/m/Y') ?? '—',
             '<div class="action-group">

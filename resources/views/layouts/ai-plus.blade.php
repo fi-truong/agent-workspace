@@ -19,6 +19,11 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
+<script>
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted) window.location.reload();
+  });
+</script>
 
 @hasSection('breadcrumb')
 <div class="ai-plus-topbar">
@@ -30,6 +35,9 @@
       <a href="{{ route('account.password') }}" class="user-badge user-badge-link" title="View account & change password">
         Viewing as: {{ $currentUser->name ?? '' }}
       </a>
+      @if(auth()->user()?->role === 'admin')
+      <a href="{{ route('admin.dashboard') }}" class="admin-panel-link">Admin Panel</a>
+      @endif
       <form method="POST" action="{{ route('logout') }}" class="header-logout-form">
         @csrf
         <button type="submit" class="header-logout-btn" title="Logout">Logout</button>

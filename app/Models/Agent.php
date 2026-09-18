@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
@@ -21,7 +22,7 @@ use Illuminate\Support\Carbon;
  */
 class Agent extends Model
 {
-    protected $fillable = ['user_id', 'title', 'description', 'system_prompt', 'knowledge', 'is_shared'];
+    protected $fillable = ['user_id', 'title', 'description', 'system_prompt', 'knowledge', 'is_shared', 'shared_with_team_id'];
 
     protected $casts = [
         'is_shared' => 'boolean',
@@ -39,6 +40,11 @@ class Agent extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function sharedWithTeam(): BelongsTo
+    {
+        return $this->belongsTo(Team::class, 'shared_with_team_id');
+    }
+
     /**
      * @return HasMany<ShowcasePost, $this>
      */
@@ -53,6 +59,14 @@ class Agent extends Model
     public function conversations(): HasMany
     {
         return $this->hasMany(Conversation::class);
+    }
+
+    /**
+     * @return HasOne<AgentTemplate, $this>
+     */
+    public function sharedTemplate(): HasOne
+    {
+        return $this->hasOne(AgentTemplate::class, 'source_agent_id');
     }
 
     /**

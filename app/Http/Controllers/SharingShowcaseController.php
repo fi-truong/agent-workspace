@@ -64,7 +64,7 @@ class SharingShowcaseController extends Controller
                 'views' => $post->views_count,
                 'comments' => $post->comments_count,
                 'uses' => $post->uses_count,
-                'badge' => $post->badge,
+                'badge' => $this->badgeFor($post),
                 'url' => route('ai-plus.sharing-showcase.show', $post->id),
             ];
         });
@@ -150,7 +150,7 @@ class SharingShowcaseController extends Controller
             'views' => $showcase->views_count,
             'comments' => $showcase->comments_count,
             'uses' => $showcase->uses_count,
-            'badge' => $showcase->badge,
+            'badge' => $this->badgeFor($showcase),
             'created' => $showcase->created_at?->format('d/m/Y'),
         ];
 
@@ -178,7 +178,7 @@ class SharingShowcaseController extends Controller
                     'views' => $r->views_count,
                     'comments' => $r->comments_count,
                     'uses' => $r->uses_count,
-                    'badge' => $r->badge,
+                    'badge' => $this->badgeFor($r),
                     'url' => route('ai-plus.sharing-showcase.show', $r->id),
                 ];
             });
@@ -188,5 +188,35 @@ class SharingShowcaseController extends Controller
             'related' => $related,
             'viewingAs' => 'Teacher / Staff',
         ]);
+    }
+
+    public function use(Request $request, ShowcasePost $showcase)
+    {
+        abort_if($showcase->status !== 'published', 404);
+        $showcase->increment('uses_count');
+        $showcase->load('sourceAgent');
+
+        if (! $showcase->sourceAgent?->is_shared) {
+            return back()->withErrors(['showcase' => 'Showcase này chưa có agent để sử dụng.']);
+        }
+
+        $source = $showcase->sourceAgent;
+        $agent = $request->user()->agents()->create([
+            'title' => $source->title,
+            'description' => $source->description,
+            'system_prompt' => $source->system_prompt,
+            'is_shared' => false,
+        ]);
+
+        return redirect()->route('ai-plus.agent-workspace.index', ['agent_id' => $agent->id]);
+    }
+
+    private function badgeFor(ShowcasePost $post): ?string
+    {
+        if ($post->uses_count >= 20) {
+            return '⭐ Popular';
+        }
+
+        return $post->created_at?->greaterThanOrEqualTo(now()->subDays(7)) ? 'New' : null;
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdminAuditLog;
 use App\Models\Faq;
 use Illuminate\Http\Request;
 
@@ -56,14 +57,10 @@ class FaqController extends Controller
 
         $data['is_published'] = $request->boolean('is_published');
 
-        Faq::create($data);
+        $faq = Faq::create($data);
+        AdminAuditLog::record('faq.created', $faq, ['is_published' => $faq->is_published]);
 
         return redirect()->route('admin.faqs.index')->with('success', 'FAQ created successfully.');
-    }
-
-    public function show(Faq $faq)
-    {
-        return view('admin.faqs.show', compact('faq'));
     }
 
     public function edit(Faq $faq)
@@ -86,12 +83,14 @@ class FaqController extends Controller
         $data['is_published'] = $request->boolean('is_published');
 
         $faq->update($data);
+        AdminAuditLog::record('faq.updated', $faq, ['is_published' => $faq->is_published]);
 
         return redirect()->route('admin.faqs.index')->with('success', 'FAQ updated successfully.');
     }
 
     public function destroy(Faq $faq)
     {
+        AdminAuditLog::record('faq.deleted', $faq, ['question' => $faq->question]);
         $faq->delete();
 
         return redirect()->route('admin.faqs.index')->with('success', 'FAQ deleted successfully.');

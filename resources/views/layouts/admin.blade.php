@@ -10,6 +10,11 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body class="admin-body">
+<script>
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted) window.location.reload();
+  });
+</script>
 
 <div class="admin-layout">
   <!-- Sidebar -->
@@ -72,6 +77,13 @@
         <span class="nav-icon">←</span>
         <span>Back to AI+</span>
       </a>
+      <form action="{{ route('logout') }}" method="POST">
+        @csrf
+        <button type="submit" class="nav-item" style="width:100%;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;">
+          <span class="nav-icon">↪</span>
+          <span>Đăng xuất</span>
+        </button>
+      </form>
     </div>
   </aside>
 
@@ -89,8 +101,8 @@
 
       <div class="topbar-title">
         <h1 class="page-title">@yield('page-title', 'Dashboard')</h1>
-        @if(isset($pageDescription))
-        <p class="page-desc">{{ $pageDescription }}</p>
+        @hasSection('page-desc')
+        <p class="page-desc">@yield('page-desc')</p>
         @endif
       </div>
 

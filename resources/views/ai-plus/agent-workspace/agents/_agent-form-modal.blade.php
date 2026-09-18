@@ -37,7 +37,7 @@
       </div>
       <div class="form-group checkbox-group">
         <input type="checkbox" id="is_shared" name="is_shared" value="1">
-        <label for="is_shared">Share with team (visible in Sharing & Showcase)</label>
+        <label for="is_shared">Share with school (publish to Sharing &amp; Showcase)</label>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
