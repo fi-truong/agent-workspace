@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>@yield('title', 'AI+ - LSTS Staff Portal')</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <script>
   // Áp dụng theme đã lưu NGAY LẬP TỨC, tránh nháy màu sai lúc đầu load trang
   (function(){

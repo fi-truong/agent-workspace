@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountPasswordController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AiPlusGuideSettingsController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\PromptController;
 use App\Http\Controllers\Admin\ShowcaseController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentTemplateController;
 use App\Http\Controllers\AgentWorkspaceController;
 use App\Http\Controllers\AiPlusController;
+use App\Http\Controllers\AiPlusGuideController;
 use App\Http\Controllers\AiArtifactController;
 use App\Http\Controllers\AiPolicyController;
 use App\Http\Controllers\Auth\MicrosoftAuthController;
@@ -38,6 +40,10 @@ Route::inertia('/', 'welcome')->name('home');
 // Routes tạm thời để xem trước UI, chưa yêu cầu đăng nhập/team
 // TODO: chuyển vào nhóm auth+team bên dưới khi tích hợp SSO/role-based access thật
 Route::get('/ai-plus', [AiPlusController::class, 'index'])->name('ai-plus.index');
+
+Route::post('/ai-plus/guide/reply', [AiPlusGuideController::class, 'reply'])
+    ->middleware(['auth', 'throttle:chat'])
+    ->name('ai-plus.guide.reply');
 
 // AI+ Module Routes
 Route::prefix('ai-plus')->name('ai-plus.')->middleware('auth')->group(function () {
@@ -92,6 +98,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
 
     // Users & Roles
     Route::resource('users', UserController::class)->except('show');
+
+    // Homepage guide
+    Route::get('ai-plus-guide', [AiPlusGuideSettingsController::class, 'index'])->name('ai-plus-guide.index');
+    Route::put('ai-plus-guide', [AiPlusGuideSettingsController::class, 'update'])->name('ai-plus-guide.update');
 });
 
 // Legacy route redirect

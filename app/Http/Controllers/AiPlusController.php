@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AgentTemplate;
+use App\Models\AppSetting;
 use App\Models\PromptLibraryPrompt;
 use App\Models\ShowcasePost;
 
@@ -89,6 +90,7 @@ class AiPlusController extends Controller
             'totalPrompts' => $totalPrompts,
             'totalTemplates' => $totalTemplates,
             'viewingAs' => 'Teacher / Staff', // sau này lấy từ auth()->user()->role
+            'guideEnabled' => AppSetting::boolean('ai_plus_homepage_guide_enabled'),
         ]);
     }
 }

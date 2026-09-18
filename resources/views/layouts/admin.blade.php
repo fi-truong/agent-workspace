@@ -69,6 +69,10 @@
           <span class="nav-icon">👥</span>
           <span>Users & Roles</span>
         </a>
+        <a href="{{ route('admin.ai-plus-guide.index') }}" class="nav-item {{ request()->routeIs('admin.ai-plus-guide.*') ? 'active' : '' }}">
+          <span class="nav-icon">🤖</span>
+          <span>AI Plus Guide</span>
+        </a>
       </div>
     </nav>
 
