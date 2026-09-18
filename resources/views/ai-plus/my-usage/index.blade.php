@@ -15,10 +15,9 @@
           <div class="user-role">{{ $userRole }}</div>
         </div>
       </div>
-      <div class="date-range">
-        <button class="date-btn">Today</button>
-        <button class="date-btn active">This Week</button>
-        <button class="date-btn">This Month</button>
+      <div class="date-range" aria-label="Usage chart range">
+        <a href="{{ route('ai-plus.my-usage.index', ['range' => 7]) }}" class="date-btn {{ $chartDays === 7 ? 'active' : '' }}">Last 7 days</a>
+        <a href="{{ route('ai-plus.my-usage.index', ['range' => 30]) }}" class="date-btn {{ $chartDays === 30 ? 'active' : '' }}">Last 30 days</a>
       </div>
     </div>
 
@@ -109,9 +108,10 @@
     <div class="chart-section">
       <div class="chart-header">
         <h2 class="section-title">Usage Over Time</h2>
+        <span class="chart-subtitle">Tokens used and prompts sent</span>
       </div>
-      <div class="chart-placeholder">
-        📈 Chart: Prompts per day (last 7 days) — Integration with Chart.js in production
+      <div class="usage-chart-wrap">
+        <canvas id="usageOverTimeChart" aria-label="Usage over time chart" role="img"></canvas>
       </div>
     </div>
   </div>
@@ -127,7 +127,7 @@
   .user-info h1{font-family:'Fraunces', serif;font-size:28px;font-weight:600;margin-bottom:4px;}
   .user-role{color: var(--page-header-muted);font-size:14px;}
   .date-range{display:flex;gap:8px;}
-  .date-btn{padding:8px 16px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:6px;color: var(--input-text);font-size:13px;cursor:pointer;transition: all 0.15s;}
+  .date-btn{padding:8px 16px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:6px;color: var(--input-text);font-size:13px;cursor:pointer;transition: all 0.15s;text-decoration:none;}
   .date-btn:hover{background: var(--surface);}
   .date-btn.active{background: var(--gold);color: var(--navy-deep);border-color: var(--gold);}
 
@@ -172,12 +172,17 @@
   .task-count{font-family:'IBM Plex Mono', monospace;font-size:13px;color: var(--text-soft);}
 
   .chart-section{background: var(--surface);border:1px solid var(--surface-border);border-radius:14px;padding:24px;margin-top:24px;}
-  .chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
-  .chart-placeholder{height:200px;background: linear-gradient(180deg, var(--input-bg) 0%, rgba(31,56,100,0.05) 100%);border-radius:8px;display:flex;align-items:center;justify-content:center;color: var(--text-soft);font-size:14px;}
+  .chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;}.chart-header .section-title{margin-bottom:0;}.chart-subtitle{font-size:13px;color:var(--text-soft);}
+  .usage-chart-wrap{height:280px;background:linear-gradient(180deg,var(--input-bg) 0%,rgba(31,56,100,0.05) 100%);border-radius:8px;padding:12px;}
 
   @media (max-width: 900px){
     .stats-grid{grid-template-columns: repeat(2, 1fr);}
     .two-col{grid-template-columns: 1fr;}
   }
 </style>
+@endpush
+
+@push('scripts')
+<script id="usageOverTimeData" type="application/json">@json($usageChart)</script>
+@vite('resources/js/my-usage-chart.js')
 @endpush

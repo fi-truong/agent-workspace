@@ -15,6 +15,8 @@ class MyUsageController extends Controller
         $user = $request->user();
         $logs = $user->usageLogs();
         $tokenQuota = $tokenQuotaService->summary($user);
+        $chartDays = (int) $request->integer('range', 7);
+        $chartDays = in_array($chartDays, [7, 30], true) ? $chartDays : 7;
 
         $totalTokens = (clone $logs)->selectRaw('SUM(prompt_tokens + completion_tokens) as total')->value('total') ?? 0;
 
@@ -55,6 +57,27 @@ class MyUsageController extends Controller
                 'count' => $row->cnt,
             ])->toArray();
 
+        $chartStart = now()->startOfDay()->subDays($chartDays - 1);
+        $dailyUsage = (clone $logs)
+            ->where('created_at', '>=', $chartStart)
+            ->selectRaw('DATE(created_at) as usage_date, COUNT(*) as prompts, COALESCE(SUM(prompt_tokens + completion_tokens), 0) as tokens')
+            ->groupBy('usage_date')
+            ->orderBy('usage_date')
+            ->get()
+            ->keyBy('usage_date');
+
+        $usageChart = collect(range(0, $chartDays - 1))
+            ->map(function (int $offset) use ($chartStart, $dailyUsage): array {
+                $date = $chartStart->copy()->addDays($offset);
+                $usage = $dailyUsage->get($date->toDateString());
+
+                return [
+                    'label' => $date->format('M j'),
+                    'prompts' => (int) ($usage->prompts ?? 0),
+                    'tokens' => (int) ($usage->tokens ?? 0),
+                ];
+            });
+
         return view('ai-plus.my-usage.index', [
             'stats' => $stats,
             'activities' => $activities,
@@ -64,6 +87,8 @@ class MyUsageController extends Controller
             'userInitials' => $user->initials,
             'userRole' => $user->role,
             'tokenQuota' => $tokenQuota,
+            'chartDays' => $chartDays,
+            'usageChart' => $usageChart,
         ]);
     }
 
