@@ -8,7 +8,7 @@ beforeEach(function () {
     $this->filter = new PiiFilterService;
 });
 
-it('flags text containing an email', function () {
+it('flags text containing an external email', function () {
     $result = $this->filter->scan('Liên hệ phụ huynh qua email nguyenvana@gmail.com nhé.');
 
     expect($result['flagged'])->toBeTrue();
@@ -36,9 +36,16 @@ it('does not flag clean text', function () {
     expect($result['matches'])->toBeEmpty();
 });
 
-it('redacts detected pii from text', function () {
-    $redacted = $this->filter->redact('Email của tôi là abc@lsts.edu.vn');
+it('allows an internal LSTS email', function () {
+    $text = 'Email công việc của tôi là abc@lsts.edu.vn';
 
-    expect($redacted)->not->toContain('abc@lsts.edu.vn');
+    expect($this->filter->scan($text)['flagged'])->toBeFalse()
+        ->and($this->filter->redact($text))->toBe($text);
+});
+
+it('redacts an external email', function () {
+    $redacted = $this->filter->redact('Email của tôi là abc@gmail.com');
+
+    expect($redacted)->not->toContain('abc@gmail.com');
     expect($redacted)->toContain('[email đã bị ẩn]');
 });

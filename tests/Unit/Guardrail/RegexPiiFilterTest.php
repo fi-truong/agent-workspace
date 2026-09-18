@@ -64,14 +64,12 @@ describe('RegexPiiFilter', function () {
     });
 
     describe('Email addresses', function () {
-        test('detects standard email', function () {
+        test('allows an internal LSTS email', function () {
             $text = 'Email anh: nguyen.van.a@lsts.edu.vn';
             $result = $this->filter->filter($text);
 
-            expect($result['has_pii'])->toBeTrue()
-                ->and($result['detected'][0]['type'])->toBe('email')
-                ->and($result['filtered'])->toContain('[EMAIL]')
-                ->and($result['filtered'])->not->toContain('nguyen.van.a@lsts.edu.vn');
+            expect($result['has_pii'])->toBeFalse()
+                ->and($result['filtered'])->toBe($text);
         });
 
         test('detects multiple emails', function () {

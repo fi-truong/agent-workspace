@@ -17,6 +17,7 @@ use PhpOffice\PhpWord\Element\TextRun;
 use PhpOffice\PhpWord\IOFactory as WordIOFactory;
 use PhpOffice\PhpWord\PhpWord;
 use Smalot\PdfParser\Parser as PdfParser;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 class KnowledgeService
@@ -423,6 +424,95 @@ class KnowledgeService
         } finally {
             @unlink($tmp);
         }
+    }
+
+    /**
+     * Render scanned PDF pages as JPEG data URLs for the existing multimodal
+     * chat flow. Text PDFs do not need this because their text is extracted
+     * directly. Returns an empty array if Poppler is not installed/configured.
+     *
+     * @return array<int, string>
+     */
+    public function renderScannedPdfPages(string $binary): array
+    {
+        $renderer = $this->pdfScanRenderer();
+        if ($renderer === null) {
+            Log::warning('Scanned PDF cannot be rendered: pdftoppm is unavailable');
+
+            return [];
+        }
+
+        $dir = sys_get_temp_dir().'/chat_pdf_'.Str::random(24);
+        if (! @mkdir($dir, 0700, true) && ! is_dir($dir)) {
+            return [];
+        }
+
+        $input = $dir.'/source.pdf';
+        $prefix = $dir.'/page';
+
+        try {
+            if (file_put_contents($input, $binary) === false) {
+                return [];
+            }
+
+            $process = new Process([
+                $renderer, '-jpeg', '-f', '1', '-l', (string) max(1, config('openai.pdf_scan_max_pages', 3)),
+                '-scale-to-x', (string) max(320, config('openai.pdf_scan_max_width', 1280)), '-scale-to-y', '-1',
+                $input, $prefix,
+            ]);
+            $process->setTimeout(45);
+            $process->run();
+
+            if (! $process->isSuccessful()) {
+                Log::warning('Scanned PDF render failed', ['exit_code' => $process->getExitCode()]);
+
+                return [];
+            }
+
+            $pages = glob($prefix.'-*.jpg') ?: [];
+            natsort($pages);
+
+            return collect($pages)
+                ->take(max(1, config('openai.pdf_scan_max_pages', 3)))
+                ->map(function (string $page): ?string {
+                    $image = file_get_contents($page);
+
+                    return $image !== false && strlen($image) <= 2 * 1024 * 1024
+                        ? 'data:image/jpeg;base64,'.base64_encode($image)
+                        : null;
+                })
+                ->filter()
+                ->values()
+                ->all();
+        } catch (Throwable $e) {
+            Log::warning('Scanned PDF render failed', ['exception' => get_class($e), 'message' => $e->getMessage()]);
+
+            return [];
+        } finally {
+            foreach (glob($dir.'/*') ?: [] as $file) {
+                @unlink($file);
+            }
+            @rmdir($dir);
+        }
+    }
+
+    private function pdfScanRenderer(): ?string
+    {
+        $configured = config('openai.pdf_scan_renderer_binary');
+        $candidates = array_filter([
+            is_string($configured) ? $configured : null,
+            '/opt/homebrew/bin/pdftoppm',
+            '/usr/local/bin/pdftoppm',
+            '/usr/bin/pdftoppm',
+        ]);
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate) && is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**

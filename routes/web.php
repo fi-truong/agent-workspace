@@ -12,6 +12,7 @@ use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentTemplateController;
 use App\Http\Controllers\AgentWorkspaceController;
 use App\Http\Controllers\AiPlusController;
+use App\Http\Controllers\AiArtifactController;
 use App\Http\Controllers\AiPolicyController;
 use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\ChatMessageController;
@@ -40,6 +41,7 @@ Route::get('/ai-plus', [AiPlusController::class, 'index'])->name('ai-plus.index'
 
 // AI+ Module Routes
 Route::prefix('ai-plus')->name('ai-plus.')->middleware('auth')->group(function () {
+    Route::get('/artifacts/{artifact}/download', [AiArtifactController::class, 'download'])->name('artifacts.download');
     Route::get('/agent-workspace/attachments/{conversation}/{filename}', [ChatMessageController::class, 'attachment'])
         ->where('filename', '[A-Za-z0-9_.-]+')
         ->name('agent-workspace.attachments.show');

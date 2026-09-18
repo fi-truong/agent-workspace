@@ -1,6 +1,9 @@
 <?php
 
 use App\Models\Agent;
+use App\Models\AiArtifact;
+use App\Models\AdminAuditLog;
+use App\Models\EmailDraft;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\UsageLog;
@@ -16,6 +19,7 @@ uses(RefreshDatabase::class)->group('chat', 'feature');
 
 beforeEach(function () {
     Storage::fake('knowledge');
+    Storage::fake('ai-artifacts');
 
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
@@ -44,6 +48,99 @@ it('creates conversation and stores both messages', function () {
     expect(Conversation::count())->toBe(1)
         ->and(Conversation::first()->messages()->count())->toBe(2) // user + assistant
         ->and(UsageLog::count())->toBe(1);
+});
+
+it('creates a requested Excel artifact and returns an authorized download URL', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $response = $this->postJson('/ai-plus/agent-workspace/send', ['message' => 'Hãy tạo file Excel từ nội dung này']);
+
+    $response->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name) => str_ends_with($name, '.xlsx'));
+    $artifact = AiArtifact::firstOrFail();
+    Storage::disk('ai-artifacts')->assertExists($artifact->path);
+    expect(AdminAuditLog::where('event', 'ai_artifact.created')->exists())->toBeTrue();
+    $this->get(route('ai-plus.artifacts.download', $artifact))->assertOk();
+});
+
+it('creates requested Word and PDF artifacts', function (string $request, string $extension) {
+    config(['openai.api_key' => 'sk-test']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', ['message' => $request])->assertOk();
+
+    expect(AiArtifact::firstOrFail()->name)->toEndWith($extension);
+})->with([
+    ['Hãy tạo file Word cho nội dung này', '.docx'],
+    ['Hãy xuất PDF cho nội dung này', '.pdf'],
+]);
+
+it('creates an email draft but never sends an email', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', ['message' => 'Soạn email nháp thông báo họp'])
+        ->assertOk()->assertJsonStructure(['email_draft' => ['id', 'subject', 'body']]);
+
+    expect(EmailDraft::count())->toBe(1);
+    expect(AdminAuditLog::where('event', 'email_draft.created')->exists())->toBeTrue();
+});
+
+it('lists conversations by their most recent update in the workspace sidebar', function () {
+    $recentlyCreated = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Tạo sau nhưng không hoạt động',
+    ]);
+    $recentlyUpdated = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Tạo trước nhưng vừa nhắn',
+    ]);
+
+    $recentlyCreated->forceFill(['updated_at' => now()->subHour()])->saveQuietly();
+    $recentlyUpdated->forceFill(['updated_at' => now()])->saveQuietly();
+
+    $this->get(route('ai-plus.agent-workspace.index'))
+        ->assertOk()
+        ->assertViewHas('conversations', function ($conversations) use ($recentlyUpdated, $recentlyCreated) {
+            return array_column($conversations, 'id') === [$recentlyUpdated->id, $recentlyCreated->id];
+        });
+});
+
+it('preserves an internal LSTS email in a standalone chat', function () {
+    config(['openai.api_key' => 'sk-test']);
+    $email = 'ciec.coordinator.04@lsts.edu.vn';
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => "Hãy gửi báo cáo cho {$email}",
+    ])->assertOk()->assertJson(['blocked' => false]);
+
+    expect(Message::where('role', 'user')->latest('id')->value('content'))->toContain($email);
+
+    Http::assertSent(fn (Request $request) => str_contains(
+        json_encode($request->data(), JSON_UNESCAPED_UNICODE),
+        $email,
+    ));
+});
+
+it('preserves an internal LSTS email in an Agent chat', function () {
+    config(['openai.api_key' => 'sk-test']);
+    $email = 'ciec.coordinator.04@lsts.edu.vn';
+    $agent = Agent::create([
+        'user_id' => $this->user->id,
+        'title' => 'Agent nội bộ',
+        'system_prompt' => 'Bạn là trợ lý nội bộ.',
+        'is_shared' => false,
+    ]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => "Hãy gửi báo cáo cho {$email}",
+        'agent_id' => $agent->id,
+    ])->assertOk()->assertJson(['blocked' => false]);
+
+    expect(Message::where('role', 'user')->latest('id')->value('content'))->toContain($email)
+        ->and(Conversation::latest('id')->value('agent_id'))->toBe($agent->id);
+
+    Http::assertSent(fn (Request $request) => str_contains(
+        json_encode($request->data(), JSON_UNESCAPED_UNICODE),
+        $email,
+    ));
 });
 
 it('sends full history (max 20) on subsequent messages', function () {

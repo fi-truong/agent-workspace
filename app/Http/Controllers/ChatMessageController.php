@@ -11,6 +11,8 @@ use App\Services\ChatCompletionService;
 use App\Services\KnowledgeService;
 use App\Services\PiiFilterService;
 use App\Services\TokenQuotaService;
+use App\Services\ArtifactService;
+use App\Services\EmailDraftService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,7 +43,7 @@ class ChatMessageController extends Controller
         PiiFilterService $piiFilter,
         ChatCompletionService $chatService,
         KnowledgeService $knowledgeService,
-        TokenQuotaService $tokenQuotaService,
+        TokenQuotaService $tokenQuotaService, ArtifactService $artifactService, EmailDraftService $emailDraftService,
     ) {
         set_time_limit(120);
 
@@ -66,6 +68,7 @@ class ChatMessageController extends Controller
         }
 
         $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
+        $actions = $this->createRequestedOutputs($request->message, $completion['content'], $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService);
 
         return response()->json([
             'blocked' => false,
@@ -73,6 +76,7 @@ class ChatMessageController extends Controller
             'title' => $ctx['conversation']->fresh()->title,
             'reply' => $completion['content'],
             'token_quota' => $tokenQuotaService->summary($ctx['user']),
+            ...$actions,
         ]);
     }
 
@@ -90,7 +94,7 @@ class ChatMessageController extends Controller
         PiiFilterService $piiFilter,
         ChatCompletionService $chatService,
         KnowledgeService $knowledgeService,
-        TokenQuotaService $tokenQuotaService,
+        TokenQuotaService $tokenQuotaService, ArtifactService $artifactService, EmailDraftService $emailDraftService,
     ): StreamedResponse|JsonResponse {
         set_time_limit(120);
 
@@ -105,7 +109,7 @@ class ChatMessageController extends Controller
 
         $ctx = $this->prepareTurn($request, $knowledgeService);
 
-        return response()->stream(function () use ($ctx, $chatService, $request, $tokenQuotaService) {
+        return response()->stream(function () use ($ctx, $chatService, $request, $tokenQuotaService, $artifactService, $emailDraftService) {
             while (ob_get_level() > 0) {
                 ob_end_flush();
             }
@@ -131,11 +135,14 @@ class ChatMessageController extends Controller
 
                 $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
 
+                $send('progress', ['message' => 'Đang tạo file hoặc email nháp…']);
+                $actions = $this->createRequestedOutputs($request->message, $completion['content'], $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService);
                 $send('done', [
                     'conversation_id' => $ctx['conversation']->id,
                     'title' => $ctx['conversation']->fresh()->title,
                     'reply' => $completion['content'],
                     'token_quota' => $tokenQuotaService->summary($ctx['user']),
+                    ...$actions,
                 ]);
             } catch (\Throwable $e) {
                 Log::error('Streaming chat response failed', [
@@ -251,7 +258,9 @@ class ChatMessageController extends Controller
 
         // Tai lieu (khong phai anh) dinh kem trong chat: trich text, KHONG luu file goc lai
         // (khac Knowledge cua Agent) - chi dua noi dung trich duoc vao ngu canh cua luot chat nay.
-        $documentBlocks = $this->extractChatDocuments($documents, $knowledgeService, $request->message);
+        [$documentBlocks, $scannedPdfImages] = $this->extractChatDocuments($documents, $knowledgeService, $request->message);
+        // PDF scan được render thành ảnh ở server và đi qua cùng luồng vision với ảnh người dùng gửi.
+        $images = array_slice(array_merge($images, $scannedPdfImages), 0, 4);
 
         $userContent = $request->message;
         if ($attachedPaths !== []) {
@@ -269,6 +278,9 @@ class ChatMessageController extends Controller
             'role' => 'user',
             'content' => $userContent,
         ]);
+
+        // Sidebar sắp xếp theo updated_at, nên mỗi lượt nhắn phải cập nhật conversation.
+        $conversation->touch();
 
         $history = $conversation->messages()
             ->latest('id')
@@ -422,11 +434,12 @@ class ChatMessageController extends Controller
      * de dua vao ngu canh cua luot chat hien tai. Co PII filter (Layer 1) + gioi han do dai.
      *
      * @param  array<int, array{name?: string, data_url?: string}>  $documents
-     * @return array<int, string> moi phan tu la 1 khoi markdown san de noi vao noi dung tin nhan
+     * @return array{0: array<int, string>, 1: array<int, string>} [text blocks, scanned-PDF page images]
      */
     private function extractChatDocuments(array $documents, KnowledgeService $knowledgeService, string $query): array
     {
         $blocks = [];
+        $scannedPdfImages = [];
         $maxBytes = KnowledgeService::MAX_FILE_SIZE_KB * 1024;
 
         foreach ($documents as $doc) {
@@ -461,12 +474,22 @@ class ChatMessageController extends Controller
             $text = $text !== '' ? $knowledgeService->filterAndTruncate($text, self::MAX_DOCUMENT_CONTEXT_CHARS) : '';
             $context = $text !== '' ? $knowledgeService->retrieveInlineContext($text, $query, $name) : '';
 
+            if ($text === '' && $extension === 'pdf') {
+                $pages = $knowledgeService->renderScannedPdfPages($binary);
+                if ($pages !== []) {
+                    $scannedPdfImages = array_merge($scannedPdfImages, $pages);
+                    $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(PDF dạng scan: đã gửi các trang đầu dưới dạng ảnh để AI đọc.)";
+
+                    continue;
+                }
+            }
+
             $blocks[] = $context !== ''
                 ? "📎 Tài liệu đính kèm: {$name}\n{$context}"
                 : "📎 Tài liệu đính kèm: {$name}\n(Không trích được nội dung văn bản từ file này.)";
         }
 
-        return $blocks;
+        return [$blocks, $scannedPdfImages];
     }
 
     /**
@@ -511,6 +534,19 @@ class ChatMessageController extends Controller
             'error' => 'Bạn đã dùng hết quota token cho giai đoạn hiện tại. Vui lòng liên hệ quản trị viên.',
             'retryable' => false,
         ], 429);
+    }
+
+    private function createRequestedOutputs(string $requestText, string $content, Conversation $conversation, User $user, ArtifactService $artifacts, EmailDraftService $drafts): array
+    {
+        $text = mb_strtolower($requestText);
+        $type = str_contains($text, 'excel') || str_contains($text, 'xlsx') ? 'excel' : (str_contains($text, 'word') || str_contains($text, 'docx') ? 'word' : (str_contains($text, 'pdf') ? 'pdf' : null));
+        $result = ['artifacts' => [], 'email_draft' => null];
+        if ($type && (str_contains($text, 'tạo') || str_contains($text, 'xuất') || str_contains($text, 'file'))) {
+            $artifact = $artifacts->generate($user, $conversation, $type, $content);
+            $result['artifacts'][] = ['name'=>$artifact->name, 'url'=>route('ai-plus.artifacts.download',$artifact)];
+        }
+        if (str_contains($text, 'email nháp') || str_contains($text, 'soạn email')) $result['email_draft'] = $drafts->create($user, $conversation, $content)->only(['id','subject','body']);
+        return $result;
     }
 
     private function summarizeConversationTitle(Conversation $conversation): void

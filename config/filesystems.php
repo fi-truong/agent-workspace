@@ -53,6 +53,12 @@ return [
             'throw' => false,
             'report' => false,
         ],
+        'ai-artifacts' => [
+            'driver' => 'local',
+            'root' => storage_path('app/ai-artifacts'),
+            'visibility' => 'private',
+            'throw' => false,
+        ],
 
         'public' => [
             'driver' => 'local',

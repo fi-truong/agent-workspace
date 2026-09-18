@@ -445,6 +445,8 @@ document.addEventListener('DOMContentLoaded', function () {
       appendMessage('user', message || '[Gửi tệp đính kèm]');
     }
     textarea.value = '';
+    // Reset chiều cao đã auto-grow để prompt kế tiếp bắt đầu bằng ô nhập mặc định.
+    textarea.style.height = '';
 
     const images = pendingImages;
     const documents = pendingDocuments.map((d) => ({ name: d.name, data_url: d.dataUrl }));
@@ -492,6 +494,10 @@ document.addEventListener('DOMContentLoaded', function () {
         quotaFill.style.width = `${quota.percentage}%`;
       }
     };
+    const showOutputs = (data) => {
+      (data.artifacts || []).forEach((artifact) => appendMessage('assistant', `📄 Đã tạo file: [${artifact.name}](${artifact.url})`));
+      if (data.email_draft) appendMessage('assistant', `✉️ Đã tạo email nháp: **${data.email_draft.subject}**`);
+    };
 
     try {
       let response = await sendChatRequest(conversationId);
@@ -521,6 +527,7 @@ document.addEventListener('DOMContentLoaded', function () {
             updateTokenQuota(data.token_quota);
             assistantBubble.style.whiteSpace = 'normal';
             renderAssistantMarkdown(assistantBubble, data.reply);
+            showOutputs(data);
             ensureMessagesContainer().scrollTop = ensureMessagesContainer().scrollHeight;
           } else if (data.blocked) {
             assistantBubble.remove();
@@ -558,6 +565,8 @@ document.addEventListener('DOMContentLoaded', function () {
           rawText += parsed.data.text || '';
           assistantBubble.textContent = rawText;
           container.scrollTop = container.scrollHeight;
+        } else if (parsed.event === 'progress') {
+          if (!firstDeltaReceived) assistantBubble.textContent = parsed.data.message || 'Đang xử lý…';
         } else if (parsed.event === 'error') {
           sawDoneOrError = true;
           assistantBubble.remove();
@@ -569,6 +578,7 @@ document.addEventListener('DOMContentLoaded', function () {
           updateTokenQuota(parsed.data.token_quota);
           assistantBubble.style.whiteSpace = 'normal';
           renderAssistantMarkdown(assistantBubble, parsed.data.reply || rawText);
+          showOutputs(parsed.data);
           container.scrollTop = container.scrollHeight;
         }
       }

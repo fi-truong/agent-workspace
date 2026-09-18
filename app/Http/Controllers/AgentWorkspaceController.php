@@ -29,7 +29,7 @@ class AgentWorkspaceController extends Controller
         $selectedAgentId = null;
 
         if ($user) {
-            $conversations = $user->conversations()->latest()->get()->map(fn ($c) => [
+            $conversations = $user->conversations()->latest('updated_at')->get()->map(fn ($c) => [
                 'id' => $c->id, 'title' => $c->title, 'type' => 'chat',
             ])->toArray();
 
@@ -42,6 +42,8 @@ class AgentWorkspaceController extends Controller
             ])->toArray();
 
             $tokenQuota = $tokenQuotaService->summary($user);
+            $recentArtifacts = $user->aiArtifacts()->latest()->limit(10)->get(['id', 'name', 'mime_type', 'created_at']);
+            $recentEmailDrafts = $user->emailDrafts()->latest()->limit(10)->get(['id', 'subject', 'created_at']);
             $userName = $user->name;
             $userInitials = $user->initials;
 
@@ -86,6 +88,8 @@ class AgentWorkspaceController extends Controller
             'initialMessages' => $initialMessages,
             'activeConversationId' => $activeConversationId,
             'selectedAgentId' => $selectedAgentId,
+            'recentArtifacts' => $recentArtifacts ?? collect(),
+            'recentEmailDrafts' => $recentEmailDrafts ?? collect(),
         ]);
     }
 

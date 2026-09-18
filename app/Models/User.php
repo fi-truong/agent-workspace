@@ -86,6 +86,9 @@ class User extends Authenticatable implements PasskeyUser
         return $this->hasMany(UsageLog::class);
     }
 
+    public function aiArtifacts() { return $this->hasMany(AiArtifact::class); }
+    public function emailDrafts() { return $this->hasMany(EmailDraft::class); }
+
     public function getInitialsAttribute(): string
     {
         return strtoupper(collect(explode(' ', $this->name))

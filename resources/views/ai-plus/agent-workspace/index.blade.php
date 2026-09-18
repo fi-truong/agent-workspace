@@ -58,6 +58,22 @@
       </a>
       @endforeach
 
+      @if($recentArtifacts->isNotEmpty())
+      <div class="chat-list-section">Recent files</div>
+      @foreach($recentArtifacts as $artifact)
+      <a href="{{ route('ai-plus.artifacts.download', $artifact) }}" class="chat-item">
+        <span class="item-icon chat">📄</span><span class="title">{{ $artifact->name }}</span>
+      </a>
+      @endforeach
+      @endif
+
+      @if($recentEmailDrafts->isNotEmpty())
+      <div class="chat-list-section">Email drafts</div>
+      @foreach($recentEmailDrafts as $draft)
+      <div class="chat-item"><span class="item-icon chat">✉️</span><span class="title">{{ $draft->subject }}</span></div>
+      @endforeach
+      @endif
+
       </div>
 
     <div class="sidebar-footer">
