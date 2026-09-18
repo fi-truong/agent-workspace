@@ -103,7 +103,7 @@
         @endif
       </div>
       <div class="topbar-right">
-        <button class="icon-btn" data-behavior="attach-topbar" title="Upload image">📎</button>
+        <button class="icon-btn" data-behavior="attach-topbar" title="Upload files">📎</button>
         <button class="icon-btn" data-behavior="save-as-agent" title="Save as Agent">🤖</button>
         <button class="icon-btn" data-behavior="export-chat" title="Export conversation">↓</button>
         <button class="icon-btn" data-behavior="settings" title="Settings">⚙</button>
@@ -138,11 +138,11 @@
         <div class="input-box">
           <textarea placeholder="Type your message, or describe what you want to build..." rows="1"></textarea>
           <div class="input-actions">
-            <button class="attach-btn" title="Attach image">📎</button>
+            <button class="attach-btn" title="Attach files">📎</button>
             <button class="send-btn">Send →</button>
           </div>
         </div>
-        <input type="file" id="chat-image-input" accept="image/*" multiple style="display:none;">
+        <input type="file" id="chat-image-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple style="display:none;">
         <div class="input-hint">
           Press Enter to send, Shift+Enter for new line • Your data is protected by PII filtering • Upload files for analysis
         </div>
@@ -285,7 +285,7 @@
   };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
-<script src="{{ asset('js/agent-workspace-chat.js') }}"></script>
+<script src="{{ asset('js/agent-workspace-chat.js') }}?v={{ filemtime(public_path('js/agent-workspace-chat.js')) }}"></script>
 @endpush
 
 @include('ai-plus.agent-workspace.agents._agent-form-modal')

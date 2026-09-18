@@ -26,6 +26,10 @@ class ChatMessageController extends Controller
 
     public const MAX_MESSAGE_CHARS = 4000;
 
+    public const MAX_CURRENT_TURN_CHARS = 40000;
+
+    public const MAX_DOCUMENT_CONTEXT_CHARS = 6000;
+
     /**
      * Bản KHÔNG streaming — giữ nguyên hành vi cũ, dùng cho nơi nào chưa chuyển sang stream().
      *
@@ -113,18 +117,26 @@ class ChatMessageController extends Controller
                         $send('delta', ['text' => $delta]);
                     },
                 );
-            } catch (\RuntimeException $e) {
-                $send('error', ['message' => $e->getMessage()]);
 
-                return;
+                $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
+
+                $send('done', [
+                    'conversation_id' => $ctx['conversation']->id,
+                    'reply' => $completion['content'],
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Streaming chat response failed', [
+                    'conversation_id' => $ctx['conversation']->id,
+                    'exception' => get_class($e),
+                    'message' => $e->getMessage(),
+                ]);
+
+                $send('error', [
+                    'message' => $e instanceof \RuntimeException
+                        ? $e->getMessage()
+                        : 'Không thể hoàn tất phản hồi. Vui lòng thử lại.',
+                ]);
             }
-
-            $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
-
-            $send('done', [
-                'conversation_id' => $ctx['conversation']->id,
-                'reply' => $completion['content'],
-            ]);
         }, 200, [
             'Content-Type' => 'text/event-stream',
             'Cache-Control' => 'no-cache',
@@ -139,12 +151,30 @@ class ChatMessageController extends Controller
     private function validateAndScanPii(Request $request, PiiFilterService $piiFilter): ?JsonResponse
     {
         $request->validate([
-            'message' => 'required|string|max:5000',
+            'message' => 'nullable|string|max:5000',
             'conversation_id' => 'nullable|integer|exists:conversations,id',
             'agent_id' => 'nullable|integer|exists:agents,id',
             'images' => 'nullable|array',
             'images.*' => 'string',
+            'documents' => 'nullable|array|max:5',
+            'documents.*.name' => 'required_with:documents|string|max:255',
+            'documents.*.data_url' => 'required_with:documents|string',
         ]);
+
+        // Chuan hoa: tu day $request->message luon la string (khong null) - cho phep gui
+        // chi anh/tai lieu dinh kem ma khong can go chu.
+        $request->merge(['message' => (string) $request->input('message', '')]);
+
+        if (
+            trim($request->message) === ''
+            && empty($request->input('images', []))
+            && empty($request->input('documents', []))
+        ) {
+            return response()->json([
+                'blocked' => false,
+                'error' => 'Vui lòng nhập nội dung hoặc đính kèm ít nhất 1 tệp.',
+            ], 422);
+        }
 
         $scan = $piiFilter->scan($request->message);
 
@@ -168,11 +198,13 @@ class ChatMessageController extends Controller
     private function prepareTurn(Request $request, KnowledgeService $knowledgeService): array
     {
         $images = array_slice($request->input('images', []), 0, 4);
+        $documents = array_slice($request->input('documents', []), 0, 5);
 
         Log::info('Chat send received', [
             'message' => $request->message,
             'agent_id' => $request->agent_id,
             'has_images' => count($images) > 0,
+            'has_documents' => count($documents) > 0,
         ]);
 
         $user = $request->user() ?? User::where('email', 'ciec.coordinator.04@lsts.edu.vn')->first();
@@ -201,6 +233,10 @@ class ChatMessageController extends Controller
         // Lưu ảnh kèm thành file (để hiện lại trong lịch sử chat) + nối path vào content.
         $attachedPaths = $this->persistChatImages($images, $conversation->id);
 
+        // Tai lieu (khong phai anh) dinh kem trong chat: trich text, KHONG luu file goc lai
+        // (khac Knowledge cua Agent) - chi dua noi dung trich duoc vao ngu canh cua luot chat nay.
+        $documentBlocks = $this->extractChatDocuments($documents, $knowledgeService, $request->message);
+
         $userContent = $request->message;
         if ($attachedPaths !== []) {
             // Markdown: mỗi ảnh hiển thị trong bubble user khi mở lại.
@@ -208,8 +244,11 @@ class ChatMessageController extends Controller
                 $userContent .= "\n\n![Ảnh đính kèm]({$p})";
             }
         }
+        foreach ($documentBlocks as $block) {
+            $userContent .= "\n\n".$block;
+        }
 
-        Message::create([
+        $userMessage = Message::create([
             'conversation_id' => $conversation->id,
             'role' => 'user',
             'content' => $userContent,
@@ -221,17 +260,23 @@ class ChatMessageController extends Controller
             ->get()
             ->reverse()
             ->values()
-            ->map(function (Message $m): array {
+            ->map(function (Message $m) use ($userMessage): array {
                 return [
                     'role' => $m->role,
-                    'content' => Str::limit($m->content, self::MAX_MESSAGE_CHARS),
+                    'content' => Str::limit(
+                        $m->content,
+                        $m->id === $userMessage->id ? self::MAX_CURRENT_TURN_CHARS : self::MAX_MESSAGE_CHARS,
+                    ),
                 ];
             })
             ->toArray();
 
         if (! empty($images)) {
+            $multimodalText = trim($userContent)
+                ."\n\n[Đính kèm ".count($images).' hình ảnh. Hãy phân tích các hình này cùng toàn bộ tài liệu đính kèm.]';
+
             $history[count($history) - 1]['content'] = [
-                ['type' => 'text', 'text' => $request->message],
+                ['type' => 'text', 'text' => Str::limit($multimodalText, self::MAX_CURRENT_TURN_CHARS)],
                 ...array_map(
                     fn (string $dataUrl) => ['type' => 'image_url', 'image_url' => ['url' => $dataUrl]],
                     $images,
@@ -334,11 +379,64 @@ class ChatMessageController extends Controller
             $filename = $conversationId.'/'.time().'_'.$i.'.'.$ext;
             Storage::disk('chat-attachments')->put($filename, $base64);
 
-            $url = Storage::disk('chat-attachments')->url($filename);
-            $saved[] = $url;
+            // Relative URL keeps attachments visible regardless of the local hostname/IP used to open the app.
+            $saved[] = '/storage/chat-attachments/'.$filename;
         }
 
         return $saved;
+    }
+
+    /**
+     * Trich van ban tu cac tai lieu (khong phai anh) dinh kem trong o chat - gui kem message
+     * duoi dang data URL base64 (giong co che anh), nhung KHONG luu file goc lai, chi lay text
+     * de dua vao ngu canh cua luot chat hien tai. Co PII filter (Layer 1) + gioi han do dai.
+     *
+     * @param  array<int, array{name?: string, data_url?: string}>  $documents
+     * @return array<int, string> moi phan tu la 1 khoi markdown san de noi vao noi dung tin nhan
+     */
+    private function extractChatDocuments(array $documents, KnowledgeService $knowledgeService, string $query): array
+    {
+        $blocks = [];
+        $maxBytes = KnowledgeService::MAX_FILE_SIZE_KB * 1024;
+
+        foreach ($documents as $doc) {
+            $name = is_array($doc) ? (string) ($doc['name'] ?? 'tệp đính kèm') : 'tệp đính kèm';
+            $dataUrl = is_array($doc) ? (string) ($doc['data_url'] ?? '') : '';
+
+            if (! preg_match('#^data:([^;]+);base64,(.+)$#s', $dataUrl, $m)) {
+                continue;
+            }
+
+            $binary = base64_decode((string) $m[2]);
+
+            if ($binary === false || $binary === '') {
+                continue;
+            }
+
+            if (strlen($binary) > $maxBytes) {
+                $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(Tệp vượt quá giới hạn ".KnowledgeService::MAX_FILE_SIZE_KB.' KB — chưa đọc được nội dung.)';
+
+                continue;
+            }
+
+            $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+
+            if (! in_array($extension, KnowledgeService::CHAT_DOCUMENT_EXTENSIONS, true)) {
+                $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(Định dạng .{$extension} chưa được hỗ trợ đọc nội dung.)";
+
+                continue;
+            }
+
+            $text = $knowledgeService->extractTextFromBinary($binary, $extension);
+            $text = $text !== '' ? $knowledgeService->filterAndTruncate($text, self::MAX_DOCUMENT_CONTEXT_CHARS) : '';
+            $context = $text !== '' ? $knowledgeService->retrieveInlineContext($text, $query, $name) : '';
+
+            $blocks[] = $context !== ''
+                ? "📎 Tài liệu đính kèm: {$name}\n{$context}"
+                : "📎 Tài liệu đính kèm: {$name}\n(Không trích được nội dung văn bản từ file này.)";
+        }
+
+        return $blocks;
     }
 
     /**

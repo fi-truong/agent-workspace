@@ -5,6 +5,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\UsageLog;
 use App\Models\User;
+use App\Services\KnowledgeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -134,6 +135,44 @@ it('includes knowledge text in system prompt when agent has files', function () 
     });
 });
 
+it('uses indexed RAG context for an agent conversation', function () {
+    config([
+        'openai.api_key' => 'sk-test',
+        'openai.rag_chunk_chars' => 30,
+        'openai.rag_chunk_overlap' => 0,
+        'openai.rag_top_k' => 1,
+    ]);
+
+    $agent = Agent::create([
+        'user_id' => $this->user->id,
+        'title' => 'Agent RAG',
+        'system_prompt' => 'Bạn là trợ lý.',
+        'is_shared' => false,
+    ]);
+    $path = $this->user->id.'/'.$agent->id.'/handbook.txt';
+    Storage::disk('knowledge')->put($path, 'Thông tin chung. QUYTRINHDACBIET xử lý nghỉ phép. Thông tin khác.');
+    $agent->update(['knowledge' => json_encode([
+        ['path' => $path, 'original_name' => 'handbook.txt'],
+    ])]);
+    app(KnowledgeService::class)->indexAgent($agent);
+
+    $conv = Conversation::create([
+        'user_id' => $this->user->id,
+        'agent_id' => $agent->id,
+        'title' => 'Chat RAG',
+    ]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'QUYTRINHDACBIET là gì?',
+        'conversation_id' => $conv->id,
+    ])->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => str_contains(
+        (string) data_get($request->data(), 'messages.0.content'),
+        '=== KNOWLEDGE (đoạn liên quan nhất đến câu hỏi, RAG) ===',
+    ));
+});
+
 it('uses default when no agent linked', function () {
     config(['openai.api_key' => 'sk-test']);
 
@@ -195,6 +234,85 @@ it('sends multimodal content when image data URL is provided', function () {
             && count($last['content']) === 2
             && ($last['content'][0]['type'] ?? '') === 'text'
             && ($last['content'][1]['type'] ?? '') === 'image_url';
+    });
+});
+
+it('includes text extracted from a direct document attachment in the chat request', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $response = $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Tóm tắt tài liệu này',
+        'documents' => [[
+            'name' => 'lesson-plan.txt',
+            'data_url' => 'data:text/plain;base64,'.base64_encode('Nội dung kế hoạch bài học'),
+        ]],
+    ]);
+
+    $response->assertStatus(200)
+        ->assertJson(['blocked' => false, 'reply' => 'Phản hồi từ AI']);
+
+    expect(Message::where('role', 'user')->latest('id')->value('content'))
+        ->toContain('lesson-plan.txt')
+        ->toContain('Nội dung kế hoạch bài học');
+
+    Http::assertSent(function (Request $request) {
+        return str_contains(
+            (string) data_get($request->data(), 'messages.0.content'),
+            'Nội dung kế hoạch bài học',
+        );
+    });
+});
+
+it('uses RAG to select relevant text from a direct chat attachment', function () {
+    config([
+        'openai.api_key' => 'sk-test',
+        'openai.rag_chunk_chars' => 30,
+        'openai.rag_chunk_overlap' => 0,
+        'openai.rag_top_k' => 1,
+    ]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'QUYTRINHDACBIET là gì?',
+        'documents' => [[
+            'name' => 'handbook.txt',
+            'data_url' => 'data:text/plain;base64,'.base64_encode(
+                'Thông tin chung. QUYTRINHDACBIET xử lý nghỉ phép. Thông tin khác.',
+            ),
+        ]],
+    ])->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => str_contains(
+        (string) data_get($request->data(), 'messages.0.content'),
+        'QUYTRINHDACBIET xử lý',
+    ));
+});
+
+it('includes every direct document attachment, including when an image is attached', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $documents = collect(['word', 'excel', 'pdf'])->map(fn (string $name) => [
+        'name' => $name.'.txt',
+        'data_url' => 'data:text/plain;base64,'.base64_encode(str_repeat($name.' content ', 300)),
+    ])->all();
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'So sánh các tệp đính kèm',
+        'images' => ['data:image/png;base64,'.base64_encode('fake-png-bytes')],
+        'documents' => $documents,
+    ])->assertOk();
+
+    Http::assertSent(function (Request $request) {
+        $messages = $request->data()['messages'] ?? [];
+        $lastMessage = end($messages);
+        $content = $lastMessage['content'] ?? [];
+        $text = is_array($content) ? (string) data_get($content, '0.text') : (string) $content;
+
+        return is_array($content)
+            && data_get($content, '1.type') === 'image_url'
+            && str_contains($text, 'Đính kèm 1 hình ảnh')
+            && str_contains($text, 'word content')
+            && str_contains($text, 'excel content')
+            && str_contains($text, 'pdf content');
     });
 });
 

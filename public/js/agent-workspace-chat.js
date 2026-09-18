@@ -224,7 +224,47 @@ document.addEventListener('DOMContentLoaded', function () {
 
   let sending = false;
   let pendingImages = [];
+  let pendingDocuments = [];
   let imagePreviewBox = null;
+
+  // Cac dinh dang tai lieu (ngoai anh) duoc phep dinh kem trong o chat - khop voi
+  // KnowledgeService::CHAT_DOCUMENT_EXTENSIONS phia backend.
+  const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+
+  function getFileExt(filename) {
+    const m = /\.([a-zA-Z0-9]+)$/.exec(filename || '');
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  // Phan loai 1 file duoc keo-tha/chon: anh -> doc base64 vao pendingImages (giu hanh vi cu);
+  // tai lieu (txt/pdf/doc/docx/xls/xlsx/ppt/pptx) -> doc base64 vao pendingDocuments.
+  // File khong thuoc 2 nhom tren -> bao loi, khong them vao hang cho gui.
+  function handleIncomingFile(file) {
+    if (!file) return;
+
+    if (file.type && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = function (ev) {
+        pendingImages.push(ev.target.result);
+        renderImagePreviews();
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const ext = getFileExt(file.name);
+    if (!CHAT_DOCUMENT_EXTENSIONS.includes(ext)) {
+      appendWarning('Khong ho tro dinh dang "' + (ext ? '.' + ext : (file.type || 'khong ro')) + '". Ho tro: anh, ' + CHAT_DOCUMENT_EXTENSIONS.join(', ') + '.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (ev) {
+      pendingDocuments.push({ name: file.name, dataUrl: ev.target.result });
+      renderImagePreviews();
+    };
+    reader.readAsDataURL(file);
+  }
 
   function ensureImagePreviewBox() {
     if (imagePreviewBox) return imagePreviewBox;
@@ -265,30 +305,64 @@ document.addEventListener('DOMContentLoaded', function () {
       box.appendChild(wrap);
     });
 
-    box.style.display = pendingImages.length > 0 ? 'flex' : 'none';
+    pendingDocuments.forEach((doc, idx) => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:flex;align-items:center;gap:6px;height:64px;padding:0 26px 0 12px;border-radius:8px;border:1px solid var(--surface-border);background:var(--surface);font-size:12px;color:var(--text-main);max-width:180px;';
+
+      const icon = document.createElement('span');
+      icon.textContent = '📄';
+      icon.style.cssText = 'flex-shrink:0;';
+      wrap.appendChild(icon);
+
+      const name = document.createElement('span');
+      name.textContent = doc.name;
+      name.title = doc.name;
+      name.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      wrap.appendChild(name);
+
+      const remove = document.createElement('button');
+      remove.textContent = '×';
+      remove.style.cssText = 'position:absolute;top:2px;right:4px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(0,0,0,0.12);color:var(--text-main);font-size:12px;line-height:1;cursor:pointer;';
+      remove.addEventListener('click', () => {
+        pendingDocuments.splice(idx, 1);
+        renderImagePreviews();
+      });
+      wrap.appendChild(remove);
+
+      box.appendChild(wrap);
+    });
+
+    box.style.display = (pendingImages.length > 0 || pendingDocuments.length > 0) ? 'flex' : 'none';
   }
 
   async function sendMessage() {
     const message = textarea.value.trim();
-    if ((!message && pendingImages.length === 0) || sending) return;
+    if ((!message && pendingImages.length === 0 && pendingDocuments.length === 0) || sending) return;
 
     sending = true;
     if (sendBtn) sendBtn.textContent = 'Sending…';
 
     if (emptyState) emptyState.style.display = 'none';
 
-    // Hiện ảnh kèm trong bubble user ngay khi gửi (dùng pendingImages trước khi clear).
+    // Hien anh + ten tai lieu kem trong bubble user ngay khi gui (dung snapshot truoc khi clear).
     const pendingSnapshot = pendingImages.slice();
-    if (pendingSnapshot.length > 0) {
+    const pendingDocsSnapshot = pendingDocuments.slice();
+    const docsLine = pendingDocsSnapshot.length > 0
+      ? pendingDocsSnapshot.map((d) => '📎 ' + d.name).join('\n')
+      : '';
+    if (pendingSnapshot.length > 0 || docsLine) {
       const mdImg = pendingSnapshot.map((d) => `![Ảnh đính kèm](${d})`).join('\n');
-      appendMessage('user', message ? message + '\n\n' + mdImg : mdImg);
+      const parts = [message, mdImg, docsLine].filter(Boolean);
+      appendMessage('user', parts.join('\n\n'));
     } else {
-      appendMessage('user', message || '[Gửi hình ảnh]');
+      appendMessage('user', message || '[Gửi tệp đính kèm]');
     }
     textarea.value = '';
 
     const images = pendingImages;
+    const documents = pendingDocuments.map((d) => ({ name: d.name, data_url: d.dataUrl }));
     pendingImages = [];
+    pendingDocuments = [];
     renderImagePreviews();
 
     const csrfMeta = document.querySelector('meta[name="csrf-token"]');
@@ -299,43 +373,70 @@ document.addEventListener('DOMContentLoaded', function () {
     let rawText = '';
     let firstDeltaReceived = false;
     let sawDoneOrError = false;
-
-    try {
-      const response = await fetch('/ai-plus/agent-workspace/send-stream', {
+    const sendChatRequest = (activeConversationId) => fetch(
+      '/ai-plus/agent-workspace/send-stream',
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-TOKEN': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
           'Accept': 'text/event-stream',
         },
         body: JSON.stringify({
           message: message,
-          conversation_id: conversationId,
+          conversation_id: activeConversationId,
           agent_id: selectedAgentId,
           images: images,
+          documents: documents,
         }),
-      });
+      },
+    );
 
-      const contentType = response.headers.get('content-type') || '';
+    try {
+      let response = await sendChatRequest(conversationId);
+
+      let contentType = response.headers.get('content-type') || '';
 
       // Trường hợp bị chặn PII (server trả JSON thường, không mở stream).
       if (contentType.includes('application/json')) {
-        const data = await response.json();
-        assistantBubble.remove();
+        let data = await response.json();
 
-        if (data.blocked) {
-          appendWarning(data.warning || 'Nội dung của bạn chứa thông tin nhạy cảm.');
-        } else if (data.error) {
-          appendWarning(data.error);
-        } else {
-          appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
+        // URL cũ có thể trỏ đến conversation đã bị xóa. Gửi lại đúng lượt này
+        // như một chat mới, để không bắt người dùng chọn/tải lại từng file.
+        if (data.errors?.conversation_id && conversationId !== null) {
+          conversationId = null;
+          response = await sendChatRequest(null);
+          contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            data = await response.json();
+          }
         }
-        return;
+
+        if (contentType.includes('application/json')) {
+          if (response.ok && data.reply) {
+            sawDoneOrError = true;
+            conversationId = data.conversation_id;
+            assistantBubble.style.whiteSpace = 'normal';
+            renderAssistantMarkdown(assistantBubble, data.reply);
+            ensureMessagesContainer().scrollTop = ensureMessagesContainer().scrollHeight;
+          } else if (data.blocked) {
+            assistantBubble.remove();
+            appendWarning(data.warning || 'Nội dung của bạn chứa thông tin nhạy cảm.');
+          } else if (data.error) {
+            assistantBubble.remove();
+            appendWarning(data.error);
+          } else {
+            assistantBubble.remove();
+            appendWarning(data.message || `Yêu cầu không thành công (HTTP ${response.status}).`);
+          }
+          return;
+        }
       }
 
       if (!response.ok || !response.body) {
         assistantBubble.remove();
-        appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
+        appendWarning(`Yêu cầu không thành công (HTTP ${response.status}).`);
         return;
       }
 
@@ -343,6 +444,30 @@ document.addEventListener('DOMContentLoaded', function () {
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
       const container = ensureMessagesContainer();
+
+      function handleStreamEvent(parsed) {
+        if (parsed.event === 'delta') {
+          if (!firstDeltaReceived) {
+            firstDeltaReceived = true;
+            if (sendBtn) sendBtn.textContent = 'Generating…';
+            assistantBubble.innerHTML = '';
+            assistantBubble.style.whiteSpace = 'pre-wrap';
+          }
+          rawText += parsed.data.text || '';
+          assistantBubble.textContent = rawText;
+          container.scrollTop = container.scrollHeight;
+        } else if (parsed.event === 'error') {
+          sawDoneOrError = true;
+          assistantBubble.remove();
+          appendWarning(parsed.data.message || 'Có lỗi xảy ra, vui lòng thử lại.');
+        } else if (parsed.event === 'done') {
+          sawDoneOrError = true;
+          conversationId = parsed.data.conversation_id;
+          assistantBubble.style.whiteSpace = 'normal';
+          renderAssistantMarkdown(assistantBubble, parsed.data.reply || rawText);
+          container.scrollTop = container.scrollHeight;
+        }
+      }
 
       while (true) {
         const { value, done } = await reader.read();
@@ -358,29 +483,15 @@ document.addEventListener('DOMContentLoaded', function () {
           const parsed = parseSseBlock(rawBlock);
           if (!parsed) continue;
 
-          if (parsed.event === 'delta') {
-            if (!firstDeltaReceived) {
-              firstDeltaReceived = true;
-              if (sendBtn) sendBtn.textContent = 'Generating…';
-              assistantBubble.innerHTML = '';
-              assistantBubble.style.whiteSpace = 'pre-wrap';
-            }
-            rawText += parsed.data.text || '';
-            assistantBubble.textContent = rawText;
-            container.scrollTop = container.scrollHeight;
-          } else if (parsed.event === 'error') {
-            sawDoneOrError = true;
-            assistantBubble.remove();
-            appendWarning(parsed.data.message || 'Có lỗi xảy ra, vui lòng thử lại.');
-          } else if (parsed.event === 'done') {
-            sawDoneOrError = true;
-            conversationId = parsed.data.conversation_id;
-            assistantBubble.style.whiteSpace = 'normal';
-            renderAssistantMarkdown(assistantBubble, parsed.data.reply || rawText);
-            container.scrollTop = container.scrollHeight;
-          }
+          handleStreamEvent(parsed);
         }
       }
+
+      // Một số proxy có thể đóng stream ngay sau event cuối và không giữ delimiter \n\n.
+      // Vẫn xử lý phần buffer còn lại để không đánh dấu nhầm là kết nối gián đoạn.
+      buffer += decoder.decode();
+      const finalEvent = parseSseBlock(buffer);
+      if (finalEvent) handleStreamEvent(finalEvent);
 
       // Phòng trường hợp stream đóng đột ngột mà chưa nhận được "done"/"error"
       // (vd mất mạng giữa chừng) — vẫn hiển thị phần đã nhận được thay vì để bubble "..." treo mãi.
@@ -441,16 +552,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     target.addEventListener('drop', (e) => {
       const files = Array.from(e.dataTransfer?.files || []);
-      files.forEach((file) => {
-        if (!file.type || !file.type.startsWith('image/')) return;
-
-        const reader = new FileReader();
-        reader.onload = function (ev) {
-          pendingImages.push(ev.target.result);
-          renderImagePreviews();
-        };
-        reader.readAsDataURL(file);
-      });
+      files.forEach((file) => handleIncomingFile(file));
     });
   });
 
@@ -464,16 +566,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   imageInput?.addEventListener('change', function () {
     const files = Array.from(imageInput.files || []);
-    files.forEach((file) => {
-      if (!file.type || !file.type.startsWith('image/')) return;
-
-      const reader = new FileReader();
-      reader.onload = function (ev) {
-        pendingImages.push(ev.target.result);
-        renderImagePreviews();
-      };
-      reader.readAsDataURL(file);
-    });
+    files.forEach((file) => handleIncomingFile(file));
     imageInput.value = '';
     renderImagePreviews();
   });

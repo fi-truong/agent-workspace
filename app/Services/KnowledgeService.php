@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory as SpreadsheetIOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpWord\Element\Table;
 use PhpOffice\PhpWord\Element\TextRun;
 use PhpOffice\PhpWord\IOFactory as WordIOFactory;
@@ -22,6 +23,12 @@ class KnowledgeService
 {
     // Giữ nguyên ảnh + csv (đã thêm trước đó) — KHÔNG bỏ.
     public const ALLOWED_EXTENSIONS = ['txt', 'csv', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
+
+    /**
+     * File types accepted as direct attachments in a chat message.
+     * Images use the separate multimodal chat path and are not included here.
+     */
+    public const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
 
     public const MAX_FILE_SIZE_KB = 5120;
 
@@ -186,6 +193,56 @@ class KnowledgeService
     }
 
     /**
+     * RAG không lưu trạng thái cho tài liệu đính kèm trực tiếp trong một lượt chat.
+     * Chỉ các đoạn phù hợp với câu hỏi được đưa vào prompt, còn file gốc không lưu lại.
+     */
+    public function retrieveInlineContext(string $text, string $query, string $sourceFile, ?int $topK = null): string
+    {
+        $topK ??= (int) config('openai.rag_top_k', 4);
+        $chunks = $this->chunkText(
+            $text,
+            (int) config('openai.rag_chunk_chars'),
+            (int) config('openai.rag_chunk_overlap'),
+        );
+
+        if ($chunks === []) {
+            return '';
+        }
+
+        $tokens = $this->queryTokens($query);
+        $ranked = array_map(function (string $chunk) use ($tokens): array {
+            $score = 0;
+            $lower = mb_strtolower($chunk);
+
+            foreach ($tokens as $token) {
+                $score += mb_substr_count($lower, $token);
+            }
+
+            return ['content' => $chunk, 'score' => $score];
+        }, $chunks);
+
+        usort($ranked, fn (array $left, array $right): int => $right['score'] <=> $left['score']);
+
+        $parts = array_slice($ranked, 0, $topK);
+
+        return implode("\n\n", array_map(
+            fn (array $chunk): string => "[Trích từ file: {$sourceFile}]\n{$chunk['content']}\n[/Trích]",
+            $parts,
+        ));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function queryTokens(string $query): array
+    {
+        $stopWords = ['của', 'và', 'là', 'có', 'cho', 'theo', 'với', 'một', 'những', 'để', 'trong', 'từ', 'không', 'được', 'cần', 'này', 'đó', 'các', 'vào', 'trên', 'bởi', 'đã', 'sẽ', 'tôi', 'bạn', 'anh', 'chị', 'em', 'the', 'of', 'and', 'is', 'to', 'in', 'for', 'with', 'on', 'at', 'not', 'have', 'be'];
+        $tokens = (array) preg_split('/[\s,.;:!?\/|()\[\]{}]+/u', mb_strtolower($query));
+
+        return array_values(array_diff(array_filter($tokens), $stopWords));
+    }
+
+    /**
      * FALLBACK — đọc nguyên văn toàn bộ file (giữ hành vi cũ). Dùng khi RAG chưa index / embed lỗi.
      *
      * @param  array<int, array{path: string, original_name: string}>|null  $files
@@ -322,6 +379,63 @@ class KnowledgeService
         }
     }
 
+    /**
+     * Trich text tu noi dung file tho (base64-decoded) - dung cho tai lieu dinh kem truc tiep
+     * trong o chat cua Agent Workspace. Khac voi extractText() o tren: khong doc tu disk
+     * "knowledge" (khong gan voi 1 Agent cu the), chi nhan binary content + extension.
+     */
+    public function extractTextFromBinary(string $binary, string $extension): string
+    {
+        $extension = strtolower($extension);
+
+        if (! in_array($extension, self::CHAT_DOCUMENT_EXTENSIONS, true)) {
+            return '';
+        }
+
+        if ($extension === 'txt' || $extension === 'csv') {
+            return $binary;
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'chat_doc_');
+
+        if ($tmp === false) {
+            return '';
+        }
+
+        file_put_contents($tmp, $binary);
+
+        try {
+            return match ($extension) {
+                'pdf' => trim((new PdfParser)->parseContent($binary)->getText()),
+                'doc', 'docx' => trim($this->renderWordText(WordIOFactory::load($tmp))),
+                'xls', 'xlsx' => $this->renderSpreadsheetText(SpreadsheetIOFactory::load($tmp)),
+                // ppt/pptx: cho phep dinh kem nhung chua co lib trich text (thieu PhpPresentation).
+                default => '',
+            };
+        } catch (Throwable $e) {
+            Log::error('Failed to extract text from chat document', [
+                'extension' => $extension,
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+
+            return '';
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    /**
+     * Ap PII filter (Layer 1, regex) + cat do dai - dung cho text trich tu tai lieu
+     * dinh kem trong chat truoc khi dua vao ngu canh gui cho model.
+     */
+    public function filterAndTruncate(string $text, int $maxChars = 20000): string
+    {
+        $text = $this->piiFilter->filter($text)['filtered'];
+
+        return Str::limit($text, $maxChars);
+    }
+
     private function readPdf(Filesystem $disk, string $path): string
     {
         $content = $disk->get($path);
@@ -363,26 +477,33 @@ class KnowledgeService
         }
 
         try {
-            $spreadsheet = SpreadsheetIOFactory::load($tmp);
-            $text = '';
-
-            foreach ($spreadsheet->getAllSheets() as $sheet) {
-                $text .= "[Sheet: {$sheet->getTitle()}]\n";
-
-                foreach ($sheet->toArray() as $row) {
-                    $cells = array_filter($row, fn ($cell) => $cell !== null && trim((string) $cell) !== '');
-                    if ($cells) {
-                        $text .= implode(' | ', $cells)."\n";
-                    }
-                }
-
-                $text .= "\n";
-            }
-
-            return trim($text);
+            return $this->renderSpreadsheetText(SpreadsheetIOFactory::load($tmp));
         } finally {
             @unlink($tmp);
         }
+    }
+
+    /**
+     * @param  Spreadsheet  $spreadsheet
+     */
+    private function renderSpreadsheetText($spreadsheet): string
+    {
+        $text = '';
+
+        foreach ($spreadsheet->getAllSheets() as $sheet) {
+            $text .= "[Sheet: {$sheet->getTitle()}]\n";
+
+            foreach ($sheet->toArray() as $row) {
+                $cells = array_filter($row, fn ($cell) => $cell !== null && trim((string) $cell) !== '');
+                if ($cells) {
+                    $text .= implode(' | ', $cells)."\n";
+                }
+            }
+
+            $text .= "\n";
+        }
+
+        return trim($text);
     }
 
     private function tempCopy(Filesystem $disk, string $path): ?string
