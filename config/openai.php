@@ -10,6 +10,12 @@ return [
 
     'model' => env('OPENAI_MODEL', 'gpt-5.6-luna'),
 
+    // Kept separate from chat: image generation uses an image model and has its
+    // own usage/cost profile.
+    'image_model' => env('OPENAI_IMAGE_MODEL', 'gpt-image-2.5-flare'),
+    'image_size' => env('OPENAI_IMAGE_SIZE', '1024x1024'),
+    'image_quality' => env('OPENAI_IMAGE_QUALITY', 'low'),
+
     // GPT-5+ dùng max_completion_tokens (đúng 8192 như đang chạy).
     'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 8192),
 
@@ -28,6 +34,9 @@ return [
     |--------------------------------------------------------------------------
     */
     'embedding_model' => env('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
+
+    // Khi Embeddings API tạm lỗi, RAG tự chuyển về keyword để không làm gián đoạn chat.
+    'rag_embeddings_enabled' => (bool) env('OPENAI_RAG_EMBEDDINGS_ENABLED', true),
 
     // Fallback cho PDF scan/image-only: Poppler pdftoppm render trang PDF thành ảnh
     // để model vision có thể đọc. Ví dụ Linux: /usr/bin/pdftoppm.

@@ -28,6 +28,12 @@
         <span class="icon">🤖</span>
         <span>Agents</span>
       </a>
+      @if($imageGenerationEnabled)
+      <a href="{{ route('ai-plus.agent-workspace.images.index') }}" class="ws-tab">
+        <span class="icon">🖼️</span>
+        <span>Image</span>
+      </a>
+      @endif
     </div>
 
     <div class="chat-list">
@@ -161,7 +167,7 @@
         </div>
         <input type="file" id="chat-image-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple style="display:none;">
         <div class="input-hint">
-          Press Enter to send, Shift+Enter for new line • Your data is protected by PII filtering • Upload files for analysis
+          Press Enter to send, Shift+Enter for new line • Your data is protected by PII filtering • Upload up to 5 files (15 MB total) for analysis
         </div>
       </div>
     </div>
@@ -260,11 +266,16 @@
   .input-wrapper{max-width:760px;margin:0 auto;}
   .input-box{display:flex;align-items:flex-end;gap:12px;background: var(--surface);border:1px solid var(--surface-border);border-radius:14px;padding:12px 16px;transition: border-color 0.15s, box-shadow 0.15s;}
   .input-box:focus-within{border-color: var(--navy);box-shadow: 0 0 0 3px rgba(31,56,100,0.1);}
-  .input-box textarea{flex:1;border:none;outline:none;resize:vertical;font-family: inherit;font-size:15px;line-height:1.5;min-height:40px;max-height:400px;color: var(--text-main);background: transparent;}
+  /* The composer sits at the bottom of a flex layout, so the browser's native
+     resize handle appears to grow upward. Content-driven auto-grow is clearer. */
+  .input-box textarea{flex:1;border:none;outline:none;resize:none;font-family: inherit;font-size:15px;line-height:1.5;min-height:40px;max-height:400px;color: var(--text-main);background: transparent;}
   .input-box textarea::placeholder{color: var(--text-soft);}
   .input-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
   .attach-btn{width:32px;height:32px;border-radius:8px;border:none;background: transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color: var(--text-soft);font-size:18px;transition: background 0.15s, color 0.15s;}
   .attach-btn:hover{background: var(--input-bg);color: var(--text-main);}
+  .image-generate-btn{padding:7px 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-main);font:600 12px inherit;cursor:pointer;white-space:nowrap;}
+  .image-generate-btn:hover{border-color:var(--navy);}
+  .image-generate-btn:disabled{opacity:.55;cursor:wait;}
   .send-btn{padding:8px 16px;background: var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition: background 0.15s;}
   .send-btn:hover{background: var(--navy-light);}
   .input-hint{text-align:center;margin-top:10px;font-size:12px;color: var(--text-soft);}

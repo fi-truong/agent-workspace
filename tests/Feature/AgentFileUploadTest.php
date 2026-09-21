@@ -62,6 +62,64 @@ it('rejects disallowed file extension', function () {
     Storage::disk('knowledge')->assertDirectoryEmpty($this->user->id);
 });
 
+it('limits each agent to ten Knowledge files', function () {
+    $files = collect(range(1, 11))
+        ->map(fn (int $number) => UploadedFile::fake()->create("knowledge-{$number}.txt", 10, 'text/plain'))
+        ->all();
+
+    $this->post('/ai-plus/agent-workspace/agents', [
+        'title' => 'Too many files',
+        'knowledge' => $files,
+    ], ['Accept' => 'application/json'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('knowledge');
+
+    expect($this->user->agents()->count())->toBe(0);
+});
+
+it('limits new Agent Knowledge to twenty five MB in total', function () {
+    $files = collect(range(1, 6))
+        ->map(fn (int $number) => UploadedFile::fake()->create("large-{$number}.txt", 4500, 'text/plain'))
+        ->all();
+
+    $this->post('/ai-plus/agent-workspace/agents', [
+        'title' => 'Too much Knowledge',
+        'knowledge' => $files,
+    ], ['Accept' => 'application/json'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('knowledge');
+
+    expect($this->user->agents()->count())->toBe(0);
+});
+
+it('counts retained Knowledge files toward the Agent file limit on update', function () {
+    $agent = $this->user->agents()->create([
+        'title' => 'Agent with existing Knowledge',
+    ]);
+    $existingKnowledge = collect(range(1, 8))
+        ->map(fn (int $number) => [
+            'path' => "{$this->user->id}/{$agent->id}/existing-{$number}.txt",
+            'original_name' => "existing-{$number}.txt",
+        ])
+        ->all();
+    $agent->update(['knowledge' => json_encode($existingKnowledge)]);
+
+    $newFiles = collect(range(1, 3))
+        ->map(fn (int $number) => UploadedFile::fake()->create("new-{$number}.txt", 10, 'text/plain'))
+        ->all();
+
+    $this->put("/ai-plus/agent-workspace/agents/{$agent->id}", [
+        'title' => 'Should not be saved',
+        'knowledge' => $newFiles,
+    ], ['Accept' => 'application/json'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('knowledge');
+
+    $agent->refresh();
+    expect($agent->title)->toBe('Agent with existing Knowledge')
+        ->and($agent->knowledge_files)->toHaveCount(8);
+});
+
 it('keeps existing files and adds new files on update', function () {
     $oldFile = UploadedFile::fake()->create('cu.txt', 10, 'text/plain');
     $agent = $this->user->agents()->create([

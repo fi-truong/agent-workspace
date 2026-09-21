@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('page-title', 'Showcase')
-@section('page-desc', 'Quản lý showcase posts')
+@section('page-desc', 'Manage showcase posts')
 
 @section('content')
 @include('admin.partials.filters', [

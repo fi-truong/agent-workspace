@@ -18,8 +18,8 @@ class ShowcaseSeeder extends Seeder
                 'title' => 'Adaptive Math Quiz Generator',
                 'description' => 'Creates personalized math quizzes based on student performance. Adjusts difficulty automatically and generates detailed analytics for teachers.',
                 'tags' => ['Math', 'Assessment', 'Grades 6-9'],
-                'views_count' => 234, 'comments_count' => 18, 'uses_count' => 45,
-                'badge' => '🔥 Trending',
+                'views_count' => 0, 'comments_count' => 0, 'uses_count' => 0,
+                'badge' => null,
             ],
             [
                 'author_email' => 'lan.hoang@lsts.edu.vn',
@@ -27,8 +27,8 @@ class ShowcaseSeeder extends Seeder
                 'title' => 'Essay Feedback Assistant',
                 'description' => 'Provides constructive feedback on student essays with specific suggestions for improvement. Aligned with IB and Cambridge rubrics.',
                 'tags' => ['English', 'Writing', 'IB/Cambridge'],
-                'views_count' => 156, 'comments_count' => 12, 'uses_count' => 28,
-                'badge' => 'New',
+                'views_count' => 0, 'comments_count' => 0, 'uses_count' => 0,
+                'badge' => null,
             ],
             [
                 'author_email' => 'ha.nguyen@lsts.edu.vn',
@@ -36,7 +36,7 @@ class ShowcaseSeeder extends Seeder
                 'title' => 'Student Report Generator',
                 'description' => 'Transforms raw grade data into personalized student reports with qualitative comments. Supports both English and Vietnamese output.',
                 'tags' => ['Admin', 'Reporting', 'Bilingual'],
-                'views_count' => 312, 'comments_count' => 24, 'uses_count' => 67,
+                'views_count' => 0, 'comments_count' => 0, 'uses_count' => 0,
                 'badge' => null,
             ],
             [
@@ -45,8 +45,8 @@ class ShowcaseSeeder extends Seeder
                 'title' => 'Lab Report Structure Guide',
                 'description' => 'Interactive guide helping students structure their lab reports properly. Includes templates for hypothesis, methodology, and conclusion sections.',
                 'tags' => ['Science', 'Lab Reports', 'All Grades'],
-                'views_count' => 198, 'comments_count' => 15, 'uses_count' => 52,
-                'badge' => '⭐ Popular',
+                'views_count' => 0, 'comments_count' => 0, 'uses_count' => 0,
+                'badge' => null,
             ],
             [
                 'author_email' => 'mai.tran@lsts.edu.vn',
@@ -54,7 +54,7 @@ class ShowcaseSeeder extends Seeder
                 'title' => 'University Recommendation Writer',
                 'description' => 'Drafts personalized recommendation letters for university applications based on student achievements and teacher input.',
                 'tags' => ['Counseling', 'University', 'Recommendations'],
-                'views_count' => 89, 'comments_count' => 7, 'uses_count' => 34,
+                'views_count' => 0, 'comments_count' => 0, 'uses_count' => 0,
                 'badge' => null,
             ],
             [
@@ -63,8 +63,8 @@ class ShowcaseSeeder extends Seeder
                 'title' => 'Vietnamese Literature Analysis',
                 'description' => 'Helps students analyze Vietnamese literary works with guided questions on themes, characters, and writing techniques.',
                 'tags' => ['Vietnamese', 'Literature', 'Analysis'],
-                'views_count' => 67, 'comments_count' => 5, 'uses_count' => 19,
-                'badge' => 'New',
+                'views_count' => 0, 'comments_count' => 0, 'uses_count' => 0,
+                'badge' => null,
             ],
         ];
 

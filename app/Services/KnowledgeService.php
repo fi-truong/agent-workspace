@@ -7,9 +7,11 @@ use App\Models\KnowledgeChunk;
 use App\Services\Guardrail\RegexPiiFilter;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory as SpreadsheetIOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpWord\Element\Table;
@@ -33,8 +35,13 @@ class KnowledgeService
 
     public const MAX_FILE_SIZE_KB = 5120;
 
+    public const MAX_AGENT_FILES = 10;
+
+    public const MAX_AGENT_TOTAL_SIZE_KB = 25_600;
+
     public function __construct(
         private readonly RegexPiiFilter $piiFilter,
+        private readonly EmbeddingService $embeddingService,
     ) {}
 
     /**
@@ -72,6 +79,34 @@ class KnowledgeService
         }
 
         return $saved;
+    }
+
+    /**
+     * @param  array<int, UploadedFile>  $newFiles
+     * @param  array<int, array{path: string, original_name: string}>  $existingFiles
+     */
+    public function ensureAgentKnowledgeLimits(array $newFiles, array $existingFiles = []): void
+    {
+        if (count($existingFiles) + count($newFiles) > self::MAX_AGENT_FILES) {
+            throw ValidationException::withMessages([
+                'knowledge' => 'Mỗi Agent chỉ được tối đa '.self::MAX_AGENT_FILES.' file Knowledge.',
+            ]);
+        }
+
+        $existingBytes = collect($existingFiles)->sum(function (array $file): int {
+            $path = $file['path'] ?? '';
+
+            return $path !== '' && Storage::disk('knowledge')->exists($path)
+                ? (int) Storage::disk('knowledge')->size($path)
+                : 0;
+        });
+        $newBytes = collect($newFiles)->sum(fn (UploadedFile $file): int => (int) $file->getSize());
+
+        if ($existingBytes + $newBytes > self::MAX_AGENT_TOTAL_SIZE_KB * 1024) {
+            throw ValidationException::withMessages([
+                'knowledge' => 'Tổng dung lượng Knowledge của mỗi Agent chỉ được tối đa 25 MB.',
+            ]);
+        }
     }
 
     public function deleteAgentKnowledge(int $userId, int $agentId): void
@@ -126,21 +161,27 @@ class KnowledgeService
             return;
         }
 
-        // Project OpenAI không có embedding model → bỏ bước embed, chỉ lưu chunk text.
-        // Retrieval dùng keyword/tf-idf (không cần vector).
+        // Một request batch cho toàn bộ đoạn giúp lập chỉ mục nhanh và tiết kiệm hơn.
+        // Nếu API embeddings chưa được cấp quyền hoặc lỗi tạm thời, vẫn lưu text và
+        // retrieveContext() sẽ tự động dùng keyword RAG.
+        $embeddings = $this->embeddingService->embedBatch($chunkTexts);
+        $hasEmbeddings = count($embeddings) === count($chunkTexts)
+            && collect($embeddings)->every(fn ($embedding) => is_array($embedding) && $embedding !== []);
+
         foreach ($chunkTexts as $i => $chunkText) {
             KnowledgeChunk::create([
                 'agent_id' => $agent->id,
                 'source_file' => $chunkMeta[$i]['source_file'],
                 'chunk_index' => $chunkMeta[$i]['chunk_index'],
                 'content' => $chunkText,
-                'embedding' => [],
+                'embedding' => $hasEmbeddings ? $embeddings[$i] : [],
             ]);
         }
 
-        Log::info('Knowledge indexed for agent (keyword RAG)', [
+        Log::info('Knowledge indexed for agent', [
             'agent_id' => $agent->id,
             'chunk_count' => count($chunkTexts),
+            'strategy' => $hasEmbeddings ? 'semantic' : 'keyword',
         ]);
     }
 
@@ -157,27 +198,16 @@ class KnowledgeService
             return '';
         }
 
-        // Keyword RAG: token hóa câu hỏi, tính điểm chunk theo số từ khóa trùng khớp.
-        // Đơn giản, chạy không cần embedding model. Đủ để demo "lấy đoạn liên quan".
-        $stopWords = ['của', 'và', 'là', 'có', 'cho', 'theo', 'với', 'một', 'những', 'để', 'trong', 'từ', 'không', 'được', 'cần', 'này', 'đó', 'các', 'vào', 'trên', 'bởi', 'đã', 'sẽ', 'tôi', 'bạn', 'anh', 'chị', 'em', 'the', 'of', 'and', 'is', 'to', 'in', 'for', 'with', 'on', 'at', 'not', 'have', 'be'];
-        $tokens = (array) preg_split('/[\s,.;:!?\/|()\[\]{}]+/u', mb_strtolower($query));
-        $tokens = array_filter($tokens);
-        $tokens = array_diff($tokens, $stopWords);
+        $queryEmbedding = $this->embeddingService->embed($query);
+        $semanticChunks = $chunks->filter(fn (KnowledgeChunk $chunk) => $chunk->embedding !== []);
 
-        if ($tokens === []) {
-            // Không có từ khóa — fallback lấy các chunk đầu.
-            $scored = $chunks->take($topK);
+        if ($queryEmbedding !== [] && $semanticChunks->isNotEmpty()) {
+            $scored = $semanticChunks->map(fn (KnowledgeChunk $chunk) => [
+                'chunk' => $chunk,
+                'score' => $this->embeddingService->cosineSimilarity($queryEmbedding, $chunk->embedding),
+            ])->sortByDesc('score')->take($topK);
         } else {
-            $scored = $chunks->map(function (KnowledgeChunk $chunk) use ($tokens) {
-                $lower = mb_strtolower($chunk->content);
-
-                $score = 0;
-                foreach ($tokens as $token) {
-                    $score += mb_substr_count($lower, mb_strtolower($token));
-                }
-
-                return ['chunk' => $chunk, 'score' => $score];
-            })->sortByDesc('score')->take($topK);
+            $scored = $this->rankKeywordChunks($chunks->all(), $query, $topK);
         }
 
         if ($scored->isEmpty()) {
@@ -210,19 +240,22 @@ class KnowledgeService
             return '';
         }
 
-        $tokens = $this->queryTokens($query);
-        $ranked = array_map(function (string $chunk) use ($tokens): array {
-            $score = 0;
-            $lower = mb_strtolower($chunk);
+        // Trực tiếp embed câu hỏi + các đoạn trong một request; không lưu tệp của chat.
+        $vectors = $this->embeddingService->embedBatch([$query, ...$chunks]);
+        $hasEmbeddings = count($vectors) === count($chunks) + 1
+            && $vectors[0] !== []
+            && collect(array_slice($vectors, 1))->every(fn ($embedding) => $embedding !== []);
 
-            foreach ($tokens as $token) {
-                $score += mb_substr_count($lower, $token);
-            }
-
-            return ['content' => $chunk, 'score' => $score];
-        }, $chunks);
-
-        usort($ranked, fn (array $left, array $right): int => $right['score'] <=> $left['score']);
+        if ($hasEmbeddings) {
+            $queryVector = $vectors[0];
+            $ranked = array_map(fn (string $chunk, int $index): array => [
+                'content' => $chunk,
+                'score' => $this->embeddingService->cosineSimilarity($queryVector, $vectors[$index + 1]),
+            ], $chunks, array_keys($chunks));
+            usort($ranked, fn (array $left, array $right): int => $right['score'] <=> $left['score']);
+        } else {
+            $ranked = $this->rankKeywordTextChunks($chunks, $query, $topK);
+        }
 
         $parts = array_slice($ranked, 0, $topK);
 
@@ -241,6 +274,44 @@ class KnowledgeService
         $tokens = (array) preg_split('/[\s,.;:!?\/|()\[\]{}]+/u', mb_strtolower($query));
 
         return array_values(array_diff(array_filter($tokens), $stopWords));
+    }
+
+    /**
+     * @param  array<int, KnowledgeChunk>  $chunks
+     * @return Collection<int, array{chunk: KnowledgeChunk, score: int}>
+     */
+    private function rankKeywordChunks(array $chunks, string $query, int $topK): Collection
+    {
+        $tokens = $this->queryTokens($query);
+
+        if ($tokens === []) {
+            return collect($chunks)->take($topK)->map(fn (KnowledgeChunk $chunk) => ['chunk' => $chunk, 'score' => 0]);
+        }
+
+        return collect($chunks)->map(function (KnowledgeChunk $chunk) use ($tokens) {
+            $lower = mb_strtolower($chunk->content);
+            $score = array_sum(array_map(fn (string $token) => mb_substr_count($lower, $token), $tokens));
+
+            return ['chunk' => $chunk, 'score' => $score];
+        })->sortByDesc('score')->take($topK);
+    }
+
+    /**
+     * @param  array<int, string>  $chunks
+     * @return array<int, array{content: string, score: int}>
+     */
+    private function rankKeywordTextChunks(array $chunks, string $query, int $topK): array
+    {
+        $tokens = $this->queryTokens($query);
+        $ranked = array_map(function (string $chunk) use ($tokens): array {
+            $lower = mb_strtolower($chunk);
+            $score = array_sum(array_map(fn (string $token) => mb_substr_count($lower, $token), $tokens));
+
+            return ['content' => $chunk, 'score' => $score];
+        }, $chunks);
+        usort($ranked, fn (array $left, array $right): int => $right['score'] <=> $left['score']);
+
+        return array_slice($ranked, 0, $topK);
     }
 
     /**
@@ -665,7 +736,7 @@ class KnowledgeService
     public static function validationRules(): array
     {
         return [
-            'knowledge' => 'nullable|array',
+            'knowledge' => 'nullable|array|max:'.self::MAX_AGENT_FILES,
             'knowledge.*' => [
                 'file',
                 'max:'.self::MAX_FILE_SIZE_KB,

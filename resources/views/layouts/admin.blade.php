@@ -69,9 +69,16 @@
           <span class="nav-icon">👥</span>
           <span>Users & Roles</span>
         </a>
+        <a href="{{ route('admin.usage.index') }}" class="nav-item {{ request()->routeIs('admin.usage.*') ? 'active' : '' }}">
+          <span class="nav-icon">📈</span>
+          <span>Token Usage</span>
+        </a>
         <a href="{{ route('admin.ai-plus-guide.index') }}" class="nav-item {{ request()->routeIs('admin.ai-plus-guide.*') ? 'active' : '' }}">
           <span class="nav-icon">🤖</span>
           <span>AI Plus Guide</span>
+        </a>
+        <a href="{{ route('admin.ai-image.index') }}" class="nav-item {{ request()->routeIs('admin.ai-image.*') ? 'active' : '' }}">
+          <span class="nav-icon">🖼️</span><span>Image Generation</span>
         </a>
       </div>
     </nav>
@@ -85,7 +92,7 @@
         @csrf
         <button type="submit" class="nav-item" style="width:100%;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;">
           <span class="nav-icon">↪</span>
-          <span>Đăng xuất</span>
+          <span>Log out</span>
         </button>
       </form>
     </div>

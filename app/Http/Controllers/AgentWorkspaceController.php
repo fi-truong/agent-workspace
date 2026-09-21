@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AppSetting;
 use App\Services\TokenQuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,7 +30,7 @@ class AgentWorkspaceController extends Controller
         $selectedAgentId = null;
 
         if ($user) {
-            $conversations = $user->conversations()->latest('updated_at')->get()->map(fn ($c) => [
+            $conversations = $user->conversations()->where('type', \App\Models\Conversation::TYPE_CHAT)->latest('updated_at')->get()->map(fn ($c) => [
                 'id' => $c->id, 'title' => $c->title, 'type' => 'chat',
             ])->toArray();
 
@@ -53,7 +54,7 @@ class AgentWorkspaceController extends Controller
 
             // Load history khi mở lại conversation cũ
             if ($activeConversationId) {
-                $conversation = $user->conversations()->find($activeConversationId);
+                $conversation = $user->conversations()->where('type', \App\Models\Conversation::TYPE_CHAT)->find($activeConversationId);
 
                 if ($conversation) {
                     $initialMessages = $conversation->messages()
@@ -90,6 +91,7 @@ class AgentWorkspaceController extends Controller
             'selectedAgentId' => $selectedAgentId,
             'recentArtifacts' => $recentArtifacts ?? collect(),
             'recentEmailDrafts' => $recentEmailDrafts ?? collect(),
+            'imageGenerationEnabled' => AppSetting::boolean('ai_plus_image_generation_enabled'),
         ]);
     }
 

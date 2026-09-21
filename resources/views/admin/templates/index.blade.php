@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('page-title', 'Agent Templates')
-@section('page-desc', 'Quản lý agent templates')
+@section('page-desc', 'Manage agent templates')
 
 @section('content')
 @include('admin.partials.filters', [

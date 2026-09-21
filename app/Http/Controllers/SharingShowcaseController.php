@@ -3,15 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\ShowcasePost;
-use App\Models\Tag;
+use App\Models\ShowcaseComment;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class SharingShowcaseController extends Controller
 {
     public function index(Request $request)
     {
         $query = ShowcasePost::with(['author', 'tags'])
+            ->withCount('comments')
             ->where('status', 'published');
 
         // Search (title, description, author name, department)
@@ -82,53 +82,8 @@ class SharingShowcaseController extends Controller
             'viewingAs' => 'Teacher / Staff',
             'totalAgents' => ShowcasePost::where('status', 'published')->count(),
             'totalDepartments' => count($departments),
-            'totalComments' => ShowcasePost::where('status', 'published')->sum('comments_count'),
+            'totalComments' => ShowcaseComment::whereHas('showcase', fn ($query) => $query->where('status', 'published'))->count(),
         ]);
-    }
-
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string|min:20|max:2000',
-            'department' => 'required|string|max:100',
-            'tags' => 'nullable|string|max:500',
-            'source_type' => 'nullable|in:agent,workflow',
-        ]);
-
-        $user = Auth::user();
-        $post = ShowcasePost::create([
-            'author_id' => $user?->id,
-            'title' => $data['title'],
-            'description' => $data['description'],
-            'department' => $data['department'],
-            'source_type' => $data['source_type'] ?? 'agent',
-            'status' => 'pending', // Submissions go to admin review first
-            'views_count' => 0,
-            'comments_count' => 0,
-            'uses_count' => 0,
-        ]);
-
-        // Attach tags (comma-separated input)
-        if (! empty($data['tags'])) {
-            $tagNames = array_filter(
-                array_map('trim', explode(',', $data['tags']))
-            );
-            foreach ($tagNames as $tagName) {
-                $tag = Tag::firstOrCreate(['name' => $tagName, 'category' => 'general']);
-                $post->tags()->attach($tag->id);
-            }
-        }
-
-        if ($request->wantsJson()) {
-            return response()->json([
-                'message' => 'Your showcase has been submitted for review. Thank you!',
-                'id' => $post->id,
-            ], 201);
-        }
-
-        return redirect()->route('ai-plus.sharing-showcase.index')
-            ->with('flash', 'Your showcase has been submitted for review. Thank you!');
     }
 
     public function show(ShowcasePost $showcase)
@@ -148,7 +103,7 @@ class SharingShowcaseController extends Controller
             'description' => $showcase->description,
             'tags' => $showcase->tags->pluck('name')->toArray(),
             'views' => $showcase->views_count,
-            'comments' => $showcase->comments_count,
+            'comments' => $showcase->comments()->count(),
             'uses' => $showcase->uses_count,
             'badge' => $this->badgeFor($showcase),
             'created' => $showcase->created_at?->format('d/m/Y'),
@@ -164,6 +119,7 @@ class SharingShowcaseController extends Controller
                     });
             })
             ->with('author', 'tags')
+            ->withCount('comments')
             ->latest()
             ->limit(3)
             ->get()
@@ -176,18 +132,61 @@ class SharingShowcaseController extends Controller
                     'title' => $r->title,
                     'description' => $r->description,
                     'views' => $r->views_count,
-                    'comments' => $r->comments_count,
+                'comments' => $r->comments_count,
                     'uses' => $r->uses_count,
                     'badge' => $this->badgeFor($r),
                     'url' => route('ai-plus.sharing-showcase.show', $r->id),
                 ];
             });
 
+        $comments = $showcase->comments()
+            ->with('user')
+            ->oldest()
+            ->get();
+
         return view('ai-plus.sharing-showcase.show', [
             'post' => $post,
             'related' => $related,
+            'comments' => $comments,
             'viewingAs' => 'Teacher / Staff',
         ]);
+    }
+
+    public function storeComment(Request $request, ShowcasePost $showcase)
+    {
+        abort_if($showcase->status !== 'published', 404);
+
+        $data = $request->validate([
+            'content' => ['required', 'string', 'min:3', 'max:2000'],
+        ]);
+
+        $showcase->comments()->create([
+            'user_id' => $request->user()->id,
+            'content' => $data['content'],
+        ]);
+        $showcase->update(['comments_count' => $showcase->comments()->count()]);
+
+        return redirect()
+            ->route('ai-plus.sharing-showcase.show', $showcase)
+            ->with('success', 'Your comment has been posted.')
+            ->withFragment('comments');
+    }
+
+    public function destroyComment(Request $request, ShowcasePost $showcase, ShowcaseComment $comment)
+    {
+        abort_if($comment->showcase_post_id !== $showcase->id, 404);
+        abort_unless(
+            $comment->user_id === $request->user()->id || $request->user()->role === 'admin',
+            403,
+        );
+
+        $comment->delete();
+        $showcase->update(['comments_count' => $showcase->comments()->count()]);
+
+        return redirect()
+            ->route('ai-plus.sharing-showcase.show', $showcase)
+            ->with('success', 'Comment deleted.')
+            ->withFragment('comments');
     }
 
     public function use(Request $request, ShowcasePost $showcase)

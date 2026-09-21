@@ -21,6 +21,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const fileInput = document.getElementById('knowledge');
   const chipsContainer = document.getElementById('knowledge-file-chips');
   const savedList = document.getElementById('knowledge-saved-list');
+  const limitStatus = document.getElementById('knowledge-limit-status');
+  const MAX_KNOWLEDGE_FILES = 10;
+  const MAX_KNOWLEDGE_FILE_BYTES = 5 * 1024 * 1024;
+  const MAX_KNOWLEDGE_TOTAL_BYTES = 25 * 1024 * 1024;
 
   // Danh sách file đã lưu khi edit (path), để gửi knowledge_remove
   let savedFiles = [];
@@ -35,6 +39,7 @@ document.addEventListener('DOMContentLoaded', function () {
     allFiles.forEach((f) => dt.items.add(f));
     fileInput.files = dt.files;
     renderChips(allFiles);
+    renderLimitStatus();
   }
 
   function clearKnowledgeUI() {
@@ -44,6 +49,20 @@ document.addEventListener('DOMContentLoaded', function () {
     savedFiles = [];
     removedPaths = [];
     allFiles = [];
+    renderLimitStatus();
+  }
+
+  function activeSavedFiles() {
+    return savedFiles.filter((file) => !removedPaths.includes(file.path));
+  }
+
+  function renderLimitStatus() {
+    if (!limitStatus) return;
+    const fileCount = activeSavedFiles().length + allFiles.length;
+    const newBytes = allFiles.reduce((total, file) => total + file.size, 0);
+    limitStatus.textContent = fileCount + ' / ' + MAX_KNOWLEDGE_FILES + ' files selected'
+      + (newBytes ? ' · ' + (newBytes / 1024 / 1024).toFixed(1) + ' MB new files' : '')
+      + (activeSavedFiles().length ? ' · total size including saved files is verified when saving' : '');
   }
 
   function renderChips(files) {
@@ -86,6 +105,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (parsed.length === 0) {
       savedList.style.display = 'none';
+      renderLimitStatus();
       return;
     }
 
@@ -115,6 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
         row.classList.add('removing');
         row.style.opacity = '0.5';
         x.disabled = true;
+        renderLimitStatus();
       });
 
       row.appendChild(name);
@@ -130,6 +151,8 @@ document.addEventListener('DOMContentLoaded', function () {
       hidden.id = 'knowledge_remove';
       form.appendChild(hidden);
     }
+
+    renderLimitStatus();
   }
 
   // Dropzone events
@@ -155,6 +178,24 @@ document.addEventListener('DOMContentLoaded', function () {
       Array.from(newFiles || []).forEach((f) => {
         // Tránh trùng file trùng tên (chọn lại) — ghi đè mới nhất.
         const existingIdx = allFiles.findIndex((ef) => ef.name === f.name && ef.size === f.size);
+        const prospectiveFiles = existingIdx >= 0
+          ? allFiles.map((file, index) => index === existingIdx ? f : file)
+          : [...allFiles, f];
+
+        if (activeSavedFiles().length + prospectiveFiles.length > MAX_KNOWLEDGE_FILES) {
+          showToast('⚠️ Each Agent can have up to ' + MAX_KNOWLEDGE_FILES + ' Knowledge files');
+          return;
+        }
+        if (f.size > MAX_KNOWLEDGE_FILE_BYTES) {
+          showToast('⚠️ "' + f.name + '" exceeds the 5 MB per-file limit');
+          return;
+        }
+        const newBytes = prospectiveFiles.reduce((total, file) => total + file.size, 0);
+        if (newBytes > MAX_KNOWLEDGE_TOTAL_BYTES) {
+          showToast('⚠️ New Knowledge files exceed the 25 MB total limit');
+          return;
+        }
+
         if (existingIdx >= 0) allFiles[existingIdx] = f;
         else allFiles.push(f);
       });

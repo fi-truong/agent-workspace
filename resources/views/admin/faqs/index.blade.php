@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('page-title', 'FAQ')
-@section('page-desc', 'Quản lý câu hỏi thường gặp')
+@section('page-desc', 'Manage frequently asked questions')
 
 @section('content')
 @include('admin.partials.filters', [

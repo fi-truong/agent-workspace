@@ -226,6 +226,60 @@ body.admin-body{
   border-radius:14px;
   overflow:hidden;
 }
+
+.admin-validation-summary{
+  padding:13px 15px;
+  border:1px solid #efb8b8;
+  border-radius:9px;
+  background:#fff4f4;
+  color:#962d2d;
+  font-size:13px;
+  line-height:1.45;
+}
+.admin-validation-summary strong{display:block;}
+.admin-validation-summary ul{margin:6px 0 0;padding-left:18px;}
+.admin-field-error{
+  margin:6px 0 0;
+  color:#a02e2e;
+  font-size:12px;
+  line-height:1.35;
+}
+
+/* Disabled destructive action with a keyboard-accessible explanation. */
+.delete-user-disabled{
+  display:inline-block;
+  position:relative;
+  cursor:not-allowed;
+}
+.delete-user-disabled .action-btn:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  pointer-events:none;
+}
+.delete-user-disabled::after{
+  content:attr(data-tooltip);
+  position:absolute;
+  z-index:20;
+  right:0;
+  bottom:calc(100% + 8px);
+  width:260px;
+  padding:9px 11px;
+  border-radius:8px;
+  background:#26384d;
+  color:#fff;
+  font-size:12px;
+  line-height:1.4;
+  white-space:normal;
+  opacity:0;
+  pointer-events:none;
+  transform:translateY(4px);
+  transition:opacity .15s ease,transform .15s ease;
+}
+.delete-user-disabled:hover::after,
+.delete-user-disabled:focus-visible::after{
+  opacity:1;
+  transform:translateY(0);
+}
 .table-toolbar{
   display:flex;
   align-items:center;

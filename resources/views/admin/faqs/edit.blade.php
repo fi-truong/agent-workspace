@@ -1,20 +1,23 @@
 @extends('layouts.admin')
 
 @section('page-title', 'Edit FAQ')
-@section('page-desc', 'Chỉnh sửa FAQ')
+@section('page-desc', 'Update frequently asked question')
 
 @section('content')
 <form action="{{ route('admin.faqs.update', $faq) }}" method="POST" class="table-section" style="max-width:800px;">
     @csrf
     @method('PUT')
     <div style="padding:24px;display:flex;flex-direction:column;gap:20px;">
+        @include('admin.partials.validation-summary')
         <div class="form-group">
             <label>Question <span class="text-danger">*</span></label>
             <input type="text" name="question" class="form-input" placeholder="FAQ question" required value="{{ old('question', $faq->question) }}" maxlength="500">
+            @include('admin.partials.field-error', ['field' => 'question'])
         </div>
         <div class="form-group">
             <label>Answer <span class="text-danger">*</span></label>
             <textarea name="answer" class="form-textarea" placeholder="FAQ answer" required rows="8">{{ old('answer', $faq->answer) }}</textarea>
+            @include('admin.partials.field-error', ['field' => 'answer'])
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
             <div class="form-group">
@@ -29,10 +32,12 @@
                     <option value="billing" {{ (old('category', $faq->category) ?? '') == 'billing' ? 'selected' : '' }}>Billing</option>
                     <option value="account" {{ (old('category', $faq->category) ?? '') == 'account' ? 'selected' : '' }}>Account</option>
                 </select>
+                @include('admin.partials.field-error', ['field' => 'category'])
             </div>
             <div class="form-group">
                 <label>Sort Order</label>
                 <input type="number" name="sort_order" class="form-input" placeholder="0" min="0" value="{{ old('sort_order', $faq->sort_order ?? 0) }}">
+                @include('admin.partials.field-error', ['field' => 'sort_order'])
             </div>
         </div>
         <div class="form-group">

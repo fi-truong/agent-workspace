@@ -38,4 +38,9 @@ class ShowcasePost extends Model
     {
         return $this->belongsToMany(Tag::class, 'showcase_tags', 'showcase_post_id', 'tag_id');
     }
+
+    public function comments()
+    {
+        return $this->hasMany(ShowcaseComment::class, 'showcase_post_id');
+    }
 }

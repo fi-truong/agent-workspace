@@ -20,12 +20,26 @@ class MyUsageController extends Controller
 
         $totalTokens = (clone $logs)->selectRaw('SUM(prompt_tokens + completion_tokens) as total')->value('total') ?? 0;
 
+        $thisWeekStart = now()->startOfDay()->subDays(6);
+        $lastWeekStart = $thisWeekStart->copy()->subDays(7);
+        $lastWeekEnd = $thisWeekStart->copy()->subSecond();
+        $thisWeekLogs = (clone $logs)->where('created_at', '>=', $thisWeekStart);
+        $lastWeekLogs = (clone $logs)
+            ->whereBetween('created_at', [$lastWeekStart, $lastWeekEnd]);
+        $thisWeekPrompts = (clone $thisWeekLogs)->count();
+        $lastWeekPrompts = (clone $lastWeekLogs)->count();
+        $thisWeekTokens = (int) ((clone $thisWeekLogs)
+            ->selectRaw('COALESCE(SUM(prompt_tokens + completion_tokens), 0) as total')
+            ->value('total') ?? 0);
+        $lastWeekTokens = (int) ((clone $lastWeekLogs)
+            ->selectRaw('COALESCE(SUM(prompt_tokens + completion_tokens), 0) as total')
+            ->value('total') ?? 0);
+
         $stats = [
             'prompts' => (clone $logs)->count(),
             'tokens' => $this->formatTokens($totalTokens),
-            // Giả định ước lượng: mỗi prompt tiết kiệm trung bình ~0.9 phút — CHƯA có số liệu
-            // xác thực, cần hiệu chỉnh lại sau khi có khảo sát/dữ liệu Pilot thật.
-            'timeSaved' => round(((clone $logs)->count() * 0.9) / 60, 1).'h',
+            'promptsChange' => $this->formatWeeklyChange($thisWeekPrompts, $lastWeekPrompts),
+            'tokensChange' => $this->formatWeeklyChange($thisWeekTokens, $lastWeekTokens),
             'agentsCreated' => $user->agents()->count(),
             'agentsShared' => $user->agents()->where('is_shared', true)->count(),
         ];
@@ -39,7 +53,12 @@ class MyUsageController extends Controller
                 'tokens' => number_format($log->prompt_tokens + $log->completion_tokens).' tok',
                 'isTemplate' => $log->source === 'template_used',
                 'workspaceUrl' => $log->related_conversation_id
-                    ? route('ai-plus.agent-workspace.index', ['conversation_id' => $log->related_conversation_id])
+                    ? route(
+                        $log->conversation?->type === \App\Models\Conversation::TYPE_IMAGE
+                            ? 'ai-plus.agent-workspace.images.index'
+                            : 'ai-plus.agent-workspace.index',
+                        ['conversation_id' => $log->related_conversation_id],
+                    )
                     : null,
             ];
         })->toArray();
@@ -95,6 +114,30 @@ class MyUsageController extends Controller
     private function formatTokens(int $tokens): string
     {
         return $tokens >= 1000 ? round($tokens / 1000, 1).'K' : (string) $tokens;
+    }
+
+    /**
+     * @return array{label: string, direction: string}
+     */
+    private function formatWeeklyChange(int $current, int $previous): array
+    {
+        if ($previous === 0) {
+            return [
+                'label' => $current === 0 ? 'No activity this week' : 'New this week',
+                'direction' => $current === 0 ? 'neutral' : 'up',
+            ];
+        }
+
+        $percentage = (int) round((($current - $previous) / $previous) * 100);
+
+        if ($percentage === 0) {
+            return ['label' => 'No change vs last week', 'direction' => 'neutral'];
+        }
+
+        return [
+            'label' => sprintf('%s%d%% vs last week', $percentage > 0 ? '↑ ' : '↓ ', abs($percentage)),
+            'direction' => $percentage > 0 ? 'up' : 'down',
+        ];
     }
 
     private function formatRelativeTime(CarbonInterface $time): string

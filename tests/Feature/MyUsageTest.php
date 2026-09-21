@@ -25,6 +25,7 @@ test('my usage only displays the authenticated users activity', function () {
         ->assertSee('Viewer User')
         ->assertSee('Viewer activity')
         ->assertDontSee('Other activity')
+        ->assertDontSee('Time Saved')
         ->assertSee('20,000,000 of 20,000,000 tokens remaining');
 });
 
@@ -62,4 +63,33 @@ test('my usage supplies daily token and prompt data for the selected chart range
         ->assertSee('usageOverTimeChart')
         ->assertSee('200', false)
         ->assertSee('Yesterday activity');
+});
+
+test('my usage calculates prompt and token changes from the previous week', function () {
+    $user = User::factory()->create();
+    $thisWeek = UsageLog::create([
+        'user_id' => $user->id,
+        'activity_title' => 'This week',
+        'source' => 'agent_workspace',
+        'prompt_tokens' => 150,
+        'completion_tokens' => 150,
+    ]);
+    $thisWeek->forceFill(['created_at' => now()->subDay()])->save();
+
+    $lastWeek = UsageLog::create([
+        'user_id' => $user->id,
+        'activity_title' => 'Last week',
+        'source' => 'agent_workspace',
+        'prompt_tokens' => 50,
+        'completion_tokens' => 50,
+    ]);
+    $lastWeek->forceFill(['created_at' => now()->subDays(8)])->save();
+
+    $this->actingAs($user)
+        ->get(route('ai-plus.my-usage.index'))
+        ->assertOk()
+        ->assertSee('No change vs last week')
+        ->assertSee('↑ 200% vs last week')
+        ->assertDontSee('↑ 23% vs last week')
+        ->assertDontSee('↑ 18% vs last week');
 });

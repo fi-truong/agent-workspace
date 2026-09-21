@@ -67,6 +67,7 @@ class MicrosoftAuthController extends Controller
         }
 
         Auth::login($user, remember: true);
+        $user->forceFill(['last_login_at' => now()])->save();
 
         return redirect()->route('ai-plus.index');
     }

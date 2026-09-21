@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('page-title', 'Prompt Library')
-@section('page-desc', 'Quản lý prompt library')
+@section('page-desc', 'Manage the prompt library')
 
 @section('content')
 @include('admin.partials.filters', [

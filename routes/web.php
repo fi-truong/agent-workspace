@@ -2,22 +2,25 @@
 
 use App\Http\Controllers\AccountPasswordController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AiImageSettingsController;
 use App\Http\Controllers\Admin\AiPlusGuideSettingsController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\PromptController;
 use App\Http\Controllers\Admin\ShowcaseController;
 use App\Http\Controllers\Admin\TemplateController;
 use App\Http\Controllers\Admin\TicketController;
+use App\Http\Controllers\Admin\UsageController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentTemplateController;
 use App\Http\Controllers\AgentWorkspaceController;
+use App\Http\Controllers\AiArtifactController;
 use App\Http\Controllers\AiPlusController;
 use App\Http\Controllers\AiPlusGuideController;
-use App\Http\Controllers\AiArtifactController;
 use App\Http\Controllers\AiPolicyController;
 use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\ChatMessageController;
+use App\Http\Controllers\ImageWorkspaceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MyUsageController;
 use App\Http\Controllers\PromptLibraryController;
@@ -34,12 +37,16 @@ Route::post('/ai-plus/agent-workspace/send', [ChatMessageController::class, 'sto
 Route::post('/ai-plus/agent-workspace/send-stream', [ChatMessageController::class, 'stream'])
     ->middleware(['auth', 'throttle:chat'])
     ->name('ai-plus.agent-workspace.send-stream');
+Route::post('/ai-plus/agent-workspace/generate-image', [ChatMessageController::class, 'generateImage'])
+    ->middleware(['auth', 'throttle:image-generation'])
+    ->name('ai-plus.agent-workspace.generate-image');
 
 Route::inertia('/', 'welcome')->name('home');
 
-// Routes tạm thời để xem trước UI, chưa yêu cầu đăng nhập/team
-// TODO: chuyển vào nhóm auth+team bên dưới khi tích hợp SSO/role-based access thật
-Route::get('/ai-plus', [AiPlusController::class, 'index'])->name('ai-plus.index');
+// AI+ is an internal staff tool: require sign-in before showing its homepage or modules.
+Route::get('/ai-plus', [AiPlusController::class, 'index'])
+    ->middleware('auth')
+    ->name('ai-plus.index');
 
 Route::post('/ai-plus/guide/reply', [AiPlusGuideController::class, 'reply'])
     ->middleware(['auth', 'throttle:chat'])
@@ -56,6 +63,9 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware('auth')->group(function (
     Route::delete('/agent-workspace/conversations/{conversation}', [ChatMessageController::class, 'destroy'])
         ->name('conversations.destroy');
     Route::get('/agent-workspace', [AgentWorkspaceController::class, 'index'])->name('agent-workspace.index');
+    Route::get('/agent-workspace/images', [ImageWorkspaceController::class, 'index'])->name('agent-workspace.images.index');
+    Route::get('/agent-workspace/images/{message}/download', [ChatMessageController::class, 'downloadImage'])->name('agent-workspace.images.download');
+    Route::delete('/agent-workspace/images/{message}', [ChatMessageController::class, 'destroyImage'])->name('agent-workspace.images.destroy');
     Route::get('/agent-workspace/agents', [AgentController::class, 'index'])->name('agent-workspace.agents.index');
     Route::post('/agent-workspace/agents', [AgentController::class, 'store'])->middleware('throttle:agent-upload')->name('agent-workspace.agents.store');
     Route::get('/agent-workspace/agents/{agent}', [AgentController::class, 'show'])->name('agent-workspace.agents.show');
@@ -65,13 +75,22 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware('auth')->group(function (
     Route::get('/agent-templates', [AgentTemplateController::class, 'index'])->name('agent-templates.index');
     Route::post('/agent-templates/{template}/use', [AgentTemplateController::class, 'useTemplate'])->name('agent-templates.use');
     Route::get('/sharing-showcase', [SharingShowcaseController::class, 'index'])->name('sharing-showcase.index');
-    Route::post('/sharing-showcase', [SharingShowcaseController::class, 'store'])->name('sharing-showcase.store');
     Route::get('/sharing-showcase/{showcase}', [SharingShowcaseController::class, 'show'])->name('sharing-showcase.show');
+    Route::post('/sharing-showcase/{showcase}/comments', [SharingShowcaseController::class, 'storeComment'])
+        ->middleware('throttle:30,1')
+        ->name('sharing-showcase.comments.store');
+    Route::delete('/sharing-showcase/{showcase}/comments/{comment}', [SharingShowcaseController::class, 'destroyComment'])
+        ->name('sharing-showcase.comments.destroy');
     Route::post('/sharing-showcase/{showcase}/use', [SharingShowcaseController::class, 'use'])->name('sharing-showcase.use');
     Route::get('/my-usage', [MyUsageController::class, 'index'])->name('my-usage.index');
     Route::get('/ai-policy', [AiPolicyController::class, 'index'])->name('ai-policy.index');
     Route::get('/support', [SupportController::class, 'index'])->name('support.index');
     Route::post('/support', [SupportController::class, 'store'])->middleware('throttle:support')->name('support.store');
+    Route::get('/support/requests', [SupportController::class, 'myRequests'])->name('support.requests.index');
+    Route::get('/support/requests/{ticket}', [SupportController::class, 'showRequest'])->name('support.requests.show');
+    Route::post('/support/requests/{ticket}/replies', [SupportController::class, 'storeFollowUp'])
+        ->middleware('throttle:support')
+        ->name('support.requests.replies.store');
 });
 
 // Admin Panel Routes
@@ -95,13 +114,17 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::patch('tickets/{ticket}/assign', [TicketController::class, 'assign'])->name('tickets.assign');
     Route::patch('tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.status');
     Route::patch('tickets/{ticket}/notes', [TicketController::class, 'storeNote'])->name('tickets.notes');
+    Route::post('tickets/{ticket}/replies', [TicketController::class, 'reply'])->name('tickets.replies.store');
 
     // Users & Roles
     Route::resource('users', UserController::class)->except('show');
+    Route::get('usage', [UsageController::class, 'index'])->name('usage.index');
 
     // Homepage guide
     Route::get('ai-plus-guide', [AiPlusGuideSettingsController::class, 'index'])->name('ai-plus-guide.index');
     Route::put('ai-plus-guide', [AiPlusGuideSettingsController::class, 'update'])->name('ai-plus-guide.update');
+    Route::get('ai-image', [AiImageSettingsController::class, 'index'])->name('ai-image.index');
+    Route::put('ai-image', [AiImageSettingsController::class, 'update'])->name('ai-image.update');
 });
 
 // Legacy route redirect
@@ -157,6 +180,7 @@ Route::post('/login-local', function () {
     $credentials['is_active'] = true;
     if (auth()->attempt($credentials, request()->boolean('remember'))) {
         request()->session()->regenerate();
+        auth()->user()?->forceFill(['last_login_at' => now()])->save();
 
         return redirect()->intended(route('ai-plus.index'));
     }

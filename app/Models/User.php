@@ -26,6 +26,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  * @property string|null $remember_token
+ * @property Carbon|null $last_login_at
  * @property int|null $current_team_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -53,6 +54,7 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'is_active' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
 
@@ -86,8 +88,20 @@ class User extends Authenticatable implements PasskeyUser
         return $this->hasMany(UsageLog::class);
     }
 
-    public function aiArtifacts() { return $this->hasMany(AiArtifact::class); }
-    public function emailDrafts() { return $this->hasMany(EmailDraft::class); }
+    public function supportTickets()
+    {
+        return $this->hasMany(SupportTicket::class);
+    }
+
+    public function aiArtifacts()
+    {
+        return $this->hasMany(AiArtifact::class);
+    }
+
+    public function emailDrafts()
+    {
+        return $this->hasMany(EmailDraft::class);
+    }
 
     public function getInitialsAttribute(): string
     {

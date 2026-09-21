@@ -57,6 +57,8 @@ class AgentController extends Controller
             return redirect()->route('login.local.form');
         }
 
+        $this->knowledgeService->ensureAgentKnowledgeLimits($request->file('knowledge', []));
+
         /** @var Agent $agent */
         $agent = $user->agents()->create([
             'title' => $request->input('title'),
@@ -93,6 +95,11 @@ class AgentController extends Controller
     public function update(UpdateAgentRequest $request, Agent $agent): JsonResponse|RedirectResponse
     {
         $this->authorize('update', $agent);
+
+        // Validate and persist Knowledge first. This prevents partial Agent edits when
+        // the aggregate Knowledge limit is exceeded.
+        $this->syncKnowledgeFiles($request, $agent);
+
         $agent->update([
             'title' => $request->input('title'),
             'description' => $request->input('description'),
@@ -101,7 +108,6 @@ class AgentController extends Controller
             'shared_with_team_id' => null,
         ]);
 
-        $this->syncKnowledgeFiles($request, $agent);
         $this->knowledgeService->indexAgent($agent);
         $agent->refresh();
         $this->sharedAgentTemplateSyncService->sync($agent);
@@ -172,6 +178,8 @@ class AgentController extends Controller
             $existing,
             fn (array $file): bool => ! in_array($file['path'], $removePaths, true),
         ));
+
+        $this->knowledgeService->ensureAgentKnowledgeLimits(array_values($newFiles), $kept);
 
         // Lưu file mới nếu có.
         $savedNew = $this->knowledgeService->saveFiles(array_values($newFiles), $agent->user_id, $agent->id);

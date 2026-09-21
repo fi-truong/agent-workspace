@@ -22,6 +22,24 @@
             <div style="white-space:pre-wrap;">{{ $ticket->details }}</div>
         </div>
 
+        <div style="border-top:1px solid var(--line);padding-top:24px;margin-bottom:24px;">
+            <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:0 0 14px;">Conversation</h3>
+            <div style="display:grid;gap:12px;">
+                <div style="border:1px solid var(--line);border-radius:8px;padding:14px;background:var(--paper);">
+                    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:7px;"><strong>{{ $ticket->name }}</strong> · {{ $ticket->created_at->format('d/m/Y H:i') }}</div>
+                    <div style="white-space:pre-wrap;">{{ $ticket->details }}</div>
+                </div>
+                @forelse($ticket->replies as $reply)
+                    <div style="border:1px solid #b9decf;border-radius:8px;padding:14px;background:#f1faf6;">
+                        <div style="font-size:12px;color:var(--ink-soft);margin-bottom:7px;"><strong>{{ $reply->author_id === $ticket->user_id ? ($reply->author?->name ?? $ticket->name) : ($reply->author?->name ?? 'Former staff member') }}</strong> · {{ $reply->created_at->format('d/m/Y H:i') }} · {{ $reply->author_id === $ticket->user_id ? 'Requester follow-up' : ($reply->sent_at ? 'Email sent' : 'Email not sent') }}</div>
+                        <div style="white-space:pre-wrap;">{{ $reply->body }}</div>
+                    </div>
+                @empty
+                    <p class="text-muted" style="margin:0;">No replies have been sent yet.</p>
+                @endforelse
+            </div>
+        </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
             <div class="form-group">
                 <label>Status</label>
@@ -52,6 +70,19 @@
         </div>
 
         <div style="border-top:1px solid var(--line);padding-top:24px;">
+            <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:0 0 12px;">Reply to requester</h3>
+            <form action="{{ route('admin.tickets.replies.store', $ticket) }}" method="POST" style="margin-bottom:24px;">
+                @csrf
+                <div class="form-group" style="margin-bottom:10px;">
+                    <textarea name="body" class="form-textarea" placeholder="Write a clear response that will be emailed to {{ $ticket->email }}..." rows="5" required maxlength="5000">{{ old('body') }}</textarea>
+                    @error('body')<div class="field-error">{{ $message }}</div>@enderror
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;">
+                    <input type="checkbox" name="resolve" value="1"> Mark this ticket as resolved after sending
+                </label>
+                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:13px;">Send Reply</button>
+            </form>
+
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                 <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:0;">Admin Notes</h3>
             </div>

@@ -34,3 +34,8 @@ test('agent workspace requires authentication', function () {
     $this->post(route('ai-plus.agent-workspace.send'), ['message' => 'Hello'])
         ->assertRedirect(route('login.local.form'));
 });
+
+test('the AI Plus homepage requires authentication', function () {
+    $this->get(route('ai-plus.index'))
+        ->assertRedirect(route('login.local.form'));
+});

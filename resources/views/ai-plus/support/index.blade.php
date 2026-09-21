@@ -32,17 +32,20 @@
     </div>
 
     <div class="contact-section" id="contact-section">
-      <h2 class="section-title">Submit a Request</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:20px;">
+        <h2 class="section-title" style="margin-bottom:0;">Submit a Request</h2>
+        <a class="requests-link" href="{{ route('ai-plus.support.requests.index') }}">My Support Requests @if($unreadReplyCount > 0)<span class="unread-badge">{{ $unreadReplyCount }}</span>@endif</a>
+      </div>
       <form id="supportForm" method="POST" action="{{ route('ai-plus.support.store') }}">
         @csrf
         <div class="form-grid">
           <div class="form-group">
             <label class="form-label">Your Name</label>
-            <input type="text" name="name" class="form-input" placeholder="Enter your name" required>
+            <input type="text" name="name" class="form-input" value="{{ auth()->user()->name }}" readonly aria-readonly="true">
           </div>
           <div class="form-group">
             <label class="form-label">Email</label>
-            <input type="email" name="email" class="form-input" placeholder="your.email@lsts.edu.vn" required>
+            <input type="email" name="email" class="form-input" value="{{ auth()->user()->email }}" readonly aria-readonly="true">
           </div>
           <div class="form-group full">
             <label class="form-label">Request Type</label>
@@ -125,6 +128,8 @@
   .submit-btn{padding:12px 24px;background: var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition: background 0.15s;}
   .submit-btn:hover{background: var(--navy-deep);}
   .form-note{font-size:12px;color: var(--text-soft);}
+  .requests-link{font-size:13px;font-weight:600;color:var(--navy);text-decoration:none;white-space:nowrap;}
+  .unread-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;margin-left:4px;padding:0 5px;border-radius:99px;background:#c0392b;color:#fff;font-size:11px;}
 
   .form-message{padding:12px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-top:12px;display:none;}
   .form-message.success{background:var(--sage-badge-bg);color:var(--sage-badge-text);border:1px solid var(--sage);}

@@ -14,7 +14,7 @@ class UsageLog extends Model
     ];
 
     protected $fillable = [
-        'user_id', 'activity_title', 'source', 'related_conversation_id',
+        'user_id', 'activity_title', 'source', 'model', 'source_message_id', 'related_conversation_id',
         'related_agent_template_id', 'prompt_tokens', 'completion_tokens', 'hidden_at',
     ];
 

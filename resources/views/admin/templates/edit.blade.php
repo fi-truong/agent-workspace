@@ -1,20 +1,23 @@
 @extends('layouts.admin')
 
 @section('page-title', 'Edit Template')
-@section('page-desc', 'Chỉnh sửa template: ' . $template->name)
+@section('page-desc', 'Update template: ' . $template->name)
 
 @section('content')
 <form action="{{ route('admin.templates.update', $template) }}" method="POST" class="table-section" style="max-width:900px;">
     @csrf
     @method('PUT')
     <div style="padding:24px;display:flex;flex-direction:column;gap:20px;">
+        @include('admin.partials.validation-summary')
         <div class="form-group">
             <label>Name <span class="text-danger">*</span></label>
             <input type="text" name="name" class="form-input" placeholder="Template name" required value="{{ old('name', $template->name) }}">
+            @include('admin.partials.field-error', ['field' => 'name'])
         </div>
         <div class="form-group">
             <label>Description <span class="text-danger">*</span></label>
             <textarea name="description" class="form-textarea" placeholder="Describe this template" required>{{ old('description', $template->description) }}</textarea>
+            @include('admin.partials.field-error', ['field' => 'description'])
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
             <div class="form-group">
@@ -25,6 +28,7 @@
                     <option value="{{ $c }}" {{ (old('category', $template->category) ?? '') == $c ? 'selected' : '' }}>{{ $c }}</option>
                     @endforeach
                 </select>
+                @include('admin.partials.field-error', ['field' => 'category'])
             </div>
             <div class="form-group">
                 <label>Status <span class="text-danger">*</span></label>
@@ -33,6 +37,7 @@
                     <option value="published" {{ old('status', $template->status) == 'published' ? 'selected' : '' }}>Published</option>
                     <option value="archived" {{ old('status', $template->status) == 'archived' ? 'selected' : '' }}>Archived</option>
                 </select>
+                @include('admin.partials.field-error', ['field' => 'status'])
             </div>
         </div>
 
@@ -61,6 +66,7 @@
                     @php $idx++; @endphp
                 @endforeach
             </div>
+            @include('admin.partials.field-error', ['field' => 'features'])
         </div>
 
         <div style="display:flex;gap:12px;justify-content:flex-end;padding-top:16px;border-top:1px solid var(--line);">

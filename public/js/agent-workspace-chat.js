@@ -311,12 +311,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
   let sending = false;
   let pendingImages = [];
+  let pendingImageBytes = [];
   let pendingDocuments = [];
+  let pendingAttachmentBytes = 0;
+  let pendingReads = 0;
   let imagePreviewBox = null;
 
   // Cac dinh dang tai lieu (ngoai anh) duoc phep dinh kem trong o chat - khop voi
   // KnowledgeService::CHAT_DOCUMENT_EXTENSIONS phia backend.
   const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+  const MAX_ATTACHMENTS = 5;
+  const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+  const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+  const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 
   function getFileExt(filename) {
     const m = /\.([a-zA-Z0-9]+)$/.exec(filename || '');
@@ -329,11 +336,34 @@ document.addEventListener('DOMContentLoaded', function () {
   function handleIncomingFile(file) {
     if (!file) return;
 
-    if (file.type && file.type.startsWith('image/')) {
+    const isImage = file.type && file.type.startsWith('image/');
+    if (pendingImages.length + pendingDocuments.length + pendingReads >= MAX_ATTACHMENTS) {
+      appendWarning('Mỗi lượt chat chỉ hỗ trợ tối đa ' + MAX_ATTACHMENTS + ' tệp đính kèm.');
+      return;
+    }
+    if (file.size > (isImage ? MAX_IMAGE_BYTES : MAX_DOCUMENT_BYTES)) {
+      appendWarning(isImage ? 'Mỗi ảnh chỉ được tối đa 4 MB.' : 'Mỗi tài liệu chỉ được tối đa 5 MB.');
+      return;
+    }
+    if (pendingAttachmentBytes + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+      appendWarning('Tổng dung lượng tệp trong một lượt chat chỉ được tối đa 15 MB.');
+      return;
+    }
+
+    if (isImage) {
+      pendingReads++;
+      pendingAttachmentBytes += file.size;
       const reader = new FileReader();
       reader.onload = function (ev) {
         pendingImages.push(ev.target.result);
+        pendingImageBytes.push(file.size);
+        pendingReads--;
         renderImagePreviews();
+      };
+      reader.onerror = function () {
+        pendingReads--;
+        pendingAttachmentBytes -= file.size;
+        appendWarning('Không thể đọc ảnh "' + file.name + '". Vui lòng thử lại.');
       };
       reader.readAsDataURL(file);
       return;
@@ -345,10 +375,18 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
+    pendingReads++;
+    pendingAttachmentBytes += file.size;
     const reader = new FileReader();
     reader.onload = function (ev) {
-      pendingDocuments.push({ name: file.name, dataUrl: ev.target.result });
+      pendingDocuments.push({ name: file.name, dataUrl: ev.target.result, size: file.size });
+      pendingReads--;
       renderImagePreviews();
+    };
+    reader.onerror = function () {
+      pendingReads--;
+      pendingAttachmentBytes -= file.size;
+      appendWarning('Không thể đọc tệp "' + file.name + '". Vui lòng thử lại.');
     };
     reader.readAsDataURL(file);
   }
@@ -384,7 +422,9 @@ document.addEventListener('DOMContentLoaded', function () {
       remove.textContent = '×';
       remove.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(0,0,0,0.6);color:#fff;font-size:12px;line-height:1;cursor:pointer;';
       remove.addEventListener('click', () => {
+        pendingAttachmentBytes -= pendingImageBytes[idx] || 0;
         pendingImages.splice(idx, 1);
+        pendingImageBytes.splice(idx, 1);
         renderImagePreviews();
       });
       wrap.appendChild(remove);
@@ -411,6 +451,7 @@ document.addEventListener('DOMContentLoaded', function () {
       remove.textContent = '×';
       remove.style.cssText = 'position:absolute;top:2px;right:4px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(0,0,0,0.12);color:var(--text-main);font-size:12px;line-height:1;cursor:pointer;';
       remove.addEventListener('click', () => {
+        pendingAttachmentBytes -= pendingDocuments[idx].size || 0;
         pendingDocuments.splice(idx, 1);
         renderImagePreviews();
       });
@@ -451,7 +492,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const images = pendingImages;
     const documents = pendingDocuments.map((d) => ({ name: d.name, data_url: d.dataUrl }));
     pendingImages = [];
+    pendingImageBytes = [];
     pendingDocuments = [];
+    pendingAttachmentBytes = 0;
     renderImagePreviews();
 
     const csrfMeta = document.querySelector('meta[name="csrf-token"]');
@@ -634,13 +677,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (item.type && item.type.startsWith('image/')) {
         const file = item.getAsFile();
         if (!file) continue;
-
-        const reader = new FileReader();
-        reader.onload = function (ev) {
-          pendingImages.push(ev.target.result);
-          renderImagePreviews();
-        };
-        reader.readAsDataURL(file);
+        handleIncomingFile(file);
       }
     }
   });

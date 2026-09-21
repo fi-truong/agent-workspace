@@ -1,8 +1,8 @@
 @extends('layouts.ai-plus')
 
-@section('title', '{{ $post['title'] }} — Sharing & Showcase — AI+ LSTS')
+@section('title', $post['title'].' — Sharing & Showcase — AI+ LSTS')
 
-@section('breadcrumb', 'Sharing & Showcase / {{ $post['title'] }}')
+@section('breadcrumb', 'Sharing & Showcase / '.$post['title'])
 
 @section('content')
 <header class="page-header">
@@ -50,19 +50,18 @@
             @csrf
             <button class="action-btn use-btn" type="submit"><span>⭐</span> Use This Agent</button>
           </form>
-          <button class="action-btn share-btn">
+          <button class="action-btn share-btn" type="button" id="shareShowcase">
             <span>🔗</span> Share
-          </button>
-          <button class="action-btn save-btn">
-            <span>🔖</span> Save
           </button>
         </div>
 
-        <section class="comments-section">
+        <section class="comments-section" id="comments">
           <h2>Comments ({{ $post['comments'] }})</h2>
-          <form class="comment-form" id="commentForm">
+          @if(session('success'))
+          <p class="comment-flash" role="status">{{ session('success') }}</p>
+          @endif
+          <form class="comment-form" id="commentForm" method="POST" action="{{ route('ai-plus.sharing-showcase.comments.store', $post['id']) }}">
             @csrf
-            <input type="hidden" name="post_id" value="{{ $post['id'] }}">
             <div class="form-row">
               <div class="comment-avatar">{{ Auth::user()?->initials ?? '?' }}</div>
               <div class="comment-input-wrapper">
@@ -76,7 +75,27 @@
           </form>
 
           <div class="comments-list" id="commentsList">
+            @forelse($comments as $comment)
+            <article class="comment">
+              <div class="comment-header">
+                <div class="comment-avatar">{{ $comment->user?->initials ?? '?' }}</div>
+                <div class="comment-author">
+                  <strong>{{ $comment->user?->name ?? 'Former user' }}</strong>
+                  <span>{{ $comment->created_at->diffForHumans() }}</span>
+                </div>
+                @if(auth()->id() === $comment->user_id || auth()->user()?->role === 'admin')
+                <form method="POST" action="{{ route('ai-plus.sharing-showcase.comments.destroy', [$post['id'], $comment->id]) }}" class="comment-delete-form" onsubmit="return confirm('Delete this comment?')">
+                  @csrf
+                  @method('DELETE')
+                  <button type="submit" class="comment-delete" aria-label="Delete comment">Delete</button>
+                </form>
+                @endif
+              </div>
+              <div class="comment-body">{{ $comment->content }}</div>
+            </article>
+            @empty
             <div class="empty-comments">No comments yet. Be the first to share your thoughts!</div>
+            @endforelse
           </div>
         </section>
       </article>
@@ -363,6 +382,7 @@
     gap: 10px;
     margin-bottom: 8px;
   }
+  .comment-author{display:flex;flex-direction:column;gap:1px;}.comment-author strong{font-size:14px;color:var(--text-main);}.comment-author span{font-size:12px;color:var(--text-soft);}.comment-delete-form{margin-left:auto;}.comment-delete{border:0;background:transparent;color:var(--danger);font:inherit;font-size:12px;cursor:pointer;padding:5px;}.comment-delete:hover{text-decoration:underline;}.comment-flash{margin:0 0 16px;padding:10px 12px;border-radius:8px;background:rgba(46,139,87,.12);color:var(--success);font-size:14px;}
   .comment-body { font-size: 14px; color: var(--text-main); line-height: 1.6; }
 
   .post-sidebar { display: flex; flex-direction: column; gap: 20px; }
@@ -449,32 +469,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Comment form submit (placeholder - would need backend endpoint)
-  const commentForm = document.getElementById('commentForm');
-  if (commentForm) {
-    commentForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      // In production: fetch POST to comment endpoint
-      // For now just show placeholder
-      alert('Comment submission would go to backend. Connect to your comments API.');
-    });
-  }
-
-  // Share button (placeholder)
-  const shareBtn = document.querySelector('.share-btn');
+  const shareBtn = document.getElementById('shareShowcase');
   if (shareBtn) {
-    shareBtn.addEventListener('click', () => {
-      if (navigator.share) {
-        navigator.share({
-          title: '{{ addslashes($post['title']) }}',
-          text: 'Check out this agent on AI+ Sharing & Showcase',
-          url: window.location.href,
-        });
-      } else {
-        navigator.clipboard.writeText(window.location.href);
-        shareBtn.textContent = 'Copied!';
-        setTimeout(() => shareBtn.innerHTML = '<span>🔗</span> Share', 2000);
+    shareBtn.addEventListener('click', async () => {
+      const title = document.querySelector('.page-header h1')?.textContent || document.title;
+      const shareData = { title, text: 'Check out this agent on AI+ Sharing & Showcase', url: window.location.href };
+      try {
+        if (navigator.share) {
+          await navigator.share(shareData);
+          return;
+        }
+        await navigator.clipboard.writeText(window.location.href);
+        shareBtn.innerHTML = '<span>✓</span> Link copied';
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        window.prompt('Copy this link:', window.location.href);
+        shareBtn.innerHTML = '<span>🔗</span> Copy link';
       }
+      setTimeout(() => shareBtn.innerHTML = '<span>🔗</span> Share', 2000);
     });
   }
 });

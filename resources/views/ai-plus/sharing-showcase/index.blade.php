@@ -49,7 +49,6 @@
         </div>
       </div>
 
-      <button class="share-btn" id="openShareModal">+ Share Your Agent</button>
     </div>
   </div>
 </section>
@@ -69,9 +68,7 @@
           <path d="M9.172 16.172a4 4 0 0 1 5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
         </svg>
         <p>{{ $paginator->total() === 0 ? 'No showcases shared yet. Be the first!' : 'No showcases match your search.' }}</p>
-        @if($paginator->total() === 0)
-          <button class="share-btn" id="openShareModalFromEmpty">+ Share Your Agent</button>
-        @else
+        @if($paginator->total() !== 0)
           <button class="clear-filters-btn" id="clearFiltersBtn">Clear all filters</button>
         @endif
       </div>
@@ -120,59 +117,6 @@
   </div>
 </main>
 
-<!-- Share Modal -->
-<div class="modal-overlay" id="shareModal">
-  <div class="modal">
-    <div class="modal-header">
-      <h2 class="modal-title">Share Your Agent</h2>
-      <button class="modal-close" data-close-modal="shareModal">&times;</button>
-    </div>
-    <form id="shareForm" method="POST" action="{{ route('ai-plus.sharing-showcase.store') }}">
-      @csrf
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="shareTitle">Title <span class="text-danger">*</span></label>
-          <input type="text" name="title" id="shareTitle" class="form-input" placeholder="e.g. Adaptive Math Quiz Generator" required>
-        </div>
-        <div class="form-group">
-          <label for="shareDescription">Description <span class="text-danger">*</span></label>
-          <textarea name="description" id="shareDescription" class="form-textarea" placeholder="Describe what your agent does, who it's for, and key features..." required minlength="20"></textarea>
-        </div>
-        <div class="form-row">
-          <div class="form-group" style="flex:1;">
-            <label for="shareDepartment">Department <span class="text-danger">*</span></label>
-            <select name="department" id="shareDepartment" class="form-select" required>
-              <option value="">— Select Department —</option>
-              @foreach($departments as $dept)
-              <option value="{{ $dept }}">{{ $dept }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="form-group" style="flex:1;">
-            <label for="shareTags">Tags (comma-separated)</label>
-            <input type="text" name="tags" id="shareTags" class="form-input" placeholder="Math, Assessment, Grades 6-9">
-            <p class="form-hint">Press Enter after each tag, or separate with commas</p>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Source (optional)</label>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-              <input type="radio" name="source_type" value="agent" checked> From an Agent
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-              <input type="radio" name="source_type" value="workflow"> From a Workflow
-            </label>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-secondary" data-close-modal="shareModal">Cancel</button>
-        <button type="submit" class="btn-primary">Submit for Review</button>
-      </div>
-    </form>
-  </div>
-</div>
 @endsection
 
 @push('styles')
@@ -347,22 +291,6 @@
     background: var(--chip-active-bg);
     color: var(--chip-active-text);
     border-color: var(--chip-active-bg);
-  }
-
-  .share-btn, .share-btn-primary {
-    padding: 10px 20px;
-    background: var(--gold);
-    color: var(--navy-deep);
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s;
-    white-space: nowrap;
-  }
-  .share-btn:hover, .share-btn-primary:hover {
-    background: #E5AB45;
   }
 
   .content {
@@ -616,142 +544,6 @@
     cursor: default;
   }
 
-  /* Modal styles */
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-    z-index: 1000;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-  .modal-overlay.open {
-    display: flex;
-  }
-  .modal {
-    background: var(--surface);
-    border-radius: 16px;
-    max-width: 560px;
-    width: 100%;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-  }
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 24px 24px 0;
-  }
-  .modal-title {
-    font-family: 'Fraunces', serif;
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--section-title);
-  }
-  .modal-close {
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: var(--input-bg);
-    border-radius: 8px;
-    font-size: 20px;
-    color: var(--text-soft);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s;
-  }
-  .modal-close:hover {
-    background: var(--surface-border);
-    color: var(--text-main);
-  }
-  .modal-body {
-    padding: 24px;
-  }
-  .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 0 24px 24px;
-  }
-  .form-group {
-    margin-bottom: 20px;
-  }
-  .form-group label {
-    display: block;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text-main);
-    margin-bottom: 6px;
-  }
-  .form-group .text-danger {
-    color: #dc3545;
-  }
-  .form-input, .form-textarea, .form-select {
-    width: 100%;
-    padding: 10px 14px;
-    background: var(--input-bg);
-    border: 1px solid var(--input-border);
-    border-radius: 8px;
-    font-size: 14px;
-    color: var(--input-text);
-    transition: border-color 0.15s, box-shadow 0.15s;
-    font-family: inherit;
-  }
-  .form-input:focus, .form-textarea:focus, .form-select:focus {
-    outline: none;
-    border-color: var(--navy);
-    box-shadow: 0 0 0 3px rgba(31, 56, 100, 0.15);
-  }
-  .form-textarea {
-    min-height: 100px;
-    resize: vertical;
-  }
-  .form-hint {
-    font-size: 12px;
-    color: var(--text-soft);
-    margin-top: 4px;
-  }
-  .form-row {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-  .btn-secondary {
-    padding: 10px 20px;
-    background: var(--input-bg);
-    border: 1px solid var(--input-border);
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text-main);
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn-secondary:hover {
-    background: var(--surface-border);
-  }
-  .btn-primary {
-    padding: 10px 20px;
-    background: var(--navy);
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    color: #fff;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn-primary:hover {
-    background: var(--navy-deep);
-  }
 </style>
 @endpush
 
@@ -766,9 +558,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const resultsCount = document.getElementById('resultsCount');
   const emptyState = document.getElementById('emptyState');
   const clearFiltersBtn = document.getElementById('clearFiltersBtn');
-  const openShareModal = document.getElementById('openShareModal');
-  const openShareModalFromEmpty = document.getElementById('openShareModalFromEmpty');
-  const shareModal = document.getElementById('shareModal');
 
   // State
   let currentSearch = searchInput.value;
@@ -870,23 +659,25 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchShowcases();
   });
 
-  clearFiltersBtn.addEventListener('click', () => {
-    currentSearch = '';
-    currentDepartment = '';
-    currentView = 'all';
-    currentPage = 1;
+  if (clearFiltersBtn) {
+    clearFiltersBtn.addEventListener('click', () => {
+      currentSearch = '';
+      currentDepartment = '';
+      currentView = 'all';
+      currentPage = 1;
 
-    searchInput.value = '';
-    clearSearchBtn.style.display = 'none';
-    deptFilters.querySelectorAll('.filter-chip').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.department === '');
-    });
-    viewTabs.querySelectorAll('.view-tab').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.view === 'all');
-    });
+      searchInput.value = '';
+      clearSearchBtn.style.display = 'none';
+      deptFilters.querySelectorAll('.filter-chip').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.department === '');
+      });
+      viewTabs.querySelectorAll('.view-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === 'all');
+      });
 
-    fetchShowcases();
-  });
+      fetchShowcases();
+    });
+  }
 
   searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -943,40 +734,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
-
-  // Share Modal
-  function openModal() {
-    shareModal.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
-  function closeModal() {
-    shareModal.classList.remove('open');
-    document.body.style.overflow = '';
-  }
-
-  if (openShareModal && shareModal) {
-    openShareModal.addEventListener('click', openModal);
-  }
-  if (openShareModalFromEmpty && shareModal) {
-    openShareModalFromEmpty.addEventListener('click', openModal);
-  }
-  if (shareModal) {
-    shareModal.querySelectorAll('[data-close-modal]').forEach(btn => {
-      btn.addEventListener('click', closeModal);
-    });
-    shareModal.addEventListener('click', (e) => {
-      if (e.target === shareModal) {
-        closeModal();
-      }
-    });
-  }
-
-  // Escape key closes modal
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
-    }
-  });
 
   attachPaginationLinks();
 });

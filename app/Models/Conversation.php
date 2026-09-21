@@ -20,7 +20,11 @@ use Illuminate\Support\Carbon;
  */
 class Conversation extends Model
 {
-    protected $fillable = ['user_id', 'agent_id', 'title'];
+    public const TYPE_CHAT = 'chat';
+
+    public const TYPE_IMAGE = 'image';
+
+    protected $fillable = ['user_id', 'agent_id', 'title', 'type'];
 
     /**
      * @return BelongsTo<User, $this>

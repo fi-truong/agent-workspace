@@ -31,6 +31,7 @@ class UpdateAgentRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'knowledge.max' => 'Mỗi Agent chỉ được tối đa '.KnowledgeService::MAX_AGENT_FILES.' file Knowledge.',
             'knowledge.*.max' => 'Mỗi file knowledge tối đa 5MB.',
             'knowledge.*.mimes' => 'Chỉ chấp nhận file: '.implode(', ', KnowledgeService::ALLOWED_EXTENSIONS),
         ];

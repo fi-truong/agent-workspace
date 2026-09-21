@@ -12,7 +12,17 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $query = User::query();
+        $query = User::query()->withCount([
+            'agents',
+            'conversations',
+            'workflows',
+            'aiArtifacts',
+            'emailDrafts',
+            'usageLogs',
+            'showcasePosts',
+            'promptLibraryPrompts',
+            'supportTickets',
+        ]);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -52,7 +62,9 @@ class UserController extends Controller
 
     public function create()
     {
-        return view('admin.users.create');
+        return view('admin.users.create', [
+            'departments' => $this->departments(),
+        ]);
     }
 
     public function store(Request $request)
@@ -68,7 +80,10 @@ class UserController extends Controller
         ]);
 
         $data['password'] = Hash::make($data['password']);
-        $data['is_active'] = $request->boolean('is_active', true);
+        // New accounts are active by default; the checkbox is checked on the form.
+        $data['is_active'] = $request->has('is_active')
+            ? $request->boolean('is_active')
+            : true;
 
         $user = User::create($data);
         AdminAuditLog::record('user.created', $user, ['role' => $user->role]);
@@ -78,7 +93,10 @@ class UserController extends Controller
 
     public function edit(User $user)
     {
-        return view('admin.users.edit', compact('user'));
+        return view('admin.users.edit', [
+            'user' => $user,
+            'departments' => $this->departments(),
+        ]);
     }
 
     public function update(Request $request, User $user)
@@ -93,6 +111,10 @@ class UserController extends Controller
             'is_active' => 'boolean',
         ]);
 
+        // An unchecked HTML checkbox is omitted from the request. On an edit, that
+        // omission intentionally means the administrator chose to deactivate it.
+        $isActive = $request->boolean('is_active');
+
         if ($request->filled('password')) {
             $data['password'] = Hash::make($data['password']);
         } else {
@@ -104,11 +126,11 @@ class UserController extends Controller
             return back()->withErrors(['role' => 'Cannot change your own admin role.']);
         }
 
-        if ($user->id === auth()->id() && ! $request->boolean('is_active', true)) {
+        if ($user->id === auth()->id() && ! $isActive) {
             return back()->withErrors(['is_active' => 'You cannot deactivate your own account.']);
         }
 
-        $data['is_active'] = $request->boolean('is_active', true);
+        $data['is_active'] = $isActive;
 
         $user->update($data);
         AdminAuditLog::record('user.updated', $user, ['role' => $user->role, 'is_active' => $user->is_active]);
@@ -123,9 +145,54 @@ class UserController extends Controller
             return back()->withErrors(['user' => 'Cannot delete your own account.']);
         }
 
+        $dependencies = $this->ownedDataCounts($user);
+        if ($dependencies !== []) {
+            $summary = collect($dependencies)
+                ->map(fn (int $count, string $label) => "{$count} {$label}")
+                ->implode(', ');
+
+            return redirect()->route('admin.users.index')->withErrors([
+                'user' => "Cannot permanently delete this user because they still own {$summary}. Set the account to Inactive instead.",
+            ]);
+        }
+
         AdminAuditLog::record('user.deleted', $user, ['email' => $user->email]);
         $user->delete();
 
         return redirect()->route('admin.users.index')->with('success', 'User deleted successfully.');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function departments(): array
+    {
+        return User::query()
+            ->whereNotNull('department')
+            ->where('department', '!=', '')
+            ->distinct()
+            ->orderBy('department')
+            ->pluck('department')
+            ->all();
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function ownedDataCounts(User $user): array
+    {
+        $counts = [
+            'agents' => $user->agents()->count(),
+            'conversations' => $user->conversations()->count(),
+            'workflows' => $user->workflows()->count(),
+            'artifacts' => $user->aiArtifacts()->count(),
+            'email drafts' => $user->emailDrafts()->count(),
+            'usage records' => $user->usageLogs()->count(),
+            'showcase posts' => $user->showcasePosts()->count(),
+            'library prompts' => $user->promptLibraryPrompts()->count(),
+            'support requests' => $user->supportTickets()->count(),
+        ];
+
+        return array_filter($counts);
     }
 }

@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('page-title', 'Support Tickets')
-@section('page-desc', 'Quản lý support tickets')
+@section('page-desc', 'Manage support tickets')
 
 @section('content')
 @include('admin.partials.filters', [
@@ -10,6 +10,7 @@
     'filters' => [
         ['key' => 'status', 'label' => 'Status', 'options' => $statuses, 'selected' => request('status')],
         ['key' => 'assignee_id', 'label' => 'Assignee', 'options' => collect($assignees)->mapWithKeys(fn($u) => [$u->id => $u->name])->all(), 'selected' => request('assignee_id')],
+        ['key' => 'needs_reply', 'label' => 'Needs reply', 'options' => ['1' => 'Has new user follow-up'], 'selected' => request('needs_reply')],
     ],
     'sortOptions' => ['newest' => 'Newest', 'oldest' => 'Oldest', 'priority' => 'Priority'],
     'sortValue' => request('sort', 'newest'),
@@ -22,7 +23,7 @@
     'rows' => $tickets,
     'renderRow' => function($ticket) {
         return [
-            '<div><div class="item-title">' . e($ticket->subject) . '</div><div class="item-sub">' . e(Str::limit($ticket->details, 80)) . '</div></div>',
+            '<div><div class="item-title">' . e($ticket->subject) . ($ticket->unread_follow_ups_count > 0 ? ' <span class="badge pending">New reply</span>' : '') . '</div><div class="item-sub">' . e(Str::limit($ticket->details, 80)) . '</div></div>',
             e($ticket->user?->name . ' (' . $ticket->user?->email . ')'),
             '<span class="badge ' . ($ticket->status === 'resolved' ? 'resolved' : ($ticket->status === 'in_progress' ? 'in_progress' : ($ticket->status === 'closed' ? 'draft' : 'pending'))) . '">' . ucfirst(str_replace('_', ' ', $ticket->status)) . '</span>',
             $ticket->assignee ? e($ticket->assignee->name) : '<span class="text-muted">Unassigned</span>',

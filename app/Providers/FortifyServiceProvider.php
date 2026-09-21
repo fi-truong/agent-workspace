@@ -121,6 +121,9 @@ class FortifyServiceProvider extends ServiceProvider
                 ($credentialId ?: $request->session()->getId()).'|'.$request->ip(),
             );
         });
+
+        RateLimiter::for('image-generation', fn (Request $request) => Limit::perMinute(3)
+            ->by((string) $request->user()?->id));
     }
 
     /**

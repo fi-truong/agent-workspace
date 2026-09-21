@@ -7,7 +7,8 @@ use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
 it('keeps the homepage guide hidden by default', function () {
-    $this->get(route('ai-plus.index'))
+    $this->actingAs(User::factory()->create())
+        ->get(route('ai-plus.index'))
         ->assertOk()
         ->assertDontSee('Ask AI Plus Guide');
 });

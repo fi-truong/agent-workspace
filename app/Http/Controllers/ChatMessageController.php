@@ -3,16 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Agent;
+use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\UsageLog;
 use App\Models\User;
+use App\Services\ArtifactService;
 use App\Services\ChatCompletionService;
+use App\Services\EmailDraftService;
+use App\Services\ImageGenerationService;
 use App\Services\KnowledgeService;
 use App\Services\PiiFilterService;
 use App\Services\TokenQuotaService;
-use App\Services\ArtifactService;
-use App\Services\EmailDraftService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +34,12 @@ class ChatMessageController extends Controller
     public const MAX_CURRENT_TURN_CHARS = 40000;
 
     public const MAX_DOCUMENT_CONTEXT_CHARS = 6000;
+
+    public const MAX_ATTACHMENTS = 5;
+
+    public const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+
+    public const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
     /**
      * Bản KHÔNG streaming — giữ nguyên hành vi cũ, dùng cho nơi nào chưa chuyển sang stream().
@@ -165,6 +173,108 @@ class ChatMessageController extends Controller
         ]);
     }
 
+    /** Generate a single image from the composer text when an administrator enables it. */
+    public function generateImage(Request $request, PiiFilterService $piiFilter, ImageGenerationService $imageService, TokenQuotaService $tokenQuotaService): JsonResponse
+    {
+        abort_unless(AppSetting::boolean('ai_plus_image_generation_enabled'), 404);
+
+        $data = $request->validate([
+            'prompt' => ['required', 'string', 'max:1000'],
+            'conversation_id' => ['nullable', 'integer', 'exists:conversations,id'],
+            'reference_images' => ['nullable', 'array', 'max:4'],
+            'reference_images.*' => ['string'],
+            'source_message_id' => ['nullable', 'integer', 'exists:messages,id'],
+            'model' => ['nullable', 'string', 'max:100'],
+        ]);
+        $scan = $piiFilter->scan($data['prompt']);
+        if ($scan['flagged']) {
+            return response()->json([
+                'error' => 'Your image prompt may contain sensitive personal information. Please revise it and try again.',
+            ], 422);
+        }
+
+        /** @var User $user */
+        $user = $request->user();
+        if ($tokenQuotaService->isExhausted($user)) {
+            return $this->tokenQuotaExceededResponse();
+        }
+        $referenceImages = $this->decodeImageReferences($data['reference_images'] ?? []);
+        if ($referenceImages === null) {
+            return response()->json(['error' => 'Reference images must be PNG, JPEG, or WebP files up to 4 MB each.'], 422);
+        }
+        $sourceMessage = isset($data['source_message_id'])
+            ? Message::with('conversation')->findOrFail($data['source_message_id'])
+            : null;
+        if ($sourceMessage) {
+            abort_unless($sourceMessage->role === 'assistant'
+                && $sourceMessage->conversation?->user_id === $user->id
+                && $sourceMessage->conversation?->type === Conversation::TYPE_IMAGE, 404);
+            $sourceImage = $this->referenceFromGeneratedImage($sourceMessage);
+            abort_unless($sourceImage, 404);
+            array_unshift($referenceImages, $sourceImage);
+        }
+        $model = $this->resolveImageModel($data['model'] ?? null, $referenceImages !== []);
+        if ($model === null) {
+            return response()->json(['error' => 'The selected image model is unavailable. Choose an enabled model and try again.'], 422);
+        }
+        $conversation = isset($data['conversation_id'])
+            ? $user->conversations()->where('type', Conversation::TYPE_IMAGE)->findOrFail($data['conversation_id'])
+            : $user->conversations()->create([
+                'title' => now()->format('Y.m.d H:i').' · '.Str::limit($data['prompt'], 40),
+                'type' => Conversation::TYPE_IMAGE,
+            ]);
+
+        try {
+            $result = $imageService->generate($data['prompt'], $referenceImages, $model);
+        } catch (\Throwable $exception) {
+            Log::warning('Image generation failed', ['user_id' => $user->id, 'exception' => $exception::class, 'message' => $exception->getMessage()]);
+
+            return response()->json(['error' => 'Image generation could not be completed. Please try again later.'], 502);
+        }
+
+        $bytes = base64_decode($result['image'], true);
+        if ($bytes === false || $bytes === '') {
+            return response()->json(['error' => 'Image generation returned invalid image data.'], 502);
+        }
+
+        $filename = Str::uuid().'.png';
+        Storage::disk('chat-attachments')->put($conversation->id.'/'.$filename, $bytes);
+        $url = route('ai-plus.agent-workspace.attachments.show', [
+            'conversation' => $conversation->id,
+            'filename' => $filename,
+        ], false);
+
+        Message::create(['conversation_id' => $conversation->id, 'role' => 'user', 'content' => ($referenceImages === [] ? '🎨 Generate image: ' : '🖼️ Edit image: ').$data['prompt']]);
+        $imageMessage = Message::create([
+            'conversation_id' => $conversation->id,
+            'role' => 'assistant',
+            'content' => "![Generated image]({$url})",
+            'prompt_tokens' => $result['prompt_tokens'],
+            'completion_tokens' => $result['completion_tokens'],
+        ]);
+        $conversation->touch();
+        UsageLog::create([
+            'user_id' => $user->id,
+            'activity_title' => ($referenceImages === [] ? 'Image: ' : 'Image edit: ').Str::limit($data['prompt'], 92),
+            'source' => 'agent_workspace',
+            'model' => $model,
+            'source_message_id' => $sourceMessage?->id,
+            'related_conversation_id' => $conversation->id,
+            'prompt_tokens' => $result['prompt_tokens'],
+            'completion_tokens' => $result['completion_tokens'],
+        ]);
+
+        return response()->json([
+            'conversation_id' => $conversation->id,
+            'title' => $conversation->title,
+            'prompt' => $data['prompt'],
+            'image_url' => $url,
+            'image_message_id' => $imageMessage->id,
+            'download_url' => route('ai-plus.agent-workspace.images.download', $imageMessage),
+            'model' => $model,
+        ]);
+    }
+
     /**
      * Validate input + scan PII. Trả về JsonResponse nếu cần chặn ngay, null nếu ok để đi tiếp.
      */
@@ -174,12 +284,16 @@ class ChatMessageController extends Controller
             'message' => 'nullable|string|max:5000',
             'conversation_id' => 'nullable|integer|exists:conversations,id',
             'agent_id' => 'nullable|integer|exists:agents,id',
-            'images' => 'nullable|array',
+            'images' => 'nullable|array|max:4',
             'images.*' => 'string',
             'documents' => 'nullable|array|max:5',
             'documents.*.name' => 'required_with:documents|string|max:255',
             'documents.*.data_url' => 'required_with:documents|string',
         ]);
+
+        if ($error = $this->validateAttachmentPayload($request)) {
+            return response()->json(['blocked' => false, 'error' => $error], 422);
+        }
 
         // Chuan hoa: tu day $request->message luon la string (khong null) - cho phep gui
         // chi anh/tai lieu dinh kem ma khong can go chu.
@@ -210,6 +324,54 @@ class ChatMessageController extends Controller
         return null;
     }
 
+    private function validateAttachmentPayload(Request $request): ?string
+    {
+        $images = $request->input('images', []);
+        $documents = $request->input('documents', []);
+
+        if (count($images) + count($documents) > self::MAX_ATTACHMENTS) {
+            return 'Mỗi lượt chat chỉ hỗ trợ tối đa '.self::MAX_ATTACHMENTS.' tệp đính kèm.';
+        }
+
+        $totalBytes = 0;
+        foreach ($images as $image) {
+            if (! is_string($image) || ! preg_match('#^data:image/(png|jpeg|gif|webp);base64,([A-Za-z0-9+/=]+)$#s', $image, $matches)) {
+                return 'Một ảnh đính kèm không hợp lệ. Vui lòng chọn lại ảnh.';
+            }
+
+            $bytes = $this->base64Size($matches[2]);
+            if ($bytes > self::MAX_IMAGE_BYTES) {
+                return 'Mỗi ảnh chỉ được tối đa 4 MB.';
+            }
+            $totalBytes += $bytes;
+        }
+
+        $maxDocumentBytes = KnowledgeService::MAX_FILE_SIZE_KB * 1024;
+        foreach ($documents as $document) {
+            $dataUrl = is_array($document) ? ($document['data_url'] ?? null) : null;
+            if (! is_string($dataUrl) || ! preg_match('#^data:[^;]+;base64,([A-Za-z0-9+/=]+)$#s', $dataUrl, $matches)) {
+                return 'Một tài liệu đính kèm không hợp lệ. Vui lòng chọn lại tệp.';
+            }
+
+            $bytes = $this->base64Size($matches[1]);
+            if ($bytes > $maxDocumentBytes) {
+                return 'Mỗi tài liệu chỉ được tối đa '.KnowledgeService::MAX_FILE_SIZE_KB.' KB.';
+            }
+            $totalBytes += $bytes;
+        }
+
+        if ($totalBytes > self::MAX_TOTAL_ATTACHMENT_BYTES) {
+            return 'Tổng dung lượng tệp trong một lượt chat chỉ được tối đa 15 MB.';
+        }
+
+        return null;
+    }
+
+    private function base64Size(string $base64): int
+    {
+        return (int) floor(strlen($base64) * 3 / 4) - substr_count(substr($base64, -2), '=');
+    }
+
     /**
      * Chuẩn bị conversation + history + system prompt — logic dùng chung cho store() và stream().
      *
@@ -237,10 +399,12 @@ class ChatMessageController extends Controller
         $conversation = $request->conversation_id
             ? Conversation::whereKey((int) $request->conversation_id)
                 ->where('user_id', $user->id)
+                ->where('type', Conversation::TYPE_CHAT)
                 ->firstOrFail()
             : Conversation::create([
                 'user_id' => $user->id,
                 'title' => now()->format('Y.m.d H:i').' · '.Str::limit($request->message, 40),
+                'type' => Conversation::TYPE_CHAT,
             ]);
 
         if ($request->agent_id && $conversation->agent_id === null) {
@@ -428,6 +592,58 @@ class ChatMessageController extends Controller
         return Storage::disk('chat-attachments')->response($path);
     }
 
+    /** Download one generated image as a PNG. */
+    public function downloadImage(Request $request, Message $message)
+    {
+        $conversation = $message->conversation;
+        abort_unless($conversation && $conversation->type === Conversation::TYPE_IMAGE, 404);
+        $this->ensureOwnsConversation($request, $conversation);
+
+        $filename = $this->imageFilenameFromMessage($message);
+        abort_unless($filename, 404);
+        $path = $conversation->id.'/'.$filename;
+        abort_unless(Storage::disk('chat-attachments')->exists($path), 404);
+
+        return Storage::disk('chat-attachments')->download($path, 'ai-plus-image-'.$message->id.'.png', ['Content-Type' => 'image/png']);
+    }
+
+    /** Remove one generated image, its prompt, and its visible activity entry. */
+    public function destroyImage(Request $request, Message $message): JsonResponse
+    {
+        $conversation = $message->conversation;
+        abort_unless($conversation && $conversation->type === Conversation::TYPE_IMAGE && $message->role === 'assistant', 404);
+        $this->ensureOwnsConversation($request, $conversation);
+
+        $filename = $this->imageFilenameFromMessage($message);
+        $promptMessage = $conversation->messages()->where('role', 'user')->where('id', '<', $message->id)->latest('id')->first();
+        $prompt = $promptMessage ? preg_replace('/^(🎨 Generate image|🖼️ Edit image):\s*/u', '', $promptMessage->content) : '';
+
+        if ($filename) {
+            Storage::disk('chat-attachments')->delete($conversation->id.'/'.$filename);
+        }
+        $message->delete();
+        $promptMessage?->delete();
+
+        if ($prompt !== '') {
+            UsageLog::query()
+                ->where('user_id', $conversation->user_id)
+                ->where('related_conversation_id', $conversation->id)
+                ->whereIn('activity_title', [
+                    'Image: '.Str::limit($prompt, 92),
+                    'Image edit: '.Str::limit($prompt, 92),
+                ])
+                ->update(['hidden_at' => now(), 'related_conversation_id' => null]);
+        }
+
+        if (! $conversation->messages()->exists()) {
+            $conversation->delete();
+        } else {
+            $conversation->touch();
+        }
+
+        return response()->json(['ok' => true, 'conversation_deleted' => ! $conversation->exists]);
+    }
+
     /**
      * Trich van ban tu cac tai lieu (khong phai anh) dinh kem trong o chat - gui kem message
      * duoi dang data URL base64 (giong co che anh), nhung KHONG luu file goc lai, chi lay text
@@ -517,6 +733,7 @@ class ChatMessageController extends Controller
         $this->ensureOwnsConversation($request, $conversation);
         // Keep token accounting intact, but remove the deleted chat from My Usage activity.
         $conversation->usageLogs()->update(['hidden_at' => now()]);
+        Storage::disk('chat-attachments')->deleteDirectory((string) $conversation->id);
         $conversation->delete();
 
         return response()->json(['ok' => true]);
@@ -525,6 +742,79 @@ class ChatMessageController extends Controller
     private function ensureOwnsConversation(Request $request, Conversation $conversation): void
     {
         abort_unless($conversation->user_id === $request->user()?->id, 403);
+    }
+
+    private function imageFilenameFromMessage(Message $message): ?string
+    {
+        return preg_match('#/attachments/\d+/([A-Za-z0-9_.-]+)#', $message->content, $matches)
+            ? $matches[1]
+            : null;
+    }
+
+    /**
+     * @param  array<int, string>  $references
+     * @return array<int, array{bytes: string, name: string, mime: string}>|null
+     */
+    private function decodeImageReferences(array $references): ?array
+    {
+        $decoded = [];
+        $allowed = ['png' => 'image/png', 'jpeg' => 'image/jpeg', 'webp' => 'image/webp'];
+
+        foreach ($references as $index => $dataUrl) {
+            if (! preg_match('#^data:(image/(png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$#s', $dataUrl, $matches)) {
+                return null;
+            }
+            $bytes = base64_decode($matches[3], true);
+            if ($bytes === false || $bytes === '' || strlen($bytes) > self::MAX_IMAGE_BYTES) {
+                return null;
+            }
+            $extension = $matches[2];
+            $decoded[] = [
+                'bytes' => $bytes,
+                'name' => 'reference-'.($index + 1).'.'.$extension,
+                'mime' => $allowed[$extension],
+            ];
+        }
+
+        return $decoded;
+    }
+
+    /** @return array{bytes: string, name: string, mime: string}|null */
+    private function referenceFromGeneratedImage(Message $message): ?array
+    {
+        $filename = $this->imageFilenameFromMessage($message);
+        if (! $filename || ! $message->conversation) {
+            return null;
+        }
+        $path = $message->conversation->id.'/'.$filename;
+        if (! Storage::disk('chat-attachments')->exists($path)) {
+            return null;
+        }
+        $bytes = Storage::disk('chat-attachments')->get($path);
+
+        return $bytes !== '' ? ['bytes' => $bytes, 'name' => 'previous-version.png', 'mime' => 'image/png'] : null;
+    }
+
+    private function resolveImageModel(?string $requestedModel, bool $needsEditing): ?string
+    {
+        $allowed = [
+            ImageGenerationService::MODEL_FLARE => AppSetting::boolean('ai_plus_image_flare_enabled', true),
+            ImageGenerationService::MODEL_SUNBURST => AppSetting::boolean('ai_plus_image_sunburst_enabled', true),
+        ];
+        $default = AppSetting::query()->where('key', 'ai_plus_image_default_model')->value('value')
+            ?: ImageGenerationService::MODEL_FLARE;
+        $model = $requestedModel ?: $default;
+
+        if (! isset($allowed[$model]) || ! $allowed[$model]) {
+            return null;
+        }
+        if ($needsEditing && $model !== ImageGenerationService::MODEL_SUNBURST) {
+            return $allowed[ImageGenerationService::MODEL_SUNBURST]
+                ? ImageGenerationService::MODEL_SUNBURST
+                : null;
+        }
+
+        return $model;
     }
 
     private function tokenQuotaExceededResponse(): JsonResponse
@@ -543,9 +833,12 @@ class ChatMessageController extends Controller
         $result = ['artifacts' => [], 'email_draft' => null];
         if ($type && (str_contains($text, 'tạo') || str_contains($text, 'xuất') || str_contains($text, 'file'))) {
             $artifact = $artifacts->generate($user, $conversation, $type, $content);
-            $result['artifacts'][] = ['name'=>$artifact->name, 'url'=>route('ai-plus.artifacts.download',$artifact)];
+            $result['artifacts'][] = ['name' => $artifact->name, 'url' => route('ai-plus.artifacts.download', $artifact)];
         }
-        if (str_contains($text, 'email nháp') || str_contains($text, 'soạn email')) $result['email_draft'] = $drafts->create($user, $conversation, $content)->only(['id','subject','body']);
+        if (str_contains($text, 'email nháp') || str_contains($text, 'soạn email')) {
+            $result['email_draft'] = $drafts->create($user, $conversation, $content)->only(['id', 'subject', 'body']);
+        }
+
         return $result;
     }
 

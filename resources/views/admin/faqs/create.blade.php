@@ -1,19 +1,22 @@
 @extends('layouts.admin')
 
 @section('page-title', 'Create FAQ')
-@section('page-desc', 'Thêm câu hỏi thường gặp mới')
+@section('page-desc', 'Add a new frequently asked question')
 
 @section('content')
 <form action="{{ route('admin.faqs.store') }}" method="POST" class="table-section" style="max-width:800px;">
     @csrf
     <div style="padding:24px;display:flex;flex-direction:column;gap:20px;">
+        @include('admin.partials.validation-summary')
         <div class="form-group">
             <label>Question <span class="text-danger">*</span></label>
             <input type="text" name="question" class="form-input" placeholder="FAQ question" required value="{{ old('question') }}" maxlength="500">
+            @include('admin.partials.field-error', ['field' => 'question'])
         </div>
         <div class="form-group">
             <label>Answer <span class="text-danger">*</span></label>
             <textarea name="answer" class="form-textarea" placeholder="FAQ answer" required rows="8">{{ old('answer') }}</textarea>
+            @include('admin.partials.field-error', ['field' => 'answer'])
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
             <div class="form-group">
@@ -28,10 +31,12 @@
                     <option value="billing" {{ old('category') == 'billing' ? 'selected' : '' }}>Billing</option>
                     <option value="account" {{ old('category') == 'account' ? 'selected' : '' }}>Account</option>
                 </select>
+                @include('admin.partials.field-error', ['field' => 'category'])
             </div>
             <div class="form-group">
                 <label>Sort Order</label>
                 <input type="number" name="sort_order" class="form-input" placeholder="0" min="0" value="{{ old('sort_order', 0) }}">
+                @include('admin.partials.field-error', ['field' => 'sort_order'])
             </div>
         </div>
         <div class="form-group">

@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('page-title', 'Dashboard')
-@section('page-desc', 'Tổng quan hệ thống AI+ Admin')
+@section('page-desc', 'AI+ administration overview')
 
 @section('content')
 <div class="stats-grid">

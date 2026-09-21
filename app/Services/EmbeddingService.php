@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class EmbeddingService
 {
@@ -12,32 +14,7 @@ class EmbeddingService
      */
     public function embed(string $text): array
     {
-        $apiKey = config('openai.api_key');
-
-        if (! $apiKey) {
-            return $this->mockEmbedding($text);
-        }
-
-        $response = Http::baseUrl(config('openai.base_url'))
-            ->timeout(30)
-            ->connectTimeout(5)
-            ->withToken($apiKey)
-            ->asJson()
-            ->post('/embeddings', [
-                'model' => config('openai.embedding_model'),
-                'input' => $text,
-            ]);
-
-        if (! $response->successful()) {
-            Log::warning('Embedding API failed', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-
-            return [];
-        }
-
-        return $response->json('data.0.embedding') ?? [];
+        return $this->embedBatch([$text])[0] ?? [];
     }
 
     /**
@@ -52,26 +29,36 @@ class EmbeddingService
             return [];
         }
 
-        $apiKey = config('openai.api_key');
-
-        if (! $apiKey) {
-            return array_map(fn (string $t) => $this->mockEmbedding($t), $texts);
+        if (! config('openai.rag_embeddings_enabled') || ! config('openai.api_key')) {
+            return [];
         }
 
-        $response = Http::baseUrl(config('openai.base_url'))
-            ->timeout(60)
-            ->connectTimeout(5)
-            ->withToken($apiKey)
-            ->asJson()
-            ->post('/embeddings', [
-                'model' => config('openai.embedding_model'),
-                'input' => array_values($texts),
+        try {
+            $response = Http::retry(
+                (int) config('openai.retry_times'),
+                (int) config('openai.retry_delay_ms'),
+                fn (Throwable $exception): bool => $exception instanceof ConnectionException,
+            )
+                ->baseUrl(config('openai.base_url'))
+                ->timeout(60)
+                ->connectTimeout(5)
+                ->withToken(config('openai.api_key'))
+                ->asJson()
+                ->post('/embeddings', [
+                    'model' => config('openai.embedding_model'),
+                    'input' => array_values($texts),
+                ]);
+        } catch (Throwable $exception) {
+            Log::warning('Embedding API connection failed; using keyword RAG.', [
+                'exception' => $exception::class,
             ]);
 
+            return [];
+        }
+
         if (! $response->successful()) {
-            Log::warning('Embedding API batch failed', [
+            Log::warning('Embedding API request failed; using keyword RAG.', [
                 'status' => $response->status(),
-                'body' => $response->body(),
             ]);
 
             return [];
@@ -105,23 +92,5 @@ class EmbeddingService
         }
 
         return $dot / (sqrt($normA) * sqrt($normB));
-    }
-
-    /**
-     * Vector giả — CHỈ dùng khi chưa cấu hình API key (mock/dev).
-     *
-     * @return array<int, float>
-     */
-    private function mockEmbedding(string $text): array
-    {
-        $hash = md5($text);
-        $vector = [];
-
-        for ($i = 0; $i < 32; $i++) {
-            $pair = substr($hash, ($i * 2) % 32, 2);
-            $vector[] = (hexdec($pair) / 255.0) - 0.5;
-        }
-
-        return $vector;
     }
 }

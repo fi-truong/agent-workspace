@@ -25,17 +25,12 @@
       <div class="stat-card">
         <div class="stat-value">{{ $stats['prompts'] }}</div>
         <div class="stat-label">Prompts Sent</div>
-        <div class="stat-change up">↑ 23% vs last week</div>
+        <div class="stat-change {{ $stats['promptsChange']['direction'] }}">{{ $stats['promptsChange']['label'] }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ $stats['tokens'] }}</div>
         <div class="stat-label">Tokens Used</div>
-        <div class="stat-change up">↑ 18% vs last week</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ $stats['timeSaved'] }}</div>
-        <div class="stat-label">Time Saved</div>
-        <div class="stat-change up">Estimated</div>
+        <div class="stat-change {{ $stats['tokensChange']['direction'] }}">{{ $stats['tokensChange']['label'] }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ $stats['agentsCreated'] }}</div>
@@ -131,12 +126,13 @@
   .date-btn:hover{background: var(--surface);}
   .date-btn.active{background: var(--gold);color: var(--navy-deep);border-color: var(--gold);}
 
-  .stats-grid{display:grid;grid-template-columns: repeat(4, 1fr);gap:16px;margin-top:24px;}
+  .stats-grid{display:grid;grid-template-columns: repeat(3, 1fr);gap:16px;margin-top:24px;}
   .stat-card{background: var(--surface);border:1px solid var(--surface-border);border-radius:12px;padding:20px;text-align:center;}
   .stat-value{font-family:'Fraunces', serif;font-size:36px;font-weight:600;color: var(--gold-light);}
   .stat-label{font-size:12px;color: var(--text-soft);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px;}
   .stat-change{font-size:12px;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:4px;}
   .stat-change.up{color: var(--success);}
+  .stat-change.down{color: var(--danger);}.stat-change.neutral{color:var(--text-soft);}
 
   .content{padding:32px 0 48px;}
 
