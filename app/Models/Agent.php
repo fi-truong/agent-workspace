@@ -16,13 +16,14 @@ use Illuminate\Support\Carbon;
  * @property string|null $system_prompt
  * @property string|null $knowledge
  * @property bool $is_shared
+ * @property string $sharing_access
  * @property-read User|null $user
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
 class Agent extends Model
 {
-    protected $fillable = ['user_id', 'title', 'description', 'system_prompt', 'knowledge', 'is_shared', 'shared_with_team_id'];
+    protected $fillable = ['user_id', 'title', 'description', 'system_prompt', 'knowledge', 'is_shared', 'sharing_access', 'shared_with_team_id'];
 
     protected $casts = [
         'is_shared' => 'boolean',

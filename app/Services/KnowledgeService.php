@@ -115,6 +115,48 @@ class KnowledgeService
         KnowledgeChunk::where('agent_id', $agentId)->delete();
     }
 
+    /** Copy explicitly shared Knowledge files into a recipient-owned Agent and index its RAG context. */
+    public function copySharedKnowledge(Agent $source, Agent $recipient): void
+    {
+        if ($source->sharing_access !== 'copy' || $source->knowledge_files === []) {
+            return;
+        }
+
+        $disk = Storage::disk('knowledge');
+        $copied = [];
+
+        foreach ($source->knowledge_files as $file) {
+            $sourcePath = $file['path'] ?? '';
+            if ($sourcePath === '' || ! $disk->exists($sourcePath)) {
+                continue;
+            }
+
+            $extension = pathinfo($sourcePath, PATHINFO_EXTENSION);
+            $destinationPath = $recipient->user_id.'/'.$recipient->id.'/'.Str::uuid().($extension !== '' ? '.'.$extension : '');
+            if (! $disk->copy($sourcePath, $destinationPath)) {
+                Log::warning('Failed to copy shared knowledge file', [
+                    'source_agent_id' => $source->id,
+                    'recipient_agent_id' => $recipient->id,
+                    'path' => $sourcePath,
+                ]);
+
+                continue;
+            }
+
+            $copied[] = [
+                'path' => $destinationPath,
+                'original_name' => $file['original_name'] ?? basename($sourcePath),
+            ];
+        }
+
+        if ($copied === []) {
+            return;
+        }
+
+        $recipient->update(['knowledge' => json_encode($copied)]);
+        $this->indexAgent($recipient->fresh());
+    }
+
     /**
      * RAG — index toàn bộ Knowledge của agent: xoá chunk cũ, đọc lại file, cắt nhỏ + embed + lưu.
      * Gọi lại mỗi khi file Knowledge thay đổi.

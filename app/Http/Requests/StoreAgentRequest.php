@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Services\KnowledgeService;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreAgentRequest extends FormRequest
 {
@@ -22,6 +23,7 @@ class StoreAgentRequest extends FormRequest
             'description' => 'nullable|string',
             'system_prompt' => 'nullable|string',
             'is_shared' => 'nullable|boolean',
+            'sharing_access' => [Rule::requiredIf(fn (): bool => $this->boolean('is_shared')), 'nullable', 'in:use_only,copy'],
             ...KnowledgeService::validationRules(),
         ];
     }

@@ -876,6 +876,6 @@ class ChatMessageController extends Controller
 
     private function canViewAgent(User $user, Agent $agent): bool
     {
-        return $user->can('view', $agent);
+        return $user->id === $agent->user_id || $agent->is_shared;
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AppSetting;
+use App\Models\Agent;
 use App\Services\TokenQuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,6 +29,7 @@ class AgentWorkspaceController extends Controller
         $activeConversationTitle = null;
         $activeConversationId = $request->query('conversation_id');
         $selectedAgentId = null;
+        $selectedAgentName = null;
 
         if ($user) {
             $conversations = $user->conversations()->where('type', \App\Models\Conversation::TYPE_CHAT)->latest('updated_at')->get()->map(fn ($c) => [
@@ -49,7 +51,12 @@ class AgentWorkspaceController extends Controller
             $userInitials = $user->initials;
 
             if ($request->filled('agent_id')) {
-                $selectedAgentId = $user->agents()->whereKey($request->integer('agent_id'))->value('id');
+                $selectedAgent = Agent::query()
+                    ->whereKey($request->integer('agent_id'))
+                    ->where(fn ($query) => $query->where('user_id', $user->id)->orWhere('is_shared', true))
+                    ->first(['id', 'title']);
+                $selectedAgentId = $selectedAgent?->id;
+                $selectedAgentName = $selectedAgent?->title;
             }
 
             // Load history khi mở lại conversation cũ
@@ -89,6 +96,7 @@ class AgentWorkspaceController extends Controller
             'initialMessages' => $initialMessages,
             'activeConversationId' => $activeConversationId,
             'selectedAgentId' => $selectedAgentId,
+            'selectedAgentName' => $selectedAgentName,
             'recentArtifacts' => $recentArtifacts ?? collect(),
             'recentEmailDrafts' => $recentEmailDrafts ?? collect(),
             'imageGenerationEnabled' => AppSetting::boolean('ai_plus_image_generation_enabled'),

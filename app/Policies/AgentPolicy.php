@@ -9,7 +9,7 @@ class AgentPolicy
 {
     public function view(User $user, Agent $agent): bool
     {
-        return $user->id === $agent->user_id || $agent->is_shared;
+        return $user->id === $agent->user_id;
     }
 
     public function create(User $user): bool

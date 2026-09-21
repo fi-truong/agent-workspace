@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ShowcasePost;
 use App\Models\ShowcaseComment;
+use App\Services\KnowledgeService;
 use Illuminate\Http\Request;
 
 class SharingShowcaseController extends Controller
@@ -189,10 +190,9 @@ class SharingShowcaseController extends Controller
             ->withFragment('comments');
     }
 
-    public function use(Request $request, ShowcasePost $showcase)
+    public function use(Request $request, ShowcasePost $showcase, KnowledgeService $knowledgeService)
     {
         abort_if($showcase->status !== 'published', 404);
-        $showcase->increment('uses_count');
         $showcase->load('sourceAgent');
 
         if (! $showcase->sourceAgent?->is_shared) {
@@ -200,12 +200,20 @@ class SharingShowcaseController extends Controller
         }
 
         $source = $showcase->sourceAgent;
+        $showcase->increment('uses_count');
+
+        if ($source->sharing_access !== 'copy') {
+            return redirect()->route('ai-plus.agent-workspace.index', ['agent_id' => $source->id])
+                ->with('success', 'You can now use this shared agent.');
+        }
+
         $agent = $request->user()->agents()->create([
             'title' => $source->title,
             'description' => $source->description,
             'system_prompt' => $source->system_prompt,
             'is_shared' => false,
         ]);
+        $knowledgeService->copySharedKnowledge($source, $agent);
 
         return redirect()->route('ai-plus.agent-workspace.index', ['agent_id' => $agent->id]);
     }

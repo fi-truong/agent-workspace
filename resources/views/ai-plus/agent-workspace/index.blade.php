@@ -10,6 +10,7 @@
   window.__INITIAL_MESSAGES__ = @json($initialMessages);
   window.__MY_AGENTS__ = @json($myAgents);
   window.__SELECTED_AGENT_ID__ = @json($selectedAgentId);
+  window.__SELECTED_AGENT_NAME__ = @json($selectedAgentName);
 </script>
   <!-- Sidebar -->
   <aside class="sidebar">

@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const descInput = document.getElementById('description');
   const promptInput = document.getElementById('system_prompt');
   const sharedInput = document.getElementById('is_shared');
+  const sharingAccessGroup = document.getElementById('sharing-access-group');
+  const sharingAccessInputs = document.querySelectorAll('input[name="sharing_access"]');
 
   if (!modal || !form) return;
 
@@ -231,13 +233,24 @@ document.addEventListener('DOMContentLoaded', function () {
       if (descInput) descInput.value = agent.description || '';
       if (promptInput) promptInput.value = agent.system_prompt || '';
       if (sharedInput) sharedInput.checked = !!agent.is_shared;
+      const access = agent.sharing_access === 'copy' ? 'copy' : 'use_only';
+      sharingAccessInputs.forEach((input) => { input.checked = input.value === access; });
       renderSavedFiles(agent.knowledge_files || []);
     } else {
       modalTitle.textContent = 'Create Agent';
       formMethod.value = 'POST';
       agentIdInput.value = '';
     }
+    syncSharedKnowledgeControl();
   }
+
+  function syncSharedKnowledgeControl() {
+    const isShared = !!sharedInput?.checked;
+    if (sharingAccessGroup) sharingAccessGroup.hidden = !isShared;
+    sharingAccessInputs.forEach((input) => { input.disabled = !isShared; });
+  }
+
+  sharedInput?.addEventListener('change', syncSharedKnowledgeControl);
 
   function closeModal() {
     modal.style.display = 'none';

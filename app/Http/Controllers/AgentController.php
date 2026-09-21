@@ -65,6 +65,7 @@ class AgentController extends Controller
             'description' => $request->input('description'),
             'system_prompt' => $request->input('system_prompt'),
             'is_shared' => $request->boolean('is_shared'),
+            'sharing_access' => $request->boolean('is_shared') ? $request->input('sharing_access') : 'use_only',
             'shared_with_team_id' => null,
         ]);
 
@@ -105,6 +106,7 @@ class AgentController extends Controller
             'description' => $request->input('description'),
             'system_prompt' => $request->input('system_prompt'),
             'is_shared' => $request->boolean('is_shared'),
+            'sharing_access' => $request->boolean('is_shared') ? $request->input('sharing_access') : 'use_only',
             'shared_with_team_id' => null,
         ]);
 

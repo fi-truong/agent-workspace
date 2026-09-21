@@ -32,7 +32,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (topbarLeft.querySelector('.active-agent-badge')) return;
 
     if (!selectedAgentId) return;
-    const agent = (window.__MY_AGENTS__ || []).find((a) => String(a.id) === String(selectedAgentId));
+    const agent = (window.__MY_AGENTS__ || []).find((a) => String(a.id) === String(selectedAgentId))
+      || (window.__SELECTED_AGENT_NAME__ ? {title: window.__SELECTED_AGENT_NAME__} : null);
     if (!agent) return;
 
     const crumb = document.createElement('div');
@@ -59,7 +60,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let hasAgent = Boolean(crumb.querySelector('.agent-breadcrumb-name'));
     if (!hasAgent && selectedAgentId) {
-      const agent = (window.__MY_AGENTS__ || []).find((a) => String(a.id) === String(selectedAgentId));
+      const agent = (window.__MY_AGENTS__ || []).find((a) => String(a.id) === String(selectedAgentId))
+        || (window.__SELECTED_AGENT_NAME__ ? {title: window.__SELECTED_AGENT_NAME__} : null);
       if (agent) {
         const agentName = document.createElement('span');
         agentName.className = 'agent-breadcrumb-name';

@@ -40,6 +40,11 @@
         <input type="checkbox" id="is_shared" name="is_shared" value="1">
         <label for="is_shared">Share with school (publish to Sharing &amp; Showcase)</label>
       </div>
+      <fieldset class="form-group" id="sharing-access-group" hidden>
+        <legend>Sharing access <span class="required">*</span></legend>
+        <label class="radio-option"><input type="radio" name="sharing_access" value="use_only" checked> Use-only <span class="form-hint">(recommended — people can chat with the agent but cannot see or copy its setup)</span></label>
+        <label class="radio-option"><input type="radio" name="sharing_access" value="copy"> Allow users to copy and edit <span class="form-hint">(copies the full agent, including Knowledge files)</span></label>
+      </fieldset>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
         <button type="submit" class="btn btn-primary" id="modal-submit">Save</button>
