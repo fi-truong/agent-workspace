@@ -8,7 +8,9 @@ use App\Models\AdminAuditLog;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketReply;
 use App\Models\User;
+use App\Services\PiiFilterService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -107,22 +109,32 @@ class TicketController extends Controller
         return back()->with('success', 'Ticket assigned.');
     }
 
-    public function storeNote(Request $request, SupportTicket $ticket)
+    public function storeNote(Request $request, SupportTicket $ticket, PiiFilterService $piiFilter)
     {
-        $request->validate(['admin_notes' => 'required|string']);
+        $validated = $request->validate(['admin_notes' => 'required|string']);
+        if ($piiFilter->scan($validated['admin_notes'])['flagged']) {
+            throw ValidationException::withMessages([
+                'admin_notes' => 'Admin notes cannot contain sensitive personal information. Please remove it and try again.',
+            ]);
+        }
 
-        $ticket->update(['admin_notes' => $request->admin_notes]);
+        $ticket->update(['admin_notes' => $validated['admin_notes']]);
         AdminAuditLog::record('ticket.note_saved', $ticket);
 
         return back()->with('success', 'Admin note saved.');
     }
 
-    public function reply(Request $request, SupportTicket $ticket)
+    public function reply(Request $request, SupportTicket $ticket, PiiFilterService $piiFilter)
     {
         $validated = $request->validate([
             'body' => 'required|string|min:3|max:5000',
             'resolve' => 'nullable|boolean',
         ]);
+        if ($piiFilter->scan($validated['body'])['flagged']) {
+            throw ValidationException::withMessages([
+                'body' => 'Support messages cannot contain sensitive personal information. Please remove it and try again.',
+            ]);
+        }
 
         $reply = SupportTicketReply::create([
             'support_ticket_id' => $ticket->id,

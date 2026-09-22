@@ -138,6 +138,7 @@
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 </div>
 
+<script src="{{ asset('js/web-dialogs.js') }}?v={{ filemtime(public_path('js/web-dialogs.js')) }}"></script>
 @stack('scripts')
 <script>
 // Sidebar toggle for mobile

@@ -17,6 +17,7 @@ use App\Services\PiiFilterService;
 use App\Services\TokenQuotaService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -407,9 +408,27 @@ class ChatMessageController extends Controller
                 'type' => Conversation::TYPE_CHAT,
             ]);
 
+        // A Use-only conversation points to the owner's source agent. If that owner
+        // later unshares it, revoke access before any prompt or Knowledge can be used.
+        if ($conversation->agent_id !== null) {
+            $linkedAgent = $conversation->agent;
+            if ($linkedAgent && ($accessError = $this->agentAccessError($user, $linkedAgent)) !== null) {
+                $conversation->update(['agent_id' => null]);
+
+                throw new HttpResponseException($accessError);
+            }
+        }
+
         if ($request->agent_id && $conversation->agent_id === null) {
             /** @var Agent|null $agent */
             $agent = Agent::find($request->agent_id);
+            if ($agent && ($accessError = $this->agentAccessError($user, $agent)) !== null) {
+                if ($createdNew && ! $conversation->messages()->exists()) {
+                    $conversation->delete();
+                }
+
+                throw new HttpResponseException($accessError);
+            }
             $canView = $agent && $this->canViewAgent($user, $agent);
 
             if ($canView) {
@@ -877,5 +896,24 @@ class ChatMessageController extends Controller
     private function canViewAgent(User $user, Agent $agent): bool
     {
         return $user->id === $agent->user_id || $agent->is_shared;
+    }
+
+    private function agentAccessError(User $user, Agent $agent): ?JsonResponse
+    {
+        if ($user->id === $agent->user_id || ($agent->is_shared && $agent->sharing_access !== 'copy')) {
+            return null;
+        }
+
+        if ($agent->is_shared) {
+            return response()->json([
+                'error' => 'You do not own this agent. Find it in Sharing & Showcase and use Copy and edit to add it to your workspace.',
+                'agent_copy_required' => true,
+            ], 403);
+        }
+
+        return response()->json([
+            'error' => 'This shared agent is no longer available.',
+            'agent_unavailable' => true,
+        ], 410);
     }
 }

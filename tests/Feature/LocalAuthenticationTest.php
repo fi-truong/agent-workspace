@@ -39,6 +39,17 @@ test('inactive users and invalid credentials cannot sign in through local login'
     $this->assertGuest();
 });
 
+test('an active session is ended immediately when an administrator deactivates the account', function () {
+    $user = User::factory()->create(['is_active' => false]);
+
+    $this->actingAs($user)
+        ->get(route('ai-plus.index'))
+        ->assertRedirect(route('login.local.form'))
+        ->assertSessionHas('status', 'Your account has been deactivated. Please contact an administrator.');
+
+    $this->assertGuest();
+});
+
 test('an authenticated user can change their local password', function () {
     $user = User::factory()->create(['password' => Hash::make('old-password')]);
 

@@ -11,6 +11,7 @@
   window.__MY_AGENTS__ = @json($myAgents);
   window.__SELECTED_AGENT_ID__ = @json($selectedAgentId);
   window.__SELECTED_AGENT_NAME__ = @json($selectedAgentName);
+  window.__AGENT_ACCESS_MESSAGE__ = @json($agentAccessMessage);
 </script>
   <!-- Sidebar -->
   <aside class="sidebar">
@@ -279,6 +280,7 @@
   .image-generate-btn:disabled{opacity:.55;cursor:wait;}
   .send-btn{padding:8px 16px;background: var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition: background 0.15s;}
   .send-btn:hover{background: var(--navy-light);}
+  .send-btn:disabled{opacity:.6;cursor:wait;}
   .input-hint{text-align:center;margin-top:10px;font-size:12px;color: var(--text-soft);}
   #chat-image-preview img{max-width:100%;}
   /* Markdown trong bubble AI */

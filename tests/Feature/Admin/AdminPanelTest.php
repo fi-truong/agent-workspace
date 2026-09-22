@@ -26,7 +26,9 @@ test('inactive administrators cannot access admin routes', function () {
 
     $this->actingAs($user)
         ->get(route('admin.dashboard'))
-        ->assertForbidden();
+        ->assertRedirect(route('login.local.form'));
+
+    $this->assertGuest();
 });
 
 test('administrators can access the dashboard', function () {

@@ -108,7 +108,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function deleteImage(card, messageId, button) {
-    if (!messageId || !window.confirm('Delete this generated image? This cannot be undone.')) return;
+    if (!messageId || !await WebUI.confirm('This cannot be undone.', {
+      title: 'Delete generated image', confirmText: 'Delete image', danger: true,
+    })) return;
     button.disabled = true;
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     try {
@@ -122,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.conversation_deleted) window.location.assign('/ai-plus/agent-workspace/images');
     } catch (_) {
       button.disabled = false;
-      window.alert('This image could not be deleted. Please try again.');
+      await WebUI.notice('This image could not be deleted. Please try again.', { title: 'Could not delete image' });
     }
   }
 
@@ -153,28 +155,25 @@ document.addEventListener('DOMContentLoaded', () => {
     promptInput.focus();
   });
 
-  function confirmDeleteSession() {
-    return new Promise((resolve) => {
-      const overlay = document.createElement('div');
-      overlay.className = 'image-delete-modal';
-      overlay.innerHTML = '<div><h2>Delete image session?</h2><p>All generated images in this session will be removed. Token usage remains in your monthly total.</p><footer><button type="button" data-cancel>Cancel</button><button type="button" data-confirm>Delete session</button></footer></div>';
-      overlay.querySelector('[data-cancel]').addEventListener('click', () => { overlay.remove(); resolve(false); });
-      overlay.querySelector('[data-confirm]').addEventListener('click', () => { overlay.remove(); resolve(true); });
-      document.body.append(overlay);
-    });
-  }
-
   document.querySelectorAll('.image-session-delete').forEach((button) => {
     button.addEventListener('click', async (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (!await confirmDeleteSession()) return;
+      if (!await WebUI.confirm('All generated images in this session will be removed. Token usage remains in your monthly total.', {
+        title: 'Delete image session', confirmText: 'Delete session', danger: true,
+      })) return;
       const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-      const response = await fetch(`/ai-plus/agent-workspace/conversations/${button.dataset.conversationId}`, {
-        method: 'DELETE', headers: {'X-CSRF-TOKEN': csrf, Accept: 'application/json'},
-      });
-      if (response.ok) window.location.assign('/ai-plus/agent-workspace/images');
-      else window.alert('This image session could not be deleted. Please try again.');
+      button.disabled = true;
+      try {
+        const response = await fetch(`/ai-plus/agent-workspace/conversations/${button.dataset.conversationId}`, {
+          method: 'DELETE', headers: {'X-CSRF-TOKEN': csrf, Accept: 'application/json'},
+        });
+        if (!response.ok) throw new Error('This image session could not be deleted. Please try again.');
+        window.location.assign('/ai-plus/agent-workspace/images');
+      } catch (error) {
+        button.disabled = false;
+        await WebUI.notice(error.message || 'We could not reach the server. Please try again.', { title: 'Could not delete session' });
+      }
     });
   });
 
@@ -219,15 +218,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function addReferenceImage(file) {
     if (!file) return;
     if (![...(modelSelect?.options || [])].some((option) => option.dataset.supportsEdits === 'true')) {
-      window.alert('Image editing is not currently enabled by the administrator.');
+      WebUI.notice('Image editing is not currently enabled by the administrator.', { title: 'Image editing unavailable' });
       return;
     }
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > MAX_REFERENCE_BYTES) {
-      window.alert('Reference images must be PNG, JPEG, or WebP files up to 4 MB.');
+      WebUI.notice('Reference images must be PNG, JPEG, or WebP files up to 4 MB.', { title: 'Unsupported reference image' });
       return;
     }
     if (referenceImages.length >= MAX_REFERENCE_IMAGES) {
-      window.alert(`You can add up to ${MAX_REFERENCE_IMAGES} reference images.`);
+      WebUI.notice(`You can add up to ${MAX_REFERENCE_IMAGES} reference images.`, { title: 'Reference image limit' });
       return;
     }
     const reader = new FileReader();
@@ -259,6 +258,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     submit.disabled = true;
+    submit.setAttribute('aria-busy', 'true');
+    form.setAttribute('aria-busy', 'true');
+    if (referenceTrigger) referenceTrigger.disabled = true;
+    if (modelSelect) modelSelect.disabled = true;
     submit.textContent = 'Generating…';
     const progress = document.createElement('div');
     progress.className = 'image-generating';
@@ -281,10 +284,14 @@ document.addEventListener('DOMContentLoaded', () => {
       renderReferencePreviews();
       window.history.replaceState({}, '', `/ai-plus/agent-workspace/images?conversation_id=${conversationId}`);
     } catch (error) {
-      window.alert(error.message || 'Image generation failed. Please try again.');
+      await WebUI.notice(error.message || 'Image generation failed. Please try again.', { title: 'Could not generate image' });
     } finally {
       progress.remove();
       submit.disabled = false;
+      submit.removeAttribute('aria-busy');
+      form.removeAttribute('aria-busy');
+      if (referenceTrigger) referenceTrigger.disabled = false;
+      syncModelForReferences();
       submit.innerHTML = 'Generate image <span>→</span>';
     }
   });

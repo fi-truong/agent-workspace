@@ -30,7 +30,7 @@
             $showcase->published_at?->format('d/m/Y') ?? '—',
             '<div class="action-group">
                 <a href="' . route('admin.showcases.edit', $showcase) . '" class="action-btn">Edit</a>
-                <form action="' . route('admin.showcases.destroy', $showcase) . '" method="POST" style="display:inline" onsubmit="return confirm(\'Delete this showcase?\')">
+                <form action="' . route('admin.showcases.destroy', $showcase) . '" method="POST" style="display:inline" data-web-confirm="Delete this showcase? This cannot be undone." data-web-confirm-title="Delete showcase" data-web-confirm-action="Delete" data-web-confirm-danger="true">
                     ' . $csrf . $method . '
                     <button type="submit" class="action-btn danger">Delete</button>
                 </form>

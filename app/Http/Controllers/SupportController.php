@@ -8,7 +8,9 @@ use App\Mail\SupportTicketReceipt;
 use App\Models\Faq;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketReply;
+use App\Services\PiiFilterService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -57,7 +59,7 @@ class SupportController extends Controller
         return view('ai-plus.support.requests.show', compact('ticket'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, PiiFilterService $piiFilter)
     {
         // Tickets always belong to an authenticated AI+ account. Do not allow a
         // requester to submit a ticket under somebody else's name or email.
@@ -74,6 +76,7 @@ class SupportController extends Controller
             'details' => 'required|string|min:10',
             'priority' => 'nullable|in:low,medium,high',
         ]);
+        $this->rejectSensitiveContent($piiFilter, $validated['subject']."\n".$validated['details'], 'details');
 
         $validated['user_id'] = $request->user()->id;
 
@@ -92,11 +95,12 @@ class SupportController extends Controller
         return back()->with('success', 'Your request has been submitted. We\'ll get back to you within 1-2 business days.');
     }
 
-    public function storeFollowUp(Request $request, SupportTicket $ticket)
+    public function storeFollowUp(Request $request, SupportTicket $ticket, PiiFilterService $piiFilter)
     {
         abort_unless($ticket->user_id === $request->user()->id, 403);
 
         $data = $request->validate(['body' => 'required|string|min:3|max:5000']);
+        $this->rejectSensitiveContent($piiFilter, $data['body'], 'body');
         $reply = SupportTicketReply::create([
             'support_ticket_id' => $ticket->id,
             'author_id' => $request->user()->id,
@@ -151,5 +155,14 @@ class SupportController extends Controller
             ->where(fn ($query) => $query->where('author_id', '!=', $request->user()->id)->orWhereNull('author_id'))
             ->whereHas('ticket', fn ($query) => $query->where('user_id', $request->user()->id))
             ->count();
+    }
+
+    private function rejectSensitiveContent(PiiFilterService $piiFilter, string $content, string $field): void
+    {
+        if ($piiFilter->scan($content)['flagged']) {
+            throw ValidationException::withMessages([
+                $field => 'Support messages cannot contain sensitive personal information. Please remove it and try again.',
+            ]);
+        }
     }
 }

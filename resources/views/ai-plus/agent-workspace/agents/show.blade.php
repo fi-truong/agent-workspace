@@ -181,14 +181,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const ok = await showDeleteConfirm();
     if (!ok) return;
     const agentId = deleteBtn.dataset.agentId;
-    const res = await fetch(`{{ route('ai-plus.agent-workspace.agents.destroy', ':id') }}`.replace(':id', agentId), {
-      method: 'DELETE',
-      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
-    });
-    if (res.ok) {
+    deleteBtn.disabled = true;
+    try {
+      const res = await fetch(`{{ route('ai-plus.agent-workspace.agents.destroy', ':id') }}`.replace(':id', agentId), {
+        method: 'DELETE',
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
+      });
+      if (!res.ok) throw new Error('The agent could not be deleted. Please try again.');
       window.location.href = '{{ route("ai-plus.agent-workspace.agents.index") }}';
-    } else {
-      alert('Failed to delete agent');
+    } catch (error) {
+      deleteBtn.disabled = false;
+      await WebUI.notice(error.message || 'We could not reach the server. Please try again.', { title: 'Could not delete agent' });
     }
   });
 });

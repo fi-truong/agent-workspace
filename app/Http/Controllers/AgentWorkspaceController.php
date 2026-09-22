@@ -30,6 +30,7 @@ class AgentWorkspaceController extends Controller
         $activeConversationId = $request->query('conversation_id');
         $selectedAgentId = null;
         $selectedAgentName = null;
+        $agentAccessMessage = null;
 
         if ($user) {
             $conversations = $user->conversations()->where('type', \App\Models\Conversation::TYPE_CHAT)->latest('updated_at')->get()->map(fn ($c) => [
@@ -51,12 +52,16 @@ class AgentWorkspaceController extends Controller
             $userInitials = $user->initials;
 
             if ($request->filled('agent_id')) {
-                $selectedAgent = Agent::query()
-                    ->whereKey($request->integer('agent_id'))
-                    ->where(fn ($query) => $query->where('user_id', $user->id)->orWhere('is_shared', true))
-                    ->first(['id', 'title']);
-                $selectedAgentId = $selectedAgent?->id;
-                $selectedAgentName = $selectedAgent?->title;
+                $requestedAgent = Agent::find($request->integer('agent_id'), ['id', 'user_id', 'title', 'is_shared', 'sharing_access']);
+                if ($requestedAgent?->user_id === $user->id
+                    || ($requestedAgent?->is_shared && $requestedAgent->sharing_access !== 'copy')) {
+                    $selectedAgentId = $requestedAgent->id;
+                    $selectedAgentName = $requestedAgent->title;
+                } elseif ($requestedAgent?->is_shared) {
+                    $agentAccessMessage = 'You do not own this agent. Find it in Sharing & Showcase and use Copy and edit to add it to your workspace.';
+                } else {
+                    $agentAccessMessage = 'This agent is no longer available.';
+                }
             }
 
             // Load history khi mở lại conversation cũ
@@ -97,6 +102,7 @@ class AgentWorkspaceController extends Controller
             'activeConversationId' => $activeConversationId,
             'selectedAgentId' => $selectedAgentId,
             'selectedAgentName' => $selectedAgentName,
+            'agentAccessMessage' => $agentAccessMessage,
             'recentArtifacts' => $recentArtifacts ?? collect(),
             'recentEmailDrafts' => $recentEmailDrafts ?? collect(),
             'imageGenerationEnabled' => AppSetting::boolean('ai_plus_image_generation_enabled'),

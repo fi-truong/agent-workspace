@@ -137,3 +137,100 @@ test('use-only sharing opens the source agent without copying its setup or knowl
         ->get(route('ai-plus.agent-workspace.agents.show', $source))
         ->assertForbidden();
 });
+
+test('using a use-only agent more than once does not inflate its use count', function () {
+    $owner = User::factory()->create();
+    $recipient = User::factory()->create();
+    $source = Agent::create([
+        'user_id' => $owner->id,
+        'title' => 'Use-only agent',
+        'is_shared' => true,
+        'sharing_access' => 'use_only',
+    ]);
+    $showcase = ShowcasePost::create([
+        'source_agent_id' => $source->id,
+        'author_id' => $owner->id,
+        'department' => 'CIEC',
+        'title' => $source->title,
+        'description' => 'A shared use-only agent.',
+        'status' => 'published',
+    ]);
+
+    $this->actingAs($recipient)
+        ->post(route('ai-plus.sharing-showcase.use', $showcase))
+        ->assertRedirect(route('ai-plus.agent-workspace.index', ['agent_id' => $source->id]));
+
+    $this->actingAs($recipient)
+        ->post(route('ai-plus.sharing-showcase.use', $showcase))
+        ->assertRedirect(route('ai-plus.agent-workspace.index', ['agent_id' => $source->id]))
+        ->assertSessionHas('success', 'You are already using this agent. Continue in Agent Workspace.');
+
+    expect($showcase->fresh()->uses_count)->toBe(1)
+        ->and(\App\Models\ShowcaseUse::count())->toBe(1);
+});
+
+test('copying a shared agent more than once reopens the existing copy', function () {
+    $owner = User::factory()->create();
+    $recipient = User::factory()->create();
+    $source = Agent::create([
+        'user_id' => $owner->id,
+        'title' => 'Copyable agent',
+        'is_shared' => true,
+        'sharing_access' => 'copy',
+    ]);
+    $showcase = ShowcasePost::create([
+        'source_agent_id' => $source->id,
+        'author_id' => $owner->id,
+        'department' => 'CIEC',
+        'title' => $source->title,
+        'description' => 'A shared copyable agent.',
+        'status' => 'published',
+    ]);
+
+    $this->actingAs($recipient)
+        ->post(route('ai-plus.sharing-showcase.use', $showcase))
+        ->assertRedirect();
+
+    $copy = $recipient->agents()->where('copied_from_agent_id', $source->id)->firstOrFail();
+
+    $this->actingAs($recipient)
+        ->post(route('ai-plus.sharing-showcase.use', $showcase))
+        ->assertRedirect(route('ai-plus.agent-workspace.index', ['agent_id' => $copy->id]))
+        ->assertSessionHas('success', 'You have already added this agent. Continue editing it in My Agents.');
+
+    expect($recipient->agents()->where('copied_from_agent_id', $source->id)->count())->toBe(1)
+        ->and($showcase->fresh()->uses_count)->toBe(1);
+});
+
+test('copying a shared agent stops before creating an incomplete Knowledge clone', function () {
+    Storage::fake('knowledge');
+    $owner = User::factory()->create();
+    $recipient = User::factory()->create();
+    $source = Agent::create([
+        'user_id' => $owner->id,
+        'title' => 'Agent with missing shared Knowledge',
+        'is_shared' => true,
+        'sharing_access' => 'copy',
+        'knowledge' => json_encode([[
+            'path' => $owner->id.'/missing-agent/missing.txt',
+            'original_name' => 'missing.txt',
+        ]]),
+    ]);
+    $showcase = ShowcasePost::create([
+        'source_agent_id' => $source->id,
+        'author_id' => $owner->id,
+        'department' => 'CIEC',
+        'title' => $source->title,
+        'description' => 'The source file no longer exists.',
+        'status' => 'published',
+    ]);
+
+    $this->actingAs($recipient)
+        ->from(route('ai-plus.sharing-showcase.show', $showcase))
+        ->post(route('ai-plus.sharing-showcase.use', $showcase))
+        ->assertRedirect(route('ai-plus.sharing-showcase.show', $showcase))
+        ->assertSessionHasErrors('showcase');
+
+    expect($recipient->agents)->toBeEmpty()
+        ->and($showcase->fresh()->uses_count)->toBe(0);
+});

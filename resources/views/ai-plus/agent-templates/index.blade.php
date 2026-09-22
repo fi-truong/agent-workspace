@@ -455,6 +455,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentCategory = '';
   let currentSort = 'new';
   let currentPage = 1;
+  let listLoading = false;
+  let lastSuccessfulListUrl = window.location.href;
 
   // Debounce helper
   function debounce(fn, delay) {
@@ -477,8 +479,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Fetch and update grid
   async function fetchTemplates() {
+    if (listLoading) return;
+    listLoading = true;
+    WebUI.setPageLoading(true, 'Updating templates…');
     const url = buildUrl();
+    try {
     const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+    if (!res.ok) throw new Error();
     const html = await res.text();
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
@@ -509,6 +516,15 @@ document.addEventListener('DOMContentLoaded', () => {
       paginationContainer.remove();
     }
     window.history.replaceState({}, '', url);
+    lastSuccessfulListUrl = url;
+    } catch (_) {
+      WebUI.setPageLoading(false);
+      await WebUI.notice('The template list could not be updated. Check your connection and try again.', { title: 'Could not update templates' });
+      window.location.assign(lastSuccessfulListUrl);
+    } finally {
+      listLoading = false;
+      WebUI.setPageLoading(false);
+    }
   }
 
   // Debounced search
@@ -591,12 +607,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.pagination a').forEach(link => {
       link.addEventListener('click', async (e) => {
         e.preventDefault();
+        if (listLoading) return;
+        listLoading = true;
+        WebUI.setPageLoading(true, 'Loading template page…');
         const url = link.href;
         const urlObj = new URL(url, window.location.origin);
         const pageParam = urlObj.searchParams.get('page');
         if (pageParam) currentPage = parseInt(pageParam, 10);
 
+        try {
         const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+        if (!res.ok) throw new Error();
         const html = await res.text();
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
@@ -627,6 +648,15 @@ document.addEventListener('DOMContentLoaded', () => {
           paginationContainer.remove();
         }
         window.history.replaceState({}, '', url);
+        lastSuccessfulListUrl = url;
+        } catch (_) {
+          WebUI.setPageLoading(false);
+          await WebUI.notice('The template page could not be loaded. Check your connection and try again.', { title: 'Could not load page' });
+          window.location.assign(lastSuccessfulListUrl);
+        } finally {
+          listLoading = false;
+          WebUI.setPageLoading(false);
+        }
       });
     });
   }

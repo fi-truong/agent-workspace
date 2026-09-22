@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $user_id
+ * @property int|null $copied_from_agent_id
  * @property string $title
  * @property string|null $description
  * @property string|null $system_prompt
@@ -23,7 +24,7 @@ use Illuminate\Support\Carbon;
  */
 class Agent extends Model
 {
-    protected $fillable = ['user_id', 'title', 'description', 'system_prompt', 'knowledge', 'is_shared', 'sharing_access', 'shared_with_team_id'];
+    protected $fillable = ['user_id', 'copied_from_agent_id', 'title', 'description', 'system_prompt', 'knowledge', 'is_shared', 'sharing_access', 'shared_with_team_id'];
 
     protected $casts = [
         'is_shared' => 'boolean',
@@ -44,6 +45,11 @@ class Agent extends Model
     public function sharedWithTeam(): BelongsTo
     {
         return $this->belongsTo(Team::class, 'shared_with_team_id');
+    }
+
+    public function copiedFrom(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'copied_from_agent_id');
     }
 
     /**

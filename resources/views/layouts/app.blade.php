@@ -60,6 +60,7 @@
   </footer>
 
   @include('partials.theme-switcher')
+  <script src="{{ asset('js/web-dialogs.js') }}?v={{ filemtime(public_path('js/web-dialogs.js')) }}"></script>
   @stack('scripts')
 </body>
 </html>

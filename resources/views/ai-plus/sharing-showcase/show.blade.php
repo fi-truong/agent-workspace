@@ -46,9 +46,9 @@
         </div>
 
         <div class="post-actions">
-          <form method="POST" action="{{ route('ai-plus.sharing-showcase.use', $post['id']) }}">
+          <form method="POST" action="{{ route('ai-plus.sharing-showcase.use', $post['id']) }}" id="useShowcaseAgentForm">
             @csrf
-            <button class="action-btn use-btn" type="submit"><span>⭐</span> Use This Agent</button>
+            <button class="action-btn use-btn" type="submit" id="useShowcaseAgentButton"><span>⭐</span> Use This Agent</button>
           </form>
           <button class="action-btn share-btn" type="button" id="shareShowcase">
             <span>🔗</span> Share
@@ -65,7 +65,10 @@
             <div class="form-row">
               <div class="comment-avatar">{{ Auth::user()?->initials ?? '?' }}</div>
               <div class="comment-input-wrapper">
-                <textarea name="content" placeholder="Add a comment..." required minlength="3" maxlength="2000"></textarea>
+                <textarea name="content" placeholder="Add a comment..." required minlength="3" maxlength="2000">{{ old('content') }}</textarea>
+                @error('content')
+                <p class="comment-error" role="alert">{{ $message }}</p>
+                @enderror
                 <div class="comment-footer">
                   <span class="char-count"><span id="charCount">0</span>/2000</span>
                   <button type="submit" class="btn-primary comment-submit">Post</button>
@@ -84,7 +87,7 @@
                   <span>{{ $comment->created_at->diffForHumans() }}</span>
                 </div>
                 @if(auth()->id() === $comment->user_id || auth()->user()?->role === 'admin')
-                <form method="POST" action="{{ route('ai-plus.sharing-showcase.comments.destroy', [$post['id'], $comment->id]) }}" class="comment-delete-form" onsubmit="return confirm('Delete this comment?')">
+                <form method="POST" action="{{ route('ai-plus.sharing-showcase.comments.destroy', [$post['id'], $comment->id]) }}" class="comment-delete-form" data-web-confirm="Delete this comment? This cannot be undone." data-web-confirm-title="Delete comment" data-web-confirm-action="Delete" data-web-confirm-danger="true">
                   @csrf
                   @method('DELETE')
                   <button type="submit" class="comment-delete" aria-label="Delete comment">Delete</button>
@@ -285,6 +288,10 @@
   .action-btn.use-btn:hover {
     background: var(--navy-deep);
   }
+  .action-btn:disabled {
+    opacity: .7;
+    cursor: wait;
+  }
 
   .comments-section h2 {
     font-family: 'Fraunces', serif;
@@ -339,6 +346,7 @@
     border-color: var(--navy);
     box-shadow: 0 0 0 3px rgba(31, 56, 100, 0.15);
   }
+  .comment-error { margin:8px 0 0; color:#a33; font-size:13px; line-height:1.4; }
   .comment-footer {
     display: flex;
     justify-content: space-between;
@@ -483,12 +491,21 @@ document.addEventListener('DOMContentLoaded', () => {
         shareBtn.innerHTML = '<span>✓</span> Link copied';
       } catch (error) {
         if (error.name === 'AbortError') return;
-        window.prompt('Copy this link:', window.location.href);
+        await WebUI.copyText(window.location.href);
         shareBtn.innerHTML = '<span>🔗</span> Copy link';
       }
       setTimeout(() => shareBtn.innerHTML = '<span>🔗</span> Share', 2000);
     });
   }
+
+  const useForm = document.getElementById('useShowcaseAgentForm');
+  const useButton = document.getElementById('useShowcaseAgentButton');
+  useForm?.addEventListener('submit', () => {
+    if (!useButton || useButton.disabled) return;
+    useButton.disabled = true;
+    useButton.setAttribute('aria-busy', 'true');
+    useButton.innerHTML = '<span>⏳</span> Preparing agent…';
+  });
 });
 </script>
 @endpush

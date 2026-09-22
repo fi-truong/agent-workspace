@@ -564,6 +564,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentDepartment = '{{ request('department') }}';
   let currentView = '{{ request('view', 'all') }}';
   let currentPage = 1;
+  let listLoading = false;
+  let lastSuccessfulListUrl = window.location.href;
 
   function debounce(fn, delay) {
     let timer;
@@ -583,8 +585,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function fetchShowcases() {
+    if (listLoading) return;
+    listLoading = true;
+    WebUI.setPageLoading(true, 'Updating showcase…');
     const url = buildUrl();
+    try {
     const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+    if (!res.ok) throw new Error();
     const html = await res.text();
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
@@ -615,6 +622,15 @@ document.addEventListener('DOMContentLoaded', () => {
       paginationContainer.remove();
     }
     window.history.replaceState({}, '', url);
+    lastSuccessfulListUrl = url;
+    } catch (_) {
+      WebUI.setPageLoading(false);
+      await WebUI.notice('The showcase list could not be updated. Check your connection and try again.', { title: 'Could not update showcase' });
+      window.location.assign(lastSuccessfulListUrl);
+    } finally {
+      listLoading = false;
+      WebUI.setPageLoading(false);
+    }
   }
 
   const debouncedSearch = debounce(() => {
@@ -696,12 +712,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.pagination a').forEach(link => {
       link.addEventListener('click', async (e) => {
         e.preventDefault();
+        if (listLoading) return;
+        listLoading = true;
+        WebUI.setPageLoading(true, 'Loading showcase page…');
         const url = link.href;
         const urlObj = new URL(url, window.location.origin);
         const pageParam = urlObj.searchParams.get('page');
         if (pageParam) currentPage = parseInt(pageParam, 10);
 
+        try {
         const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+        if (!res.ok) throw new Error();
         const html = await res.text();
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
@@ -731,6 +752,15 @@ document.addEventListener('DOMContentLoaded', () => {
           paginationContainer.remove();
         }
         window.history.replaceState({}, '', url);
+        lastSuccessfulListUrl = url;
+        } catch (_) {
+          WebUI.setPageLoading(false);
+          await WebUI.notice('The showcase page could not be loaded. Check your connection and try again.', { title: 'Could not load page' });
+          window.location.assign(lastSuccessfulListUrl);
+        } finally {
+          listLoading = false;
+          WebUI.setPageLoading(false);
+        }
       });
     });
   }

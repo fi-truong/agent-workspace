@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function () {
   let conversationId = null;
   let messagesContainer = null;
 
-  const selectedAgentId = window.__SELECTED_AGENT_ID__ || sessionStorage.getItem('selectedAgentId');
+  let selectedAgentId = window.__SELECTED_AGENT_ID__ || sessionStorage.getItem('selectedAgentId');
   if (window.__SELECTED_AGENT_ID__) {
     sessionStorage.setItem('selectedAgentId', window.__SELECTED_AGENT_ID__);
   }
@@ -84,6 +84,14 @@ document.addEventListener('DOMContentLoaded', function () {
     conversationName.className = hasAgent ? 'agent-breadcrumb-prompt' : 'conversation-breadcrumb-name';
     conversationName.textContent = (hasAgent ? '' : '💬 ') + title;
     crumb.appendChild(conversationName);
+  }
+
+  function clearUnavailableSharedAgent() {
+    selectedAgentId = null;
+    sessionStorage.removeItem('selectedAgentId');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('agent_id');
+    window.history.replaceState({}, '', url);
   }
 
   function showMiniToast(message) {
@@ -470,7 +478,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if ((!message && pendingImages.length === 0 && pendingDocuments.length === 0) || sending) return;
 
     sending = true;
-    if (sendBtn) sendBtn.textContent = 'Sending…';
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.setAttribute('aria-busy', 'true');
+      sendBtn.setAttribute('aria-label', 'AI is responding');
+      sendBtn.textContent = 'Sending…';
+    }
 
     if (emptyState) emptyState.style.display = 'none';
 
@@ -579,6 +592,7 @@ document.addEventListener('DOMContentLoaded', function () {
             appendWarning(data.warning || 'Nội dung của bạn chứa thông tin nhạy cảm.');
           } else if (data.error) {
             assistantBubble.remove();
+            if (data.agent_unavailable || data.agent_copy_required) clearUnavailableSharedAgent();
             appendWarning(data.error);
           } else {
             assistantBubble.remove();
@@ -668,7 +682,12 @@ document.addEventListener('DOMContentLoaded', function () {
       appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
     } finally {
       sending = false;
-      if (sendBtn) sendBtn.textContent = 'Send →';
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.removeAttribute('aria-busy');
+        sendBtn.setAttribute('aria-label', 'Send message');
+        sendBtn.textContent = 'Send →';
+      }
     }
   }
 
@@ -726,27 +745,45 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ==== Right-click Rename conversation ====
   document.querySelectorAll('.chat-item[data-conversation-id]').forEach((item) => {
-    item.addEventListener('contextmenu', (e) => {
+    item.addEventListener('contextmenu', async (e) => {
       e.preventDefault();
       const convId = item.dataset.conversationId;
       const currentTitle = item.dataset.conversationTitle || '';
-      const newTitle = window.prompt('Đổi tên cuộc hội thoại:', currentTitle);
+      const newTitle = await WebUI.prompt({
+        title: 'Rename conversation',
+        label: 'Conversation title',
+        value: currentTitle,
+        submitText: 'Rename',
+      });
 
-      if (newTitle !== null && newTitle.trim() !== '' && newTitle.trim() !== currentTitle) {
-        fetch('/ai-plus/agent-workspace/conversations/' + convId, {
+      if (newTitle === null) return;
+      const title = newTitle.trim();
+      if (!title) {
+        await WebUI.notice('A conversation title is required.', { title: 'Title required' });
+        return;
+      }
+      if (title === currentTitle) return;
+
+      try {
+        const response = await fetch('/ai-plus/agent-workspace/conversations/' + convId, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
           },
-          body: JSON.stringify({ title: newTitle.trim() }),
-        }).then((res) => {
-          if (res.ok) {
-            showMiniToast('✏️ Conversation renamed');
-            setTimeout(() => location.reload(), 1000);
-          }
+          body: JSON.stringify({ title }),
         });
+        if (!response.ok) {
+          let data = {};
+          try { data = await response.json(); } catch (_) {}
+          throw new Error(data.message || 'The conversation could not be renamed. Please try again.');
+        }
+
+        showMiniToast('✏️ Conversation renamed');
+        setTimeout(() => location.reload(), 1000);
+      } catch (error) {
+        await WebUI.notice(error.message || 'We could not reach the server. Please try again.', { title: 'Could not rename conversation' });
       }
     });
   });
@@ -801,21 +838,33 @@ document.addEventListener('DOMContentLoaded', function () {
       const convId = btn.dataset.conversationId;
       if (!convId) return;
 
-      const ok = await confirmDialog('Are you sure you want to delete this prompt? This cannot be undone.');
+      const ok = await confirmDialog('All messages in this conversation will be permanently deleted. This cannot be undone.', {
+        title: 'Delete conversation',
+        confirmText: 'Delete conversation',
+      });
       if (!ok) return;
 
-      fetch('/ai-plus/agent-workspace/conversations/' + convId, {
-        method: 'DELETE',
-        headers: {
-          'Accept': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-        },
-      }).then((res) => {
-        if (res.ok) {
-          showMiniToast('🗑️ Prompt deleted');
-          setTimeout(() => location.reload(), 1000);
+      btn.disabled = true;
+      try {
+        const response = await fetch('/ai-plus/agent-workspace/conversations/' + convId, {
+          method: 'DELETE',
+          headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+          },
+        });
+        if (!response.ok) {
+          let data = {};
+          try { data = await response.json(); } catch (_) {}
+          throw new Error(data.message || 'The conversation could not be deleted. Please try again.');
         }
-      });
+
+        showMiniToast('🗑️ Conversation deleted');
+        setTimeout(() => location.reload(), 1000);
+      } catch (error) {
+        btn.disabled = false;
+        await WebUI.notice(error.message || 'We could not reach the server. Please try again.', { title: 'Could not delete conversation' });
+      }
     });
   });
 
@@ -892,6 +941,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   renderInitialMessages();
   syncAgentBadge();
+  if (window.__AGENT_ACCESS_MESSAGE__) showMiniToast(window.__AGENT_ACCESS_MESSAGE__);
 
   const quickBtnBehaviors = {
     'quick-chat': function () {

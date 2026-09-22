@@ -274,9 +274,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
       if (editBtn) {
         const agentId = editBtn.dataset.agentId;
-        const res = await fetch(`/ai-plus/agent-workspace/agents/${agentId}`, { headers: { 'Accept': 'application/json' } });
-        const agent = await res.json();
-        openModal(agent);
+        editBtn.disabled = true;
+        try {
+          const res = await fetch(`/ai-plus/agent-workspace/agents/${agentId}`, { headers: { 'Accept': 'application/json' } });
+          if (!res.ok) {
+            let data = {};
+            try { data = await res.json(); } catch (_) {}
+            throw new Error(data.message || 'The agent details could not be loaded. Please try again.');
+          }
+          const agent = await res.json();
+          openModal(agent);
+        } catch (error) {
+          await noticeDialog(error.message || 'We could not reach the server. Please try again.', 'Could not load agent');
+        } finally {
+          editBtn.disabled = false;
+        }
       }
 
       if (useBtn) {
@@ -290,15 +302,19 @@ document.addEventListener('DOMContentLoaded', function () {
         const okConfirmed = await confirmDialog('Are you sure you want to delete this agent? This cannot be undone.');
         if (!okConfirmed) return;
         const agentId = deleteBtn.dataset.agentId;
-        const res = await fetch(`/ai-plus/agent-workspace/agents/${agentId}`, {
-          method: 'DELETE',
-          headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
-        });
-        if (res.ok) {
-          showToast('🗑️ Agent deleted');
-          setTimeout(() => window.location.reload(), 1000);
-        } else {
-          alert('Failed to delete agent');
+        try {
+          const res = await fetch(`/ai-plus/agent-workspace/agents/${agentId}`, {
+            method: 'DELETE',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content }
+          });
+          if (res.ok) {
+            showToast('🗑️ Agent deleted');
+            setTimeout(() => window.location.reload(), 1000);
+          } else {
+            await noticeDialog('The agent could not be deleted. Please try again.', 'Could not delete agent');
+          }
+        } catch (_) {
+          await noticeDialog('We could not reach the server. Check your connection and try again.', 'Connection interrupted');
         }
       }
     });
@@ -362,9 +378,64 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // Informational dialog for errors. This keeps feedback consistent with the
+  // application UI instead of falling back to a browser alert.
+  function noticeDialog(message, title = 'Something went wrong') {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+      const box = document.createElement('div');
+      box.style.cssText = 'background:var(--card-bg,#fff);border-radius:16px;width:100%;max-width:400px;box-shadow:0 24px 48px -12px rgba(31,56,100,0.35);overflow:hidden;';
+
+      const header = document.createElement('div');
+      header.style.cssText = 'padding:20px 24px;border-bottom:1px solid var(--line,#E1DACB);font-family:Fraunces,serif;font-size:20px;font-weight:600;color:#b42318;';
+      header.textContent = title;
+
+      const body = document.createElement('div');
+      body.style.cssText = 'padding:20px 24px;font-size:14px;color:var(--ink,#22303F);line-height:1.5;white-space:pre-line;';
+      body.textContent = message;
+
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;justify-content:flex-end;padding:16px 24px;';
+
+      const close = () => { overlay.remove(); resolve(); };
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.textContent = 'Close';
+      closeBtn.style.cssText = 'padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:14px;color:#fff;background:#1F3864;';
+      closeBtn.addEventListener('click', close);
+
+      footer.appendChild(closeBtn);
+      box.append(header, body, footer);
+      overlay.appendChild(box);
+      overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
+      document.body.appendChild(overlay);
+      closeBtn.focus();
+    });
+  }
+
   // Form submit via FormData (multipart hỗ trợ file)
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    // Copyable shared agents give other school users a private copy of every
+    // remaining Knowledge file. Make that consequence explicit before saving.
+    const sharingAccess = Array.from(sharingAccessInputs).find((input) => input.checked)?.value;
+    const knowledgeFileCount = activeSavedFiles().length + allFiles.length;
+    if (sharedInput?.checked && sharingAccess === 'copy' && knowledgeFileCount > 0) {
+      const shouldShareKnowledge = await confirmDialog(
+        `Anyone at LSTS who copies this agent will receive ${knowledgeFileCount} Knowledge file${knowledgeFileCount === 1 ? '' : 's'} in their own workspace. Continue?`,
+        {
+          title: 'Share Knowledge files',
+          confirmText: 'Share and allow copying',
+          danger: false,
+        }
+      );
+
+      if (!shouldShareKnowledge) return;
+    }
+
     const isEdit = formMethod.value === 'PUT';
     const agentId = agentIdInput.value;
     const url = isEdit ? `/ai-plus/agent-workspace/agents/${agentId}` : '/ai-plus/agent-workspace/agents';
@@ -381,23 +452,32 @@ document.addEventListener('DOMContentLoaded', function () {
       removedPaths.forEach((p) => formData.append('knowledge_remove[]', p));
     }
 
-    const res = await fetch(url, {
-      method,
-      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
-      body: formData,
-    });
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+        body: formData,
+      });
 
-    if (res.ok) {
-      closeModal();
-      showToast('✅ Agent saved successfully');
-      setTimeout(() => window.location.reload(), 1200);
-    } else {
-      const err = await res.json();
-      const message = err.message || (err.errors ? Object.values(err.errors).flat().join(' ') : 'Failed to save agent');
-      alert(message);
-      // Nếu là lỗi 422, giữ modal mở để user sửa
-      if (res.status === 422) return;
-      closeModal();
+      if (res.ok) {
+        closeModal();
+        showToast('✅ Agent saved successfully');
+        setTimeout(() => window.location.reload(), 1200);
+        return;
+      }
+
+      let err = {};
+      try {
+        err = await res.json();
+      } catch (_) {
+        // A proxy/server can return a non-JSON error page; show a safe message.
+      }
+      const message = err.message || (err.errors ? Object.values(err.errors).flat().join(' ') : 'The agent could not be saved. Please try again.');
+      await noticeDialog(message, 'Could not save agent');
+      // Keep validation errors visible in the form so they can be corrected.
+      if (res.status !== 422) closeModal();
+    } catch (_) {
+      await noticeDialog('We could not reach the server. Check your connection and try again.', 'Connection interrupted');
     }
   });
 

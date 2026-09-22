@@ -31,7 +31,7 @@
             $prompt->created_at?->format('d/m/Y') ?? '—',
             '<div class="action-group">
                 <a href="' . route('admin.prompts.edit', $prompt) . '" class="action-btn">Edit</a>
-                <form action="' . route('admin.prompts.destroy', $prompt) . '" method="POST" style="display:inline" onsubmit="return confirm(\'Delete this prompt?\')">
+                <form action="' . route('admin.prompts.destroy', $prompt) . '" method="POST" style="display:inline" data-web-confirm="Delete this prompt? This cannot be undone." data-web-confirm-title="Delete prompt" data-web-confirm-action="Delete" data-web-confirm-danger="true">
                     ' . $csrf . $method . '
                     <button type="submit" class="action-btn danger">Delete</button>
                 </form>

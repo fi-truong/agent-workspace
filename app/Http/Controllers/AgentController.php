@@ -128,8 +128,15 @@ class AgentController extends Controller
 
         $this->knowledgeService->deleteAgentKnowledge($agent->user_id, $agent->id);
 
-        // Xóa luôn conversations (prompt) từng gắn agent này.
-        $agent->conversations()->delete();
+        // The owner can remove their own chats with this agent. Conversations
+        // created by other people through Use-only sharing remain theirs; detach
+        // the deleted agent while preserving their message history.
+        $agent->conversations()
+            ->where('user_id', '!=', $agent->user_id)
+            ->update(['agent_id' => null]);
+        $agent->conversations()
+            ->where('user_id', $agent->user_id)
+            ->delete();
         $agent->showcasePosts()->delete();
 
         $agent->delete();

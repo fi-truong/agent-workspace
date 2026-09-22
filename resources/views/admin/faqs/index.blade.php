@@ -29,7 +29,7 @@
             $faq->sort_order ?? 0,
             '<div class="action-group">
                 <a href="' . route('admin.faqs.edit', $faq) . '" class="action-btn">Edit</a>
-                <form action="' . route('admin.faqs.destroy', $faq) . '" method="POST" style="display:inline" onsubmit="return confirm(\'Delete this FAQ?\')">
+                <form action="' . route('admin.faqs.destroy', $faq) . '" method="POST" style="display:inline" data-web-confirm="Delete this FAQ? This cannot be undone." data-web-confirm-title="Delete FAQ" data-web-confirm-action="Delete" data-web-confirm-danger="true">
                     ' . $csrf . $method . '
                     <button type="submit" class="action-btn danger">Delete</button>
                 </form>

@@ -195,7 +195,7 @@
         formMessage.style.display = 'block';
         supportForm.reset();
       } else {
-        const msg = data.message || 'Something went wrong. Please try again.';
+        const msg = data.errors ? Object.values(data.errors).flat()[0] : (data.message || 'Something went wrong. Please try again.');
         formMessage.textContent = msg;
         formMessage.className = 'form-message error';
         formMessage.style.display = 'block';

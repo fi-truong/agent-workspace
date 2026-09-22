@@ -118,6 +118,8 @@ class KnowledgeService
     /** Copy explicitly shared Knowledge files into a recipient-owned Agent and index its RAG context. */
     public function copySharedKnowledge(Agent $source, Agent $recipient): void
     {
+        $this->assertSharedKnowledgeAvailable($source);
+
         if ($source->sharing_access !== 'copy' || $source->knowledge_files === []) {
             return;
         }
@@ -140,7 +142,11 @@ class KnowledgeService
                     'path' => $sourcePath,
                 ]);
 
-                continue;
+                foreach ($copied as $copiedFile) {
+                    $disk->delete($copiedFile['path']);
+                }
+
+                throw new \RuntimeException('A shared Knowledge file could not be copied.');
             }
 
             $copied[] = [
@@ -155,6 +161,22 @@ class KnowledgeService
 
         $recipient->update(['knowledge' => json_encode($copied)]);
         $this->indexAgent($recipient->fresh());
+    }
+
+    /** Ensure a copyable shared Agent will not produce an incomplete Knowledge clone. */
+    public function assertSharedKnowledgeAvailable(Agent $source): void
+    {
+        if ($source->sharing_access !== 'copy') {
+            return;
+        }
+
+        $disk = Storage::disk('knowledge');
+        foreach ($source->knowledge_files as $file) {
+            $path = $file['path'] ?? '';
+            if ($path === '' || ! $disk->exists($path)) {
+                throw new \RuntimeException('This agent’s shared knowledge is unavailable; please contact the owner.');
+            }
+        }
     }
 
     /**

@@ -29,7 +29,7 @@
       <div class="form-error" id="form-error" style="display:none;"></div>
 
       <div class="account-actions">
-        <button type="submit" class="btn btn-primary">Update Password</button>
+        <button type="submit" class="btn btn-primary" id="password-submit">Update Password</button>
       </div>
     </form>
   </div>
@@ -62,32 +62,46 @@ document.getElementById('password-form').addEventListener('submit', async (e) =>
 
   const form = e.target;
   const formData = new FormData(form);
+  const submit = document.getElementById('password-submit');
+  submit.disabled = true;
+  submit.textContent = 'Updating...';
 
-  const res = await fetch('/account/password', {
-    method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-    },
-    body: formData,
-  });
+  try {
+    const res = await fetch('/account/password', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+      },
+      body: formData,
+    });
+    let data = {};
+    try { data = await res.json(); } catch (_) {}
 
-  const data = await res.json();
-
-  if (res.ok) {
-    errBox.textContent = '✅ ' + (data.message || 'Password updated successfully.');
-    errBox.style.background = '#E7F4EC';
-    errBox.style.color = '#1E7B4C';
-    errBox.style.borderColor = '#A8D8B9';
-    errBox.style.display = 'block';
-    form.reset();
-  } else {
-    const messages = data.errors ? Object.values(data.errors).flat().join(' • ') : (data.message || 'Failed to update password.');
-    errBox.textContent = '⚠️ ' + messages;
+    if (res.ok) {
+      errBox.textContent = '✅ ' + (data.message || 'Password updated successfully.');
+      errBox.style.background = '#E7F4EC';
+      errBox.style.color = '#1E7B4C';
+      errBox.style.borderColor = '#A8D8B9';
+      errBox.style.display = 'block';
+      form.reset();
+    } else {
+      const messages = data.errors ? Object.values(data.errors).flat().join(' • ') : (data.message || 'Failed to update password.');
+      errBox.textContent = '⚠️ ' + messages;
+      errBox.style.background = '#FDF3E0';
+      errBox.style.color = '#9A6B1F';
+      errBox.style.borderColor = '#E5C88A';
+      errBox.style.display = 'block';
+    }
+  } catch (_) {
+    errBox.textContent = '⚠️ Network error. Please check your connection and try again.';
     errBox.style.background = '#FDF3E0';
     errBox.style.color = '#9A6B1F';
     errBox.style.borderColor = '#E5C88A';
     errBox.style.display = 'block';
+  } finally {
+    submit.disabled = false;
+    submit.textContent = 'Update Password';
   }
 });
 </script>

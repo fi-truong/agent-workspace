@@ -88,6 +88,7 @@
             </div>
             <form action="{{ route('admin.tickets.notes', $ticket) }}" method="POST" id="notesForm">
                 @csrf @method('PATCH')
+                @error('admin_notes')<div class="field-error">{{ $message }}</div>@enderror
                 <div class="form-group" style="margin-bottom:12px;">
                     <textarea name="admin_notes" class="form-textarea" placeholder="Internal notes for admin team..." rows="4">{{ $ticket->admin_notes }}</textarea>
                 </div>

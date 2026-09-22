@@ -27,7 +27,11 @@
 <body>
     <div class="login-card">
         <div class="logo">AI+ Admin</div>
-        <p class="subtitle">Đăng nhập để quản trị hệ thống</p>
+        <p class="subtitle">Sign in to manage the system</p>
+
+        @if(session('status'))
+        <div class="error">{{ session('status') }}</div>
+        @endif
 
         @if($errors->any())
         <div class="error">{{ $errors->first() }}</div>
@@ -40,15 +44,15 @@
                 <input type="email" name="email" value="{{ old('email') }}" required autofocus autocomplete="email">
             </div>
             <div class="form-group">
-                <label>Mật khẩu</label>
+                <label>Password</label>
                 <input type="password" name="password" required autocomplete="current-password">
             </div>
-            <button type="submit" class="btn">Đăng nhập</button>
+            <button type="submit" class="btn">Sign in</button>
         </form>
 
         <div class="links">
-            <a href="{{ route('ai-plus.index') }}">← Về AI+</a>
-            <a href="{{ route('auth.microsoft.redirect') }}" class="sso-link">Đăng nhập Microsoft SSO</a>
+            <a href="{{ route('ai-plus.index') }}">← Back to AI+</a>
+            <a href="{{ route('auth.microsoft.redirect') }}" class="sso-link">Sign in with Microsoft</a>
         </div>
     </div>
 </body>

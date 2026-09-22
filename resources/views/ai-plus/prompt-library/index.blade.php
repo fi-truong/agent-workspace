@@ -163,6 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentSubject = '{{ request('subject') }}';
   let currentSort = '{{ request('sort') }}';
   let currentPage = 1;
+  let listLoading = false;
+  let lastSuccessfulListUrl = window.location.href;
 
   // Debounce helper
   function debounce(fn, delay) {
@@ -185,8 +187,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Fetch and update grid
   async function fetchPrompts() {
+    if (listLoading) return;
+    listLoading = true;
+    WebUI.setPageLoading(true, 'Updating prompts…');
     const url = buildUrl();
+    try {
     const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+    if (!res.ok) throw new Error();
     const html = await res.text();
     // Extract new grid content
     const parser = new DOMParser();
@@ -216,6 +223,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Update URL without reload
     window.history.replaceState({}, '', url);
+    lastSuccessfulListUrl = url;
+    } catch (_) {
+      WebUI.setPageLoading(false);
+      await WebUI.notice('The prompt list could not be updated. Check your connection and try again.', { title: 'Could not update prompts' });
+      window.location.assign(lastSuccessfulListUrl);
+    } finally {
+      listLoading = false;
+      WebUI.setPageLoading(false);
+    }
   }
 
   // Debounced search
@@ -282,14 +298,20 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
           console.error('Copy failed', e);
           // Last resort fallback
-          const textarea = document.createElement('textarea');
-          textarea.value = promptText;
-          textarea.style.position = 'fixed';
-          textarea.style.opacity = '0';
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
+          try {
+            const textarea = document.createElement('textarea');
+            textarea.value = promptText;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            const copied = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            if (!copied) throw new Error('Copy command was not accepted');
+          } catch (_) {
+            await WebUI.notice('The prompt could not be copied. Please select and copy it manually.', { title: 'Could not copy prompt' });
+            return;
+          }
 
           const original = btn.textContent;
           btn.textContent = 'Copied!';
@@ -308,13 +330,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.pagination a').forEach(link => {
       link.addEventListener('click', async (e) => {
         e.preventDefault();
+        if (listLoading) return;
+        listLoading = true;
+        WebUI.setPageLoading(true, 'Loading prompt page…');
         const url = link.href;
         // Extract page number from URL
         const urlObj = new URL(url, window.location.origin);
         const pageParam = urlObj.searchParams.get('page');
         if (pageParam) currentPage = parseInt(pageParam, 10);
 
+        try {
         const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+        if (!res.ok) throw new Error();
         const html = await res.text();
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
@@ -342,6 +369,15 @@ document.addEventListener('DOMContentLoaded', () => {
           paginationContainer.remove();
         }
         window.history.replaceState({}, '', url);
+        lastSuccessfulListUrl = url;
+        } catch (_) {
+          WebUI.setPageLoading(false);
+          await WebUI.notice('The prompt page could not be loaded. Check your connection and try again.', { title: 'Could not load page' });
+          window.location.assign(lastSuccessfulListUrl);
+        } finally {
+          listLoading = false;
+          WebUI.setPageLoading(false);
+        }
       });
     });
   }

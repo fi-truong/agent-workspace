@@ -58,5 +58,5 @@
   window.AgentModalConfig = window.AgentModalConfig || {};
   window.AgentModalConfig.baseKnowledgeRoute = '{{ route("ai-plus.agent-workspace.agents.index") }}';
 </script>
-<script src="{{ asset('js/agent-modal.js') }}"></script>
+<script src="{{ asset('js/agent-modal.js') }}?v={{ filemtime(public_path('js/agent-modal.js')) }}"></script>
 @endpush

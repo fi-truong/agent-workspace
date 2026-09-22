@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
     input.value = '';
     const send = document.getElementById('aiGuideSend');
     send.disabled = true;
-    const pending = append('assistant', 'Đang tìm hướng dẫn phù hợp…');
+    const pending = append('assistant', 'Finding the most relevant guidance…');
 
     try {
       const response = await fetch('{{ route('ai-plus.guide.reply') }}', {
@@ -184,12 +184,12 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({message, history}),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Không thể nhận phản hồi. Vui lòng thử lại.');
+      if (!response.ok) throw new Error(payload.error || 'We could not get a response. Please try again.');
       pending.textContent = payload.reply;
       history.push({role: 'user', content: message}, {role: 'assistant', content: payload.reply});
       if (history.length > 8) history.splice(0, history.length - 8);
     } catch (error) {
-      pending.textContent = error.message || 'Có lỗi xảy ra. Vui lòng thử lại.';
+      pending.textContent = error.message || 'Something went wrong. Please try again.';
       pending.classList.add('error');
     } finally {
       send.disabled = false;

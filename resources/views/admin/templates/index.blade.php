@@ -31,7 +31,7 @@
             $template->created_at?->format('d/m/Y') ?? '—',
             '<div class="action-group">
                 <a href="' . route('admin.templates.edit', $template) . '" class="action-btn">Edit</a>
-                <form action="' . route('admin.templates.destroy', $template) . '" method="POST" style="display:inline" onsubmit="return confirm(\'Delete this template?\')">
+                <form action="' . route('admin.templates.destroy', $template) . '" method="POST" style="display:inline" data-web-confirm="Delete this template? This cannot be undone." data-web-confirm-title="Delete template" data-web-confirm-action="Delete" data-web-confirm-danger="true">
                     ' . $csrf . $method . '
                     <button type="submit" class="action-btn danger">Delete</button>
                 </form>

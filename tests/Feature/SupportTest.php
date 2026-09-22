@@ -49,6 +49,69 @@ test('submitting support creates a ticket and sends formatted notification email
         ->toContain('Support User');
 });
 
+test('support messages containing sensitive personal information are not stored or emailed', function () {
+    Mail::fake();
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('ai-plus.support.store'), [
+            'type' => 'Technical Issue / Bug Report',
+            'subject' => 'Upload issue',
+            'details' => 'Please call me on 0901234567 about this upload issue.',
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('details');
+
+    expect(SupportTicket::count())->toBe(0);
+    Mail::assertNothingSent();
+});
+
+test('support follow-ups and staff replies containing sensitive information are not stored', function () {
+    Mail::fake();
+    $requester = User::factory()->create();
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $ticket = SupportTicket::create([
+        'user_id' => $requester->id,
+        'name' => $requester->name,
+        'email' => $requester->email,
+        'type' => 'Other',
+        'priority' => 'low',
+        'subject' => 'Need support',
+        'details' => 'I need help with a feature.',
+    ]);
+
+    $this->actingAs($requester)
+        ->post(route('ai-plus.support.requests.replies.store', $ticket), ['body' => 'My national ID is 123456789012'])
+        ->assertSessionHasErrors('body');
+
+    $this->actingAs($admin)
+        ->post(route('admin.tickets.replies.store', $ticket), ['body' => 'Call me at 0901234567'])
+        ->assertSessionHasErrors('body');
+
+    expect(SupportTicketReply::count())->toBe(0);
+    Mail::assertNothingSent();
+});
+
+test('admin notes containing sensitive information are not stored', function () {
+    $requester = User::factory()->create();
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $ticket = SupportTicket::create([
+        'user_id' => $requester->id,
+        'name' => $requester->name,
+        'email' => $requester->email,
+        'type' => 'Other',
+        'priority' => 'low',
+        'subject' => 'Need support',
+        'details' => 'I need help with a feature.',
+    ]);
+
+    $this->actingAs($admin)
+        ->patch(route('admin.tickets.notes', $ticket), ['admin_notes' => 'Personal number: 0901234567'])
+        ->assertSessionHasErrors('admin_notes');
+
+    expect($ticket->fresh()->admin_notes)->toBeNull();
+});
+
 test('users can view only their own support request history and replies', function () {
     $user = User::factory()->create();
     $otherUser = User::factory()->create();
