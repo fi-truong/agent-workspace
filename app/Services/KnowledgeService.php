@@ -25,19 +25,21 @@ use Throwable;
 class KnowledgeService
 {
     // Giữ nguyên ảnh + csv (đã thêm trước đó) — KHÔNG bỏ.
-    public const ALLOWED_EXTENSIONS = ['txt', 'csv', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
+    public const ALLOWED_EXTENSIONS = ['txt', 'csv', 'html', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
 
     /**
      * File types accepted as direct attachments in a chat message.
      * Images use the separate multimodal chat path and are not included here.
      */
-    public const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
+    public const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'html', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
 
     public const MAX_FILE_SIZE_KB = 5120;
 
     public const MAX_AGENT_FILES = 10;
 
     public const MAX_AGENT_TOTAL_SIZE_KB = 25_600;
+
+    public const MAX_HTML_CODE_CONTEXT_CHARS = 20_000;
 
     public function __construct(
         private readonly RegexPiiFilter $piiFilter,
@@ -495,6 +497,9 @@ class KnowledgeService
         try {
             return match ($extension) {
                 'txt', 'csv' => $disk->get($path) ?: '',
+                // Agent Knowledge treats HTML as source so the agent can answer
+                // code-editing questions without ever executing the document.
+                'html' => $this->htmlSourceForCode($disk->get($path) ?: ''),
                 'pdf' => $this->readPdf($disk, $path),
                 'doc', 'docx' => $this->readWord($disk, $path),
                 'xls', 'xlsx' => $this->readExcel($disk, $path),
@@ -532,6 +537,10 @@ class KnowledgeService
             return $binary;
         }
 
+        if ($extension === 'html') {
+            return $this->htmlToText($binary);
+        }
+
         $tmp = tempnam(sys_get_temp_dir(), 'chat_doc_');
 
         if ($tmp === false) {
@@ -559,6 +568,32 @@ class KnowledgeService
         } finally {
             @unlink($tmp);
         }
+    }
+
+    /**
+     * Extract readable content from a saved HTML page without ever rendering or
+     * executing it. This keeps scripts, event handlers, and embedded content out
+     * of both the browser and the model context.
+     */
+    private function htmlToText(string $html): string
+    {
+        $html = preg_replace('~<!--.*?-->~s', ' ', $html) ?? '';
+        $html = preg_replace('~<(script|style|iframe|object|embed|template|svg)\b[^>]*>.*?</\1>~is', ' ', $html) ?? '';
+        $html = preg_replace('~<(br|/p|/div|/li|/h[1-6]|/tr|/blockquote)\b[^>]*>~i', "\n", $html) ?? $html;
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/[\t ]+/', ' ', $text) ?? $text;
+
+        return trim(preg_replace('/\R{3,}/u', "\n\n", $text) ?? $text);
+    }
+
+    public function htmlSourceForCode(string $html): string
+    {
+        $html = str_replace("\0", '', $html);
+        if (! mb_check_encoding($html, 'UTF-8')) {
+            return '';
+        }
+
+        return Str::limit(trim($html), self::MAX_HTML_CODE_CONTEXT_CHARS, "\n<!-- Source truncated because it exceeds the safe chat limit. -->");
     }
 
     /**

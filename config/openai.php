@@ -52,4 +52,21 @@ return [
 
     // Số ký tự chồng lấn giữa 2 đoạn liền kề (giữ ngữ cảnh không bị đứt).
     'rag_chunk_overlap' => (int) env('RAG_CHUNK_OVERLAP', 150),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public web-page reading
+    |--------------------------------------------------------------------------
+    |
+    | When a user explicitly includes a public HTTP(S) link in a chat message,
+    | AI+ retrieves a bounded text-only copy for that one turn. The reader
+    | rejects private/reserved addresses and non-standard ports.
+    |
+    */
+    'web_reading_enabled' => (bool) env('AI_PLUS_WEB_READING_ENABLED', true),
+
+    // Uses locally installed Playwright/Chromium to read tables and other text
+    // populated by client-side JavaScript. Falls back to the HTTP reader if it
+    // is unavailable on a deployment target.
+    'web_browser_rendering_enabled' => (bool) env('AI_PLUS_WEB_BROWSER_RENDERING_ENABLED', true),
 ];

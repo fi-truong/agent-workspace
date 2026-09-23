@@ -265,6 +265,25 @@ it('creates requested Word and PDF artifacts', function (string $request, string
     ['Hãy xuất PDF cho nội dung này', '.pdf'],
 ]);
 
+it('creates an HTML artifact from the AI code block', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake([
+        'https://api.openai.com/*' => Http::response([
+            'choices' => [['message' => ['content' => "Updated page:\n```html\n<h1>Updated</h1>\n```"]]],
+            'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 3],
+            'model' => 'gpt-5.6-luna',
+        ]),
+    ]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', ['message' => 'Hãy sửa file HTML và tạo file HTML'])
+        ->assertOk()
+        ->assertJsonPath('artifacts.0.name', fn (string $name) => str_ends_with($name, '.html'));
+
+    $artifact = AiArtifact::firstOrFail();
+    expect(Storage::disk('ai-artifacts')->get($artifact->path))->toBe('<h1>Updated</h1>');
+});
+
 it('creates an email draft but never sends an email', function () {
     config(['openai.api_key' => 'sk-test']);
 

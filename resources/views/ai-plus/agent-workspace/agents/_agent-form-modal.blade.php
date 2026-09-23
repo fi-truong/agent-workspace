@@ -25,7 +25,7 @@
       <div class="form-group">
         <label for="knowledge">Knowledge</label>
         <div class="knowledge-dropzone" id="knowledge-dropzone">
-          <input type="file" id="knowledge" name="knowledge[]" multiple accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp" hidden>
+          <input type="file" id="knowledge" name="knowledge[]" multiple accept=".html,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp" hidden>
           <div class="knowledge-dropzone-inner">
             <div class="knowledge-dropzone-title">Drag & drop files here</div>
             <div class="knowledge-dropzone-sub">or click to select</div>
@@ -33,7 +33,7 @@
         </div>
         <div class="knowledge-file-chips" id="knowledge-file-chips" aria-live="polite"></div>
         <div class="knowledge-saved-list" id="knowledge-saved-list" aria-live="polite"></div>
-        <small class="form-hint">Up to 10 files per Agent · 5 MB per file · 25 MB total. Upload documents (pdf, docx, xlsx, txt, csv…) for the agent to reference when answering.</small>
+        <small class="form-hint">Up to 10 files per Agent · 5 MB per file · 25 MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) for the agent to reference when answering.</small>
         <div class="form-hint" id="knowledge-limit-status" aria-live="polite"></div>
       </div>
       <div class="form-group checkbox-group">

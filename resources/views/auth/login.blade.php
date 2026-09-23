@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Login - AI+ Admin</title>
+    <title>Sign in - AI+ LSTS</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Fonts are self-hosted via @font-face in ai-plus.css -->
     <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}">
@@ -26,8 +26,8 @@
 </head>
 <body>
     <div class="login-card">
-        <div class="logo">AI+ Admin</div>
-        <p class="subtitle">Sign in to manage the system</p>
+        <div class="logo">AI+ LSTS</div>
+        <p class="subtitle">Sign in to access your AI+ workspace</p>
 
         @if(session('status'))
         <div class="error">{{ session('status') }}</div>

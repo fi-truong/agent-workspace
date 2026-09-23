@@ -48,6 +48,18 @@ it('stores a pdf file with correct mime', function () {
     Storage::disk('knowledge')->assertExists(Agent::first()->knowledge_files[0]['path']);
 });
 
+it('accepts an HTML file as Agent Knowledge', function () {
+    $file = UploadedFile::fake()->createWithContent('saved-page.html', '<h1>School guide</h1><script>alert(1)</script><p>Useful content.</p>');
+
+    $this->post('/ai-plus/agent-workspace/agents', [
+        'title' => 'Agent HTML',
+        'knowledge' => [$file],
+    ], ['Accept' => 'application/json'])
+        ->assertStatus(201);
+
+    expect(Agent::first()->knowledge_files[0]['original_name'])->toBe('saved-page.html');
+});
+
 it('rejects disallowed file extension', function () {
     $file = UploadedFile::fake()->create('malware.exe', 10, 'application/x-msdownload');
 

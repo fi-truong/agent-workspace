@@ -146,37 +146,9 @@ document.addEventListener('DOMContentLoaded', function () {
       bubble.textContent = text;
     }
 
-    // Nút copy ở góc phải wrapper.
-    const copyBtn = document.createElement('button');
-    copyBtn.type = 'button';
-    copyBtn.textContent = '⧉';
-    copyBtn.title = 'Copy';
-    copyBtn.style.cssText = 'align-self:flex-end;background:transparent;border:none;cursor:pointer;color:var(--text-soft,#5B6B7C);font-size:14px;padding:2px 6px;border-radius:6px;transition:background .15s;';
-    copyBtn.addEventListener('mouseenter', () => { copyBtn.style.background = 'var(--input-bg, rgba(0,0,0,0.05))'; });
-    copyBtn.addEventListener('mouseleave', () => { copyBtn.style.background = 'transparent'; });
-    copyBtn.addEventListener('click', () => {
-      const plainText = bubble.innerText || bubble.textContent || '';
-
-      // Dùng fallback textarea luôn (clipboard API yêu cầu HTTPS, không hoạt động trên http://LAN).
-      const ta = document.createElement('textarea');
-      ta.value = plainText;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      ta.setSelectionRange(0, plainText.length);
-      let ok = false;
-      try {
-        ok = document.execCommand('copy');
-      } catch (e) {
-        ok = false;
-      }
-      document.body.removeChild(ta);
-      showMiniToast(ok ? '✅ Copied to clipboard' : '⚠️ Copy failed — select manually and copy');
-    });
-
     wrap.appendChild(bubble);
-    wrap.appendChild(copyBtn);
+    addCopyButton(wrap, bubble);
+
     container.appendChild(wrap);
 
     if (role === 'assistant' && typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
@@ -189,6 +161,76 @@ document.addEventListener('DOMContentLoaded', function () {
 
     container.scrollTop = container.scrollHeight;
     return wrap;
+  }
+
+  function addCopyButton(wrap, bubble) {
+    if (wrap.querySelector('.chat-copy-btn')) return;
+
+    // Nút copy ở góc phải wrapper.
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'chat-copy-btn';
+    copyBtn.textContent = '⧉';
+    copyBtn.title = 'Copy';
+    copyBtn.style.cssText = 'align-self:flex-end;background:transparent;border:none;cursor:pointer;color:var(--text-soft,#5B6B7C);font-size:14px;padding:2px 6px;border-radius:6px;transition:background .15s;';
+    copyBtn.addEventListener('mouseenter', () => { copyBtn.style.background = 'var(--input-bg, rgba(0,0,0,0.05))'; });
+    copyBtn.addEventListener('mouseleave', () => { copyBtn.style.background = 'transparent'; });
+    copyBtn.addEventListener('click', async () => {
+      const plainText = bubble.innerText || bubble.textContent || '';
+      let ok = false;
+
+      // On HTTPS, provide both representations explicitly. Rich destinations
+      // (Word, email, Teams) use HTML; plain-text fields use text/plain.
+      if (window.isSecureContext && navigator.clipboard && window.ClipboardItem) {
+        try {
+          const item = new ClipboardItem({
+            'text/html': new Blob([bubble.innerHTML], { type: 'text/html' }),
+            'text/plain': new Blob([plainText], { type: 'text/plain' }),
+          });
+          await navigator.clipboard.write([item]);
+          ok = true;
+        } catch (e) {
+          // Fall through for browsers that deny the Clipboard API.
+        }
+      }
+
+      // HTTP on the local network cannot use ClipboardItem. Copying an actual
+      // DOM selection lets the browser place text/html on the clipboard too.
+      if (!ok) {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(bubble);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        try {
+          ok = document.execCommand('copy');
+        } catch (e) {
+          ok = false;
+        }
+        selection.removeAllRanges();
+      }
+      showMiniToast(ok ? '✅ Copied to clipboard' : '⚠️ Copy failed — select manually and copy');
+    });
+    wrap.appendChild(copyBtn);
+  }
+
+  // A streamed response starts as a typing bubble, so it is not built through
+  // appendMessage(). Add its copy control only after there is actual content.
+  function enableCopyForAssistantBubble(bubble) {
+    if (!bubble || !bubble.isConnected) return;
+
+    const existingWrap = bubble.closest('.chat-msg-wrap');
+    if (existingWrap) {
+      addCopyButton(existingWrap, bubble);
+      return;
+    }
+
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-msg-wrap';
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-width:85%;align-self:flex-start;';
+    bubble.replaceWith(wrap);
+    wrap.appendChild(bubble);
+    addCopyButton(wrap, bubble);
   }
 
   function appendWarning(text) {
@@ -329,7 +371,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Cac dinh dang tai lieu (ngoai anh) duoc phep dinh kem trong o chat - khop voi
   // KnowledgeService::CHAT_DOCUMENT_EXTENSIONS phia backend.
-  const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+  const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'html', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
   const MAX_ATTACHMENTS = 5;
   const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
   const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
@@ -585,6 +627,7 @@ document.addEventListener('DOMContentLoaded', function () {
             updateTokenQuota(data.token_quota);
             assistantBubble.style.whiteSpace = 'normal';
             renderAssistantMarkdown(assistantBubble, data.reply);
+            enableCopyForAssistantBubble(assistantBubble);
             showOutputs(data);
             ensureMessagesContainer().scrollTop = ensureMessagesContainer().scrollHeight;
           } else if (data.blocked) {
@@ -637,6 +680,7 @@ document.addEventListener('DOMContentLoaded', function () {
           updateTokenQuota(parsed.data.token_quota);
           assistantBubble.style.whiteSpace = 'normal';
           renderAssistantMarkdown(assistantBubble, parsed.data.reply || rawText);
+          enableCopyForAssistantBubble(assistantBubble);
           showOutputs(parsed.data);
           container.scrollTop = container.scrollHeight;
         }
@@ -672,6 +716,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (rawText !== '') {
           assistantBubble.style.whiteSpace = 'normal';
           renderAssistantMarkdown(assistantBubble, rawText);
+          enableCopyForAssistantBubble(assistantBubble);
         } else {
           assistantBubble.remove();
           appendWarning('Kết nối bị gián đoạn trước khi có phản hồi. Vui lòng thử lại.');

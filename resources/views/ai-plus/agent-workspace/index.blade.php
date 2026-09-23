@@ -167,9 +167,9 @@
             <button class="send-btn">Send →</button>
           </div>
         </div>
-        <input type="file" id="chat-image-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple style="display:none;">
+        <input type="file" id="chat-image-input" accept="image/*,.html,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple style="display:none;">
         <div class="input-hint">
-          Press Enter to send, Shift+Enter for new line • Your data is protected by PII filtering • Upload up to 5 files (15 MB total) for analysis
+          Press Enter to send, Shift+Enter for new line • Public links are read automatically • Your data is protected by PII filtering • Upload up to 5 files (15 MB total) for analysis
         </div>
       </div>
     </div>
