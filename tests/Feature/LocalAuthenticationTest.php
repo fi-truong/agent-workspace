@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Http\Controllers\AiPolicyAcceptanceController;
 use Illuminate\Support\Facades\Hash;
 
 test('the local login screen is available', function () {
@@ -8,8 +9,8 @@ test('the local login screen is available', function () {
         ->assertOk();
 });
 
-test('an active user can sign in through local login and reaches AI Plus', function () {
-    $user = User::factory()->create([
+test('an active user must accept the current AI policy after their first local sign-in', function () {
+    $user = User::factory()->withoutAiPolicyAcceptance()->create([
         'email' => 'staff@example.test',
         'password' => Hash::make('password123'),
         'is_active' => true,
@@ -18,10 +19,38 @@ test('an active user can sign in through local login and reaches AI Plus', funct
     $this->post(route('login.local'), [
         'email' => $user->email,
         'password' => 'password123',
-    ])->assertRedirect(route('ai-plus.index'));
+    ])->assertRedirect(route('ai-plus.policy-acceptance.show'));
 
     $this->assertAuthenticatedAs($user);
     expect($user->fresh()->last_login_at)->not->toBeNull();
+});
+
+test('a user can accept the AI policy and the acceptance is versioned and timestamped', function () {
+    $user = User::factory()->withoutAiPolicyAcceptance()->create();
+
+    $this->actingAs($user)
+        ->get(route('ai-plus.policy-acceptance.show'))
+        ->assertOk()
+        ->assertSee('Use AI+ responsibly');
+
+    $this->post(route('ai-plus.policy-acceptance.accept'), ['accept' => '1'])
+        ->assertRedirect(route('ai-plus.index'));
+
+    $user->refresh();
+    expect($user->ai_policy_accepted_at)->not->toBeNull()
+        ->and($user->ai_policy_version)->toBe(AiPolicyAcceptanceController::VERSION);
+});
+
+test('an unaccepted user cannot bypass the policy page by opening an AI Plus URL directly', function () {
+    $user = User::factory()->withoutAiPolicyAcceptance()->create();
+
+    $this->actingAs($user)
+        ->get(route('ai-plus.agent-workspace.index'))
+        ->assertRedirect(route('ai-plus.policy-acceptance.show'));
+
+    $this->actingAs($user)
+        ->get(route('ai-plus.ai-policy.index'))
+        ->assertOk();
 });
 
 test('inactive users and invalid credentials cannot sign in through local login', function () {

@@ -30,6 +30,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Safety and work-use monitoring
+    |--------------------------------------------------------------------------
+    |
+    | Moderation is intentionally separate from the work-use classifier: the
+    | former detects unsafe content while the latter records whether a request
+    | appears related to LSTS work. During the initial monitoring phase, only
+    | OpenAI-moderated unsafe input is blocked.
+    |
+    */
+    'moderation_enabled' => (bool) env('OPENAI_MODERATION_ENABLED', true),
+    'moderation_model' => env('OPENAI_MODERATION_MODEL', 'omni-moderation-latest'),
+
+    /*
+    |--------------------------------------------------------------------------
     | RAG (Knowledge retrieval)
     |--------------------------------------------------------------------------
     */
@@ -41,7 +55,7 @@ return [
     // Fallback cho PDF scan/image-only: Poppler pdftoppm render trang PDF thành ảnh
     // để model vision có thể đọc. Ví dụ Linux: /usr/bin/pdftoppm.
     'pdf_scan_renderer_binary' => env('PDFTOPPM_BINARY'),
-    'pdf_scan_max_pages' => (int) env('PDF_SCAN_MAX_PAGES', 3),
+    'pdf_scan_max_pages' => (int) env('PDF_SCAN_MAX_PAGES', 10),
     'pdf_scan_max_width' => (int) env('PDF_SCAN_MAX_WIDTH', 1280),
 
     // Số đoạn liên quan nhất lấy vào system prompt mỗi lượt hỏi.

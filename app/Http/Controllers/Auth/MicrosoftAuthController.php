@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Actions\Teams\CreateTeam;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\AiPolicyAcceptanceController;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -69,7 +70,9 @@ class MicrosoftAuthController extends Controller
         Auth::login($user, remember: true);
         $user->forceFill(['last_login_at' => now()])->save();
 
-        return redirect()->route('ai-plus.index');
+        return AiPolicyAcceptanceController::hasAcceptedCurrentVersion($user)
+            ? redirect()->route('ai-plus.index')
+            : redirect()->route('ai-plus.policy-acceptance.show');
     }
 
     private function makeInitials(string $name): string

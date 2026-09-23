@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\TemplateController;
 use App\Http\Controllers\Admin\TicketController;
 use App\Http\Controllers\Admin\UsageController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\WorkUseMonitoringController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentTemplateController;
 use App\Http\Controllers\AgentWorkspaceController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\AiArtifactController;
 use App\Http\Controllers\AiPlusController;
 use App\Http\Controllers\AiPlusGuideController;
 use App\Http\Controllers\AiPolicyController;
+use App\Http\Controllers\AiPolicyAcceptanceController;
 use App\Http\Controllers\Auth\MicrosoftAuthController;
 use App\Http\Controllers\ChatMessageController;
 use App\Http\Controllers\ImageWorkspaceController;
@@ -31,29 +33,36 @@ use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/ai-plus/agent-workspace/send', [ChatMessageController::class, 'store'])
-    ->middleware(['auth', 'throttle:chat'])
+    ->middleware(['auth', 'ai.policy', 'throttle:chat'])
     ->name('ai-plus.agent-workspace.send');
 
 Route::post('/ai-plus/agent-workspace/send-stream', [ChatMessageController::class, 'stream'])
-    ->middleware(['auth', 'throttle:chat'])
+    ->middleware(['auth', 'ai.policy', 'throttle:chat'])
     ->name('ai-plus.agent-workspace.send-stream');
 Route::post('/ai-plus/agent-workspace/generate-image', [ChatMessageController::class, 'generateImage'])
-    ->middleware(['auth', 'throttle:image-generation'])
+    ->middleware(['auth', 'ai.policy', 'throttle:image-generation'])
     ->name('ai-plus.agent-workspace.generate-image');
 
 Route::inertia('/', 'welcome')->name('home');
 
 // AI+ is an internal staff tool: require sign-in before showing its homepage or modules.
 Route::get('/ai-plus', [AiPlusController::class, 'index'])
-    ->middleware('auth')
+    ->middleware(['auth', 'ai.policy'])
     ->name('ai-plus.index');
 
+Route::middleware('auth')->group(function () {
+    Route::get('/ai-plus/policy-acceptance', [AiPolicyAcceptanceController::class, 'show'])
+        ->name('ai-plus.policy-acceptance.show');
+    Route::post('/ai-plus/policy-acceptance', [AiPolicyAcceptanceController::class, 'accept'])
+        ->name('ai-plus.policy-acceptance.accept');
+});
+
 Route::post('/ai-plus/guide/reply', [AiPlusGuideController::class, 'reply'])
-    ->middleware(['auth', 'throttle:chat'])
+    ->middleware(['auth', 'ai.policy', 'throttle:chat'])
     ->name('ai-plus.guide.reply');
 
 // AI+ Module Routes
-Route::prefix('ai-plus')->name('ai-plus.')->middleware('auth')->group(function () {
+Route::prefix('ai-plus')->name('ai-plus.')->middleware(['auth', 'ai.policy'])->group(function () {
     Route::get('/artifacts/{artifact}/download', [AiArtifactController::class, 'download'])->name('artifacts.download');
     Route::get('/agent-workspace/attachments/{conversation}/{filename}', [ChatMessageController::class, 'attachment'])
         ->where('filename', '[A-Za-z0-9_.-]+')
@@ -94,7 +103,7 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware('auth')->group(function (
 });
 
 // Admin Panel Routes
-Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(function () {
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'ai.policy', 'admin'])->group(function () {
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
 
     // Prompts
@@ -125,6 +134,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::put('ai-plus-guide', [AiPlusGuideSettingsController::class, 'update'])->name('ai-plus-guide.update');
     Route::get('ai-image', [AiImageSettingsController::class, 'index'])->name('ai-image.index');
     Route::put('ai-image', [AiImageSettingsController::class, 'update'])->name('ai-image.update');
+    Route::get('work-use', [WorkUseMonitoringController::class, 'index'])->name('work-use.index');
+    Route::put('work-use', [WorkUseMonitoringController::class, 'update'])->name('work-use.update');
 });
 
 // Legacy route redirect
@@ -182,7 +193,9 @@ Route::post('/login-local', function () {
         request()->session()->regenerate();
         auth()->user()?->forceFill(['last_login_at' => now()])->save();
 
-        return redirect()->intended(route('ai-plus.index'));
+        return \App\Http\Controllers\AiPolicyAcceptanceController::hasAcceptedCurrentVersion(auth()->user())
+            ? redirect()->intended(route('ai-plus.index'))
+            : redirect()->route('ai-plus.policy-acceptance.show');
     }
 
     return back()->withErrors(['email' => 'Sai email hoặc mật khẩu.'])->onlyInput('email');

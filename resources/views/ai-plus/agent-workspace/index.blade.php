@@ -169,7 +169,7 @@
         </div>
         <input type="file" id="chat-image-input" accept="image/*,.html,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple style="display:none;">
         <div class="input-hint">
-          Press Enter to send, Shift+Enter for new line • Public links are read automatically • Your data is protected by PII filtering • Upload up to 5 files (15 MB total) for analysis
+          AI+ is for LSTS-related work • <a href="{{ route('ai-plus.ai-policy.index') }}">Read the AI policy</a> • Scanned PDFs: up to {{ config('openai.pdf_scan_max_pages') }} pages; for longer files, specify pages to read (for example, “pages 12–15”) to reduce token use • Press Enter to send, Shift+Enter for new line • Public links are read automatically • Your data is protected by PII filtering • Upload up to 5 files (15 MB total) for analysis
         </div>
       </div>
     </div>
@@ -282,6 +282,7 @@
   .send-btn:hover{background: var(--navy-light);}
   .send-btn:disabled{opacity:.6;cursor:wait;}
   .input-hint{text-align:center;margin-top:10px;font-size:12px;color: var(--text-soft);}
+  .input-hint a{color:var(--navy);font-weight:600;}
   #chat-image-preview img{max-width:100%;}
   /* Markdown trong bubble AI */
   [style*="align-self:flex-start"] p{margin:0 0 8px;}

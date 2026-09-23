@@ -2,6 +2,7 @@
 
 namespace App\Http\Responses\Concerns;
 
+use App\Http\Controllers\AiPolicyAcceptanceController;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,6 +38,10 @@ trait RedirectsToCurrentTeam
      */
     protected function redirectToIntendedOrAiPlus(Request $request): RedirectResponse
     {
+        if (! AiPolicyAcceptanceController::hasAcceptedCurrentVersion($request->user())) {
+            return redirect()->route('ai-plus.policy-acceptance.show');
+        }
+
         $team = $request->user()?->currentTeam ?? $request->user()?->personalTeam();
 
         if (! $team) {

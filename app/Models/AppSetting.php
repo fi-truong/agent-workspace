@@ -17,4 +17,9 @@ class AppSetting extends Model
 
         return $value === null ? $default : filter_var($value, FILTER_VALIDATE_BOOLEAN);
     }
+
+    public static function value(string $key, ?string $default = null): ?string
+    {
+        return static::query()->where('key', $key)->value('value') ?? $default;
+    }
 }

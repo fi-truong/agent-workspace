@@ -17,7 +17,7 @@ class ChatCompletionService
      *
      * @throws \RuntimeException
      */
-    public function complete(array $messages, ?string $systemPrompt = null): array
+    public function complete(array $messages, ?string $systemPrompt = null, ?string $safetyIdentifier = null): array
     {
         [$payload, $filtered] = $this->buildPayload($messages, $systemPrompt);
 
@@ -26,7 +26,7 @@ class ChatCompletionService
         }
 
         try {
-            return $this->client->chat($payload);
+            return $this->client->chat($payload, $safetyIdentifier);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }
@@ -41,7 +41,7 @@ class ChatCompletionService
      *
      * @throws \RuntimeException
      */
-    public function streamComplete(array $messages, ?string $systemPrompt, callable $onDelta): array
+    public function streamComplete(array $messages, ?string $systemPrompt, callable $onDelta, ?string $safetyIdentifier = null): array
     {
         [$payload, $filtered] = $this->buildPayload($messages, $systemPrompt);
 
@@ -50,7 +50,7 @@ class ChatCompletionService
         }
 
         try {
-            return $this->client->streamChat($payload, $onDelta);
+            return $this->client->streamChat($payload, $onDelta, $safetyIdentifier);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }

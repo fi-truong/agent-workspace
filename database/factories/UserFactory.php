@@ -36,6 +36,10 @@ class UserFactory extends Factory
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
             'is_active' => true,
+            // Factories model existing users who have already completed the
+            // one-time policy acknowledgement. Tests for first sign-in opt out.
+            'ai_policy_accepted_at' => now(),
+            'ai_policy_version' => '1.1',
         ];
     }
 
@@ -64,6 +68,14 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
+        ]);
+    }
+
+    public function withoutAiPolicyAcceptance(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'ai_policy_accepted_at' => null,
+            'ai_policy_version' => null,
         ]);
     }
 

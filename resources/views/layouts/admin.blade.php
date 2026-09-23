@@ -80,6 +80,9 @@
         <a href="{{ route('admin.ai-image.index') }}" class="nav-item {{ request()->routeIs('admin.ai-image.*') ? 'active' : '' }}">
           <span class="nav-icon">🖼️</span><span>Image Generation</span>
         </a>
+        <a href="{{ route('admin.work-use.index') }}" class="nav-item {{ request()->routeIs('admin.work-use.*') ? 'active' : '' }}">
+          <span class="nav-icon">🛡️</span><span>Work-Use Monitoring</span>
+        </a>
       </div>
     </nav>
 

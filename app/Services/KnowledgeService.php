@@ -603,7 +603,7 @@ class KnowledgeService
      *
      * @return array<int, string>
      */
-    public function renderScannedPdfPages(string $binary): array
+    public function renderScannedPdfPages(string $binary, int $firstPage = 1, ?int $lastPage = null): array
     {
         $renderer = $this->pdfScanRenderer();
         if ($renderer === null) {
@@ -625,8 +625,11 @@ class KnowledgeService
                 return [];
             }
 
+            $maxPages = max(1, (int) config('openai.pdf_scan_max_pages', 10));
+            $firstPage = max(1, $firstPage);
+            $lastPage = min($lastPage ?? ($firstPage + $maxPages - 1), $firstPage + $maxPages - 1);
             $process = new Process([
-                $renderer, '-jpeg', '-f', '1', '-l', (string) max(1, config('openai.pdf_scan_max_pages', 3)),
+                $renderer, '-jpeg', '-f', (string) $firstPage, '-l', (string) $lastPage,
                 '-scale-to-x', (string) max(320, config('openai.pdf_scan_max_width', 1280)), '-scale-to-y', '-1',
                 $input, $prefix,
             ]);
@@ -643,7 +646,7 @@ class KnowledgeService
             natsort($pages);
 
             return collect($pages)
-                ->take(max(1, config('openai.pdf_scan_max_pages', 3)))
+                ->take($maxPages)
                 ->map(function (string $page): ?string {
                     $image = file_get_contents($page);
 

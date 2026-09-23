@@ -17,7 +17,7 @@ class OpenAIClient
      *
      * @throws \Throwable
      */
-    public function chat(array $messages): array
+    public function chat(array $messages, ?string $safetyIdentifier = null): array
     {
         $apiKey = config('openai.api_key');
 
@@ -33,6 +33,9 @@ class OpenAIClient
             'max_completion_tokens' => config('openai.max_tokens'),
             'reasoning_effort' => config('openai.reasoning_effort'),
         ];
+        if ($safetyIdentifier !== null) {
+            $payload['safety_identifier'] = $safetyIdentifier;
+        }
 
         $response = Http::retry(
             config('openai.retry_times'),
@@ -87,7 +90,7 @@ class OpenAIClient
      *
      * @throws \Throwable
      */
-    public function streamChat(array $messages, callable $onDelta): array
+    public function streamChat(array $messages, callable $onDelta, ?string $safetyIdentifier = null): array
     {
         $apiKey = config('openai.api_key');
 
@@ -105,6 +108,9 @@ class OpenAIClient
             'stream' => true,
             'stream_options' => ['include_usage' => true],
         ];
+        if ($safetyIdentifier !== null) {
+            $payload['safety_identifier'] = $safetyIdentifier;
+        }
 
         $response = Http::withOptions(['stream' => true])
             ->baseUrl(config('openai.base_url'))

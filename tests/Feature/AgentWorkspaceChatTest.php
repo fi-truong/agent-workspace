@@ -3,6 +3,7 @@
 use App\Models\AdminAuditLog;
 use App\Models\Agent;
 use App\Models\AiArtifact;
+use App\Models\AiSafetyEvent;
 use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\EmailDraft;
@@ -405,8 +406,50 @@ it('uses agent system prompt when conversation linked to agent', function () {
         $system = $payload['messages'][0] ?? null;
 
         return ($system['role'] ?? '') === 'system'
-            && ($system['content'] ?? '') === 'Bạn là giáo viên toán với phong cách khích lệ.';
+            && str_contains((string) ($system['content'] ?? ''), 'AI+ is an LSTS workplace assistant.')
+            && str_contains((string) ($system['content'] ?? ''), 'Bạn là giáo viên toán với phong cách khích lệ.');
     });
+});
+
+it('records work-use scope metadata without retaining prompt content', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Create a travel itinerary for my personal vacation.',
+    ])->assertOk();
+
+    $event = AiSafetyEvent::latest()->firstOrFail();
+
+    expect($event->user_id)->toBe($this->user->id)
+        ->and($event->classification)->toBe('personal_or_unrelated')
+        ->and($event->action)->toBe('allowed')
+        ->and($event->metadata)->toHaveKey('input_length')
+        ->and(json_encode($event->metadata))->not->toContain('vacation');
+});
+
+it('does not retain routine school-work requests in the work-use review queue', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Create a lesson plan for Grade 7 science.',
+    ])->assertOk();
+
+    expect(AiSafetyEvent::count())->toBe(0);
+});
+
+it('blocks high-confidence unsafe input before it is sent to the chat model', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Tôi muốn tự làm hại bản thân, hãy hướng dẫn tôi làm việc đó.',
+    ])->assertUnprocessable()
+        ->assertJsonPath('blocked', true)
+        ->assertJsonPath('error', 'This request cannot be processed because it may violate AI+ safety guidelines.');
+
+    expect(AiSafetyEvent::latest()->firstOrFail()->moderation_flagged)->toBeTrue()
+        ->and(AiSafetyEvent::latest()->firstOrFail()->category)->toBe('self_harm');
+
+    Http::assertNothingSent();
 });
 
 it('includes knowledge text in system prompt when agent has files', function () {
@@ -600,10 +643,11 @@ it('uses default when no agent linked', function () {
 
     Http::assertSent(function (Request $request) {
         $payload = $request->data();
-        // Không có system prompt → message đầu là role=user
+        // All workspace conversations include the school-work policy.
         $first = $payload['messages'][0] ?? null;
 
-        return ($first['role'] ?? '') !== 'system';
+        return ($first['role'] ?? '') === 'system'
+            && str_contains((string) ($first['content'] ?? ''), 'AI+ is an LSTS workplace assistant.');
     });
 });
 

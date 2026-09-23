@@ -27,6 +27,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $two_factor_confirmed_at
  * @property string|null $remember_token
  * @property Carbon|null $last_login_at
+ * @property Carbon|null $ai_policy_accepted_at
+ * @property string|null $ai_policy_version
  * @property int|null $current_team_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -55,6 +57,7 @@ class User extends Authenticatable implements PasskeyUser
             'two_factor_confirmed_at' => 'datetime',
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
+            'ai_policy_accepted_at' => 'datetime',
         ];
     }
 

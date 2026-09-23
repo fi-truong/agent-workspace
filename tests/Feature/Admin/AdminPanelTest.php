@@ -2,6 +2,7 @@
 
 use App\Mail\SupportTicketReplyMail;
 use App\Models\AppSetting;
+use App\Models\AiSafetyEvent;
 use App\Models\ShowcasePost;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketReply;
@@ -74,6 +75,31 @@ test('administrators can enable image generation in Agent Workspace', function (
         ->and(AppSetting::boolean('ai_plus_image_flare_enabled'))->toBeTrue()
         ->and(AppSetting::boolean('ai_plus_image_sunburst_enabled'))->toBeTrue()
         ->and(AppSetting::query()->where('key', 'ai_plus_image_default_model')->value('value'))->toBe('gpt-image-2.5-flare');
+});
+
+test('administrators can review and toggle work-use monitoring without prompt contents', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $staff = User::factory()->create(['name' => 'Monitoring User']);
+    AiSafetyEvent::create([
+        'user_id' => $staff->id,
+        'feature' => 'chat',
+        'classification' => 'personal_or_unrelated',
+        'action' => 'allowed',
+        'moderation_flagged' => false,
+        'metadata' => ['input_length' => 42, 'mode' => 'monitor_only'],
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('admin.work-use.index'))
+        ->assertOk()
+        ->assertSee('Work-Use Monitoring')
+        ->assertSee('Monitoring User')
+        ->assertSee('Personal Or Unrelated');
+
+    $this->put(route('admin.work-use.update'), ['enabled' => '0'])
+        ->assertRedirect(route('admin.work-use.index'));
+
+    expect(AppSetting::boolean('ai_plus_work_use_monitoring_enabled', true))->toBeFalse();
 });
 
 test('administrators can see Image Studio usage split by model and user', function () {

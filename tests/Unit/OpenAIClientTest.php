@@ -40,6 +40,18 @@ it('sends correct payload to chat completions', function () {
     });
 });
 
+it('sends a privacy-preserving safety identifier when supplied', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::fake(['https://api.openai.com/*' => Http::response([
+        'choices' => [['message' => ['content' => 'Hello']]],
+        'usage' => [],
+    ])]);
+
+    (new OpenAIClient)->chat([['role' => 'user', 'content' => 'Hi']], 'hashed-user-id');
+
+    Http::assertSent(fn (Request $request): bool => $request->data()['safety_identifier'] === 'hashed-user-id');
+});
+
 it('retries only on server errors', function () {
     config(['openai.api_key' => 'sk-test']);
 
