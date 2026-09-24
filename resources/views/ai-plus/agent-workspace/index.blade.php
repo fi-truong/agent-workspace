@@ -22,7 +22,7 @@
 
     <!-- Workspace Type Tabs -->
     <div class="workspace-tabs">
-      <a href="{{ route('ai-plus.agent-workspace.index') }}" class="ws-tab {{ request()->routeIs('ai-plus.agent-workspace.index') ? 'active' : '' }}">
+      <a href="{{ route('ai-plus.agent-workspace.index') }}" class="ws-tab {{ request()->routeIs('ai-plus.agent-workspace.index') ? 'active' : '' }}" data-behavior="new-quick-chat">
         <span class="icon">💬</span>
         <span>Chat</span>
       </a>
@@ -40,13 +40,13 @@
 
     <div class="chat-list">
       <div class="chat-list-section">
-        Today
+        Quick Chats
         <button class="add-btn" title="New chat">+</button>
       </div>
-      @foreach($conversations as $conv)
+      @foreach($quickConversations as $conv)
       <div class="chat-item-wrap">
         <a href="{{ route('ai-plus.agent-workspace.index', ['conversation_id' => $conv['id']]) }}"
-           class="chat-item {{ $loop->first ? 'active' : '' }}"
+           class="chat-item {{ (string) request('conversation_id') === (string) $conv['id'] ? 'active' : '' }}"
            data-conversation-id="{{ $conv['id'] }}" data-conversation-title="{{ $conv['title'] }}">
           <span class="item-icon chat">💬</span>
           <span class="title">{{ $conv['title'] }}</span>
@@ -60,18 +60,42 @@
         <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="add-btn" title="Create agent">+</a>
       </div>
       @foreach($myAgents as $agent)
-      <a href="{{ route('ai-plus.agent-workspace.agents.show', $agent['id']) }}" class="chat-item">
-        <span class="item-icon agent">🤖</span>
-        <span class="title">{{ $agent['title'] }}</span>
-      </a>
+      <div class="agent-tree">
+        @if($agent['is_owned'])
+        <a href="{{ route('ai-plus.agent-workspace.agents.show', $agent['id']) }}" class="chat-item agent-tree-parent">
+          <span class="item-icon agent">🤖</span><span class="title">{{ $agent['title'] }}</span>
+        </a>
+        @else
+        <div class="chat-item agent-tree-parent">
+          <span class="item-icon agent">🤖</span><span class="title">{{ $agent['title'] }}</span>
+        </div>
+        @endif
+        @if(!empty($agentConversations[$agent['id']]))
+        <div class="agent-conversation-list">
+          @foreach($agentConversations[$agent['id']] as $conv)
+          <div class="chat-item-wrap">
+            <a href="{{ route('ai-plus.agent-workspace.index', ['conversation_id' => $conv['id']]) }}"
+               class="chat-item agent-conversation {{ (string) request('conversation_id') === (string) $conv['id'] ? 'active' : '' }}"
+               data-conversation-id="{{ $conv['id'] }}" data-conversation-title="{{ $conv['title'] }}">
+              <span class="item-icon chat">💬</span><span class="title">{{ $conv['title'] }}</span>
+            </a>
+            <button class="conv-delete-btn" data-conversation-id="{{ $conv['id'] }}" title="Delete conversation">×</button>
+          </div>
+          @endforeach
+        </div>
+        @endif
+      </div>
       @endforeach
 
       @if($recentArtifacts->isNotEmpty())
       <div class="chat-list-section">Recent files</div>
       @foreach($recentArtifacts as $artifact)
-      <a href="{{ route('ai-plus.artifacts.download', $artifact) }}" class="chat-item">
-        <span class="item-icon chat">📄</span><span class="title">{{ $artifact->name }}</span>
-      </a>
+      <div class="chat-item-wrap artifact-item-wrap" data-artifact-id="{{ $artifact->id }}">
+        <a href="{{ route('ai-plus.artifacts.download', $artifact) }}" class="chat-item">
+          <span class="item-icon chat">📄</span><span class="title">{{ $artifact->name }}</span>
+        </a>
+        <button class="conv-delete-btn artifact-delete-btn" data-artifact-id="{{ $artifact->id }}" title="Delete file" aria-label="Delete {{ $artifact->name }}">×</button>
+      </div>
       @endforeach
       @endif
 
@@ -100,6 +124,8 @@
     </div>
   </aside>
 
+  <div class="workspace-resizer" role="separator" aria-orientation="vertical" aria-label="Resize chat sidebar" tabindex="0"></div>
+
   <!-- Main Content -->
   <main class="main">
     <!-- Top Bar -->
@@ -119,6 +145,7 @@
         <div class="active-agent-breadcrumb">
           @if($activeAgent)
           <span class="agent-breadcrumb-name">🤖 {{ $activeAgent->title }}</span>
+          <button type="button" class="agent-exit-btn" data-behavior="leave-agent" title="Leave this Agent and start a regular chat" aria-label="Leave this Agent">×</button>
           <span class="agent-breadcrumb-sep">→</span>
           <span class="agent-breadcrumb-prompt">{{ $activeConversationTitle }}</span>
           @else
@@ -130,7 +157,7 @@
       <div class="topbar-right">
         <button class="icon-btn" data-behavior="attach-topbar" title="Upload files">📎</button>
         <button class="icon-btn" data-behavior="save-as-agent" title="Save as Agent">🤖</button>
-        <button class="icon-btn" data-behavior="export-chat" title="Export conversation">↓</button>
+        <button class="icon-btn" data-behavior="export-chat" title="Export file">↓</button>
         <button class="icon-btn" data-behavior="settings" title="Settings">⚙</button>
       </div>
       <div class="settings-popover" id="settings-popover" style="display:none;">
@@ -175,6 +202,20 @@
     </div>
   </main>
 </div>
+
+<div class="export-modal-overlay" id="export-file-modal" hidden>
+  <form class="export-modal" id="export-file-form">
+    <div class="export-modal-header"><div><h3>Export file</h3><p>Prepare the latest AI response for download.</p></div><button type="button" class="export-modal-close" data-behavior="close-export-modal" aria-label="Close">×</button></div>
+    <div class="export-modal-body">
+      <label>File format<select name="format"><option value="word">Word (.docx)</option><option value="excel">Excel (.xlsx)</option><option value="pdf">PDF (.pdf)</option><option value="html">HTML (.html)</option></select></label>
+      <label>File name <input name="filename" maxlength="120" placeholder="Leave blank for a smart name"></label>
+      <label>Language<select name="language"><option value="source">Keep original language</option><option value="vi">Vietnamese</option><option value="en">English</option></select></label>
+      <label>Document template<select name="template"><option value="standard">Standard document</option><option value="report">Formal report</option><option value="lesson_plan">Lesson plan</option><option value="meeting_minutes">Meeting minutes</option><option value="budget">Budget</option></select></label>
+      <p class="export-modal-note">The content will be formatted from the latest substantive AI response. This uses AI tokens.</p>
+    </div>
+    <div class="export-modal-actions"><button type="button" class="export-cancel" data-behavior="close-export-modal">Cancel</button><button type="submit" class="export-submit">Create file</button></div>
+  </form>
+</div>
 @endsection
 
 @push('styles')
@@ -183,7 +224,11 @@
   .app{display:flex;height:100%;background: var(--body-bg);}
 
   /* Sidebar */
-  .sidebar{width:300px;background: var(--page-bg);border-right:1px solid var(--surface-border);display:flex;flex-direction:column;flex-shrink:0;}
+  .sidebar{width:var(--workspace-sidebar-width, 300px);background: var(--page-bg);border-right:1px solid var(--surface-border);display:flex;flex-direction:column;flex-shrink:0;}
+  .workspace-resizer{width:8px;flex:0 0 8px;cursor:col-resize;position:relative;background:var(--page-bg);z-index:2;touch-action:none;}
+  .workspace-resizer::after{content:"";position:absolute;top:0;bottom:0;left:3px;width:2px;background:transparent;transition:background .15s;}
+  .workspace-resizer:hover::after,.workspace-resizer.is-resizing::after,.workspace-resizer:focus-visible::after{background:var(--gold);}
+  body.workspace-resizing{cursor:col-resize;user-select:none;}
   .sidebar-header{padding:20px;border-bottom:1px solid var(--surface-border);}
   .sidebar-header a{color: var(--text-soft);font-size:13px;text-decoration:none;display:flex;align-items:center;gap:6px;}
   .sidebar-header a:hover{color: var(--text-main);}
@@ -211,6 +256,10 @@
   .conv-delete-btn{position:absolute;top:6px;right:8px;width:22px;height:22px;border-radius:50%;border:none;background:transparent;color:var(--text-soft);cursor:pointer;font-size:14px;line-height:1;display:none;align-items:center;justify-content:center;}
   .chat-item-wrap:hover .conv-delete-btn{display:flex;}
   .conv-delete-btn:hover{background:rgba(220,53,69,0.15);color:#dc3545;}
+  .agent-tree{margin-bottom:4px;}
+  .agent-conversation-list{margin:0 0 4px 19px;border-left:1px solid var(--surface-border);padding-left:5px;}
+  .agent-conversation{padding-top:8px;padding-bottom:8px;}
+  .agent-conversation .item-icon{width:22px;height:22px;font-size:10px;}
   .item-icon{width:28px;height:28px;border-radius:6px;background: var(--chip-bg);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
   .item-icon.chat{background: var(--navy-light);}
   .item-icon.agent{background: linear-gradient(135deg, var(--gold) 0%, #E5AB45 100%);}
@@ -240,6 +289,8 @@
   .topbar-left{display:flex;flex-direction:column;align-items:flex-start;gap:6px;}
   .active-agent-breadcrumb{display:flex;align-items:center;gap:8px;max-width:100%;}
   .agent-breadcrumb-name{display:inline-block;padding:6px 12px;background: linear-gradient(135deg, var(--gold) 0%, #E5AB45 100%);color:#fff;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;}
+  .agent-exit-btn{width:22px;height:22px;padding:0;border:0;border-radius:50%;background:var(--chip-bg);color:var(--text-soft);font-size:16px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .agent-exit-btn:hover{background:rgba(220,53,69,.14);color:#c43c3c;}
   .agent-breadcrumb-sep{color:var(--text-soft,#5B6B7C);font-size:14px;}
   .agent-breadcrumb-prompt{color:var(--text-main);font-size:13px;white-space:nowrap;}
   .conversation-breadcrumb-name{display:inline-block;padding:6px 12px;background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-main);border-radius:8px;font-size:13px;white-space:nowrap;}
@@ -250,6 +301,8 @@
   .settings-popover .sp-item{display:flex;justify-content:space-between;align-items:center;gap:16px;font-size:13px;}
   .settings-popover .sp-label{color: var(--text-soft);}
   .settings-popover .sp-value{color: var(--text-main);font-family:'IBM Plex Mono',monospace;}
+  .export-modal-overlay{position:fixed;inset:0;z-index:2000;background:rgba(20,37,32,.46);display:flex;align-items:center;justify-content:center;padding:20px;}
+  .export-modal-overlay[hidden]{display:none;}.export-modal{width:min(100%,500px);background:var(--card-bg);border:1px solid var(--line);border-radius:16px;box-shadow:0 22px 50px rgba(0,0,0,.22);overflow:hidden;}.export-modal-header{padding:20px 22px 14px;display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line)}.export-modal-header h3{margin:0;color:var(--text-main);font:600 21px 'Fraunces',serif}.export-modal-header p,.export-modal-note{margin:5px 0 0;color:var(--text-soft);font-size:13px}.export-modal-close{border:0;background:transparent;font-size:25px;color:var(--text-soft);cursor:pointer}.export-modal-body{padding:18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:14px}.export-modal-body label{display:flex;flex-direction:column;gap:6px;color:var(--text-main);font-size:13px;font-weight:600}.export-modal-body input,.export-modal-body select{min-width:0;box-sizing:border-box;width:100%;padding:9px 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:14px inherit}.export-modal-body label:nth-child(2),.export-modal-note{grid-column:1/-1}.export-modal-actions{padding:14px 22px 20px;display:flex;justify-content:flex-end;gap:10px}.export-modal-actions button{border-radius:8px;padding:9px 14px;font:600 14px inherit;cursor:pointer}.export-cancel{border:1px solid var(--input-border);background:transparent;color:var(--text-main)}.export-submit{border:0;background:var(--navy);color:#fff}.export-submit:disabled{opacity:.6;cursor:wait;}
 
   /* Empty State */
   .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center;}
@@ -303,6 +356,7 @@
   @media (max-width: 860px){
     .quick-actions{grid-template-columns:1fr;}
     .sidebar{width:260px;}
+    .workspace-resizer{display:none;}
   }
 </style>
 @endpush

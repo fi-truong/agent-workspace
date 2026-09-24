@@ -87,8 +87,10 @@ class ChatMessageController extends Controller
             ], 502);
         }
 
-        $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
         $actions = $this->createRequestedOutputs($request->message, $completion['content'], $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService);
+        $completion['content'] = $this->normalizeGeneratedFileReply($completion['content'], $actions);
+        $completion['content'] = $this->appendOutputLinks($completion['content'], $actions);
+        $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
 
         return response()->json([
             'blocked' => false,
@@ -97,6 +99,78 @@ class ChatMessageController extends Controller
             'reply' => $completion['content'],
             'token_quota' => $tokenQuotaService->summary($ctx['user']),
             ...$actions,
+        ]);
+    }
+
+    /** Export the most recent substantive assistant reply as a polished file. */
+    public function exportConversation(
+        Request $request,
+        Conversation $conversation,
+        ChatCompletionService $chatService,
+        ArtifactService $artifactService,
+        TokenQuotaService $tokenQuotaService,
+        WorkUsePolicyService $workUsePolicy,
+    ): JsonResponse {
+        abort_unless($conversation->user_id === $request->user()->id && $conversation->type === Conversation::TYPE_CHAT, 404);
+
+        $data = $request->validate([
+            'format' => ['required', 'in:word,excel,pdf,html'],
+            'filename' => ['nullable', 'string', 'max:120'],
+            'language' => ['required', 'in:source,vi,en'],
+            'template' => ['required', 'in:standard,report,lesson_plan,meeting_minutes,budget'],
+        ]);
+        /** @var User $user */
+        $user = $request->user();
+        if ($tokenQuotaService->isExhausted($user)) {
+            return $this->tokenQuotaExceededResponse();
+        }
+
+        $source = $conversation->messages()
+            ->where('role', 'assistant')
+            ->latest('id')
+            ->limit(self::CHAT_HISTORY_LIMIT)
+            ->pluck('content')
+            ->first(fn (string $content): bool => ! str_contains($content, '/ai-plus/artifacts/'));
+
+        if (! is_string($source) || trim($source) === '') {
+            return response()->json(['error' => 'There is no AI response in this conversation to export.'], 422);
+        }
+
+        $language = match ($data['language']) {
+            'vi' => 'Write the entire document in Vietnamese.',
+            'en' => 'Write the entire document in English.',
+            default => 'Keep the source language.',
+        };
+        $template = match ($data['template']) {
+            'report' => 'formal report with title, executive summary, clear sections, findings, and next steps when applicable',
+            'lesson_plan' => 'lesson plan with objectives, materials, sequence, assessment, and differentiation when applicable',
+            'meeting_minutes' => 'meeting minutes with purpose, attendees if present in the source, decisions, actions, owners, and deadlines',
+            'budget' => 'budget document with assumptions, line-item tables, totals, and notes',
+            default => 'clear professional document with sensible headings and Markdown tables or lists where useful',
+        };
+
+        try {
+            $completion = $chatService->complete([
+                ['role' => 'user', 'content' => "Source content:\n\n".Str::limit($source, self::MAX_CURRENT_TURN_CHARS)],
+            ], "You format an existing AI+ workplace response for file export. Return only the complete document in Markdown. {$language} Use a {$template}. Preserve all factual information from the source; do not invent people, amounts, dates, policy, or sources.", $workUsePolicy->safetyIdentifier($user));
+        } catch (\RuntimeException $exception) {
+            return response()->json(['error' => $exception->getMessage()], 502);
+        }
+
+        $artifact = $artifactService->generate($user, $conversation, $data['format'], $completion['content'], $data['filename'] ?: null);
+        UsageLog::create([
+            'user_id' => $user->id,
+            'activity_title' => 'Export '.$data['format'].' file: '.$artifact->name,
+            'source' => 'agent_workspace_export',
+            'related_conversation_id' => $conversation->id,
+            'prompt_tokens' => $completion['prompt_tokens'],
+            'completion_tokens' => $completion['completion_tokens'],
+        ]);
+
+        return response()->json([
+            'name' => $artifact->name,
+            'url' => route('ai-plus.artifacts.download', $artifact, false),
+            'token_quota' => $tokenQuotaService->summary($user),
         ]);
     }
 
@@ -160,10 +234,11 @@ class ChatMessageController extends Controller
                     $ctx['safetyIdentifier'],
                 );
 
-                $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
-
                 $send('progress', ['message' => 'Đang tạo file hoặc email nháp…']);
                 $actions = $this->createRequestedOutputs($request->message, $completion['content'], $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService);
+                $completion['content'] = $this->normalizeGeneratedFileReply($completion['content'], $actions);
+                $completion['content'] = $this->appendOutputLinks($completion['content'], $actions);
+                $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
                 $send('done', [
                     'conversation_id' => $ctx['conversation']->id,
                     'title' => $ctx['conversation']->fresh()->title,
@@ -371,7 +446,7 @@ class ChatMessageController extends Controller
             $totalBytes += $bytes;
         }
 
-        $maxDocumentBytes = KnowledgeService::MAX_FILE_SIZE_KB * 1024;
+        $maxDocumentBytes = KnowledgeService::MAX_CHAT_DOCUMENT_SIZE_KB * 1024;
         foreach ($documents as $document) {
             $dataUrl = is_array($document) ? ($document['data_url'] ?? null) : null;
             if (! is_string($dataUrl) || ! preg_match('#^data:[^;]+;base64,([A-Za-z0-9+/=]+)$#s', $dataUrl, $matches)) {
@@ -380,7 +455,7 @@ class ChatMessageController extends Controller
 
             $bytes = $this->base64Size($matches[1]);
             if ($bytes > $maxDocumentBytes) {
-                return 'Mỗi tài liệu chỉ được tối đa '.KnowledgeService::MAX_FILE_SIZE_KB.' KB.';
+                return 'Mỗi tài liệu chỉ được tối đa '.KnowledgeService::MAX_CHAT_DOCUMENT_SIZE_KB.' KB.';
             }
             $totalBytes += $bytes;
         }
@@ -597,6 +672,8 @@ class ChatMessageController extends Controller
             ? trim($agent->system_prompt."\n\n".$policyPrompt)
             : $policyPrompt;
 
+        $systemPrompt .= "\n\nAI+ can generate downloadable DOCX (Word), XLSX (Excel), PDF, and HTML files when a user asks to create or export one. Provide the requested content normally; the application creates the file after your response. Never claim that you cannot create, attach, or export those files, that a generated download is invalid, or that the user must manually copy the content. Do not invent a download URL.";
+
         $schoolContext = $schoolKnowledgeService->retrieveContext($query);
         if ($schoolContext !== '') {
             $systemPrompt = trim($systemPrompt."\n\n".$schoolContext);
@@ -749,7 +826,7 @@ class ChatMessageController extends Controller
     {
         $blocks = [];
         $scannedPdfImages = [];
-        $maxBytes = KnowledgeService::MAX_FILE_SIZE_KB * 1024;
+        $maxBytes = KnowledgeService::MAX_CHAT_DOCUMENT_SIZE_KB * 1024;
 
         foreach ($documents as $doc) {
             $name = is_array($doc) ? (string) ($doc['name'] ?? 'tệp đính kèm') : 'tệp đính kèm';
@@ -766,7 +843,7 @@ class ChatMessageController extends Controller
             }
 
             if (strlen($binary) > $maxBytes) {
-                $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(Tệp vượt quá giới hạn ".KnowledgeService::MAX_FILE_SIZE_KB.' KB — chưa đọc được nội dung.)';
+                $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(Tệp vượt quá giới hạn ".KnowledgeService::MAX_CHAT_DOCUMENT_SIZE_KB.' KB — chưa đọc được nội dung.)';
 
                 continue;
             }
@@ -962,14 +1039,113 @@ class ChatMessageController extends Controller
         $type = str_contains($text, 'excel') || str_contains($text, 'xlsx') ? 'excel' : (str_contains($text, 'word') || str_contains($text, 'docx') ? 'word' : (str_contains($text, 'pdf') ? 'pdf' : (str_contains($text, 'html') ? 'html' : null)));
         $result = ['artifacts' => [], 'email_draft' => null];
         if ($type && (str_contains($text, 'tạo') || str_contains($text, 'xuất') || str_contains($text, 'file'))) {
-            $artifact = $artifacts->generate($user, $conversation, $type, $content);
-            $result['artifacts'][] = ['name' => $artifact->name, 'url' => route('ai-plus.artifacts.download', $artifact)];
+            $artifact = $artifacts->generate($user, $conversation, $type, $this->artifactContent($requestText, $content, $conversation));
+            // Keep this URL relative to the current host. Local users may open
+            // AI+ through the machine name while APP_URL uses a LAN address.
+            $result['artifacts'][] = ['name' => $artifact->name, 'url' => route('ai-plus.artifacts.download', $artifact, false)];
         }
         if (str_contains($text, 'email nháp') || str_contains($text, 'soạn email')) {
             $result['email_draft'] = $drafts->create($user, $conversation, $content)->only(['id', 'subject', 'body']);
         }
 
         return $result;
+    }
+
+    /**
+     * A short request such as “export the content as Word” refers to the
+     * material already prepared in the conversation, not the model's new
+     * acknowledgement of that request. Use the latest substantive assistant
+     * reply in that case; otherwise export the just-generated response.
+     */
+    private function artifactContent(string $requestText, string $completion, Conversation $conversation): string
+    {
+        $normalized = mb_strtolower($requestText);
+        $exportsExistingContent = preg_match(
+            '/(?:nội dung|noi dung|bản|ban|kế hoạch|ke hoach|báo cáo|bao cao).{0,60}(?:ở trên|trên|trước|này|above|previous)|(?:ở trên|trên|trước|above|previous).{0,60}(?:nội dung|noi dung|bản|ban|kế hoạch|ke hoach|báo cáo|bao cao)/iu',
+            $normalized,
+        ) === 1;
+
+        if (! $exportsExistingContent) {
+            return $completion;
+        }
+
+        $previousReplies = $conversation->messages()
+            ->where('role', 'assistant')
+            ->latest('id')
+            ->limit(self::CHAT_HISTORY_LIMIT)
+            ->pluck('content');
+
+        $previousReply = $previousReplies->first(function (mixed $reply): bool {
+            if (! is_string($reply) || trim($reply) === '') {
+                return false;
+            }
+
+            $normalizedReply = mb_strtolower($reply);
+
+            // Ignore earlier export acknowledgements/refusals. They do not
+            // contain the actual document the user wants to download.
+            return ! str_contains($reply, '/ai-plus/artifacts/')
+                && ! str_contains($normalizedReply, 'không thể tạo')
+                && ! str_contains($normalizedReply, 'cannot create');
+        });
+
+        return is_string($previousReply) && trim($previousReply) !== ''
+            ? $this->withoutArtifactLinks($previousReply)
+            : $completion;
+    }
+
+    private function withoutArtifactLinks(string $content): string
+    {
+        return trim((string) preg_replace(
+            '/\n*📄 \*\*File ready:\*\* \[[^\]]+\]\([^\)]+\)/u',
+            '',
+            $content,
+        ));
+    }
+
+    private function normalizeGeneratedFileReply(string $content, array $actions): string
+    {
+        if (($actions['artifacts'] ?? []) === []) {
+            return $content;
+        }
+
+        $normalized = mb_strtolower($content);
+        $mentionsFile = str_contains($normalized, 'file') || str_contains($normalized, 'tệp') || str_contains($normalized, 'docx');
+        $incorrectRefusal = $mentionsFile && (
+            str_contains($normalized, 'không thể tạo')
+            || str_contains($normalized, 'không có công cụ')
+            || str_contains($normalized, 'không thể cung cấp')
+            || str_contains($normalized, 'cannot create')
+            || str_contains($normalized, 'do not have the tools')
+        );
+
+        return $incorrectRefusal
+            ? 'Đã tạo file từ nội dung liên quan trong cuộc chat này.'
+            : $content;
+    }
+
+    /**
+     * Keep generated-file links in the assistant message itself, not merely in
+     * the transient API payload. This lets users download a file immediately,
+     * after reloading the page, or when reopening the conversation later.
+     */
+    private function appendOutputLinks(string $content, array $actions): string
+    {
+        $artifacts = $actions['artifacts'] ?? [];
+
+        if (! is_array($artifacts) || $artifacts === []) {
+            return $content;
+        }
+
+        $links = collect($artifacts)
+            ->filter(fn (mixed $artifact): bool => is_array($artifact)
+                && isset($artifact['name'], $artifact['url'])
+                && is_string($artifact['name'])
+                && is_string($artifact['url']))
+            ->map(fn (array $artifact): string => '📄 **File ready:** ['.$artifact['name'].']('.$artifact['url'].')')
+            ->implode("\n");
+
+        return $links === '' ? $content : rtrim($content)."\n\n".$links;
     }
 
     private function requestsHtmlCodeEdit(string $query): bool

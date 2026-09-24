@@ -10,6 +10,60 @@ document.addEventListener('DOMContentLoaded', function () {
   let conversationId = null;
   let messagesContainer = null;
 
+  const workspace = document.querySelector('.app');
+  const sidebar = document.querySelector('.sidebar');
+  const workspaceResizer = document.querySelector('.workspace-resizer');
+  const sidebarWidthStorageKey = 'ai-plus.workspace-sidebar-width';
+
+  function sidebarWidthLimits() {
+    return { min: 220, max: Math.min(480, Math.max(220, window.innerWidth - 420)) };
+  }
+
+  function applySidebarWidth(width, persist = false) {
+    if (!workspace || window.innerWidth <= 860) return;
+    const { min, max } = sidebarWidthLimits();
+    const safeWidth = Math.round(Math.min(max, Math.max(min, width)));
+    workspace.style.setProperty('--workspace-sidebar-width', `${safeWidth}px`);
+    if (persist) localStorage.setItem(sidebarWidthStorageKey, String(safeWidth));
+  }
+
+  function restoreSidebarWidth() {
+    if (!workspace) return;
+    if (window.innerWidth <= 860) {
+      workspace.style.removeProperty('--workspace-sidebar-width');
+      return;
+    }
+    const savedWidth = Number(localStorage.getItem(sidebarWidthStorageKey));
+    if (Number.isFinite(savedWidth) && savedWidth > 0) applySidebarWidth(savedWidth);
+  }
+
+  if (workspaceResizer && sidebar) {
+    let resizing = false;
+    workspaceResizer.addEventListener('pointerdown', (event) => {
+      if (window.innerWidth <= 860) return;
+      resizing = true;
+      workspaceResizer.setPointerCapture(event.pointerId);
+      workspaceResizer.classList.add('is-resizing');
+      document.body.classList.add('workspace-resizing');
+      event.preventDefault();
+    });
+    workspaceResizer.addEventListener('pointermove', (event) => {
+      if (resizing) applySidebarWidth(event.clientX);
+    });
+    const finishResize = (event) => {
+      if (!resizing) return;
+      resizing = false;
+      workspaceResizer.classList.remove('is-resizing');
+      document.body.classList.remove('workspace-resizing');
+      applySidebarWidth(sidebar.getBoundingClientRect().width, true);
+      if (workspaceResizer.hasPointerCapture(event.pointerId)) workspaceResizer.releasePointerCapture(event.pointerId);
+    };
+    workspaceResizer.addEventListener('pointerup', finishResize);
+    workspaceResizer.addEventListener('pointercancel', finishResize);
+  }
+  restoreSidebarWidth();
+  window.addEventListener('resize', restoreSidebarWidth);
+
   let selectedAgentId = window.__SELECTED_AGENT_ID__ || sessionStorage.getItem('selectedAgentId');
   if (window.__SELECTED_AGENT_ID__) {
     sessionStorage.setItem('selectedAgentId', window.__SELECTED_AGENT_ID__);
@@ -42,7 +96,27 @@ document.addEventListener('DOMContentLoaded', function () {
     n.className = 'agent-breadcrumb-name';
     n.textContent = '🤖 ' + agent.title;
     crumb.appendChild(n);
+    crumb.appendChild(createLeaveAgentButton());
     topbarLeft.appendChild(crumb);
+  }
+
+  function createLeaveAgentButton() {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'agent-exit-btn';
+    button.dataset.behavior = 'leave-agent';
+    button.title = 'Leave this Agent and start a regular chat';
+    button.setAttribute('aria-label', 'Leave this Agent');
+    button.textContent = '×';
+
+    return button;
+  }
+
+  function startQuickChat() {
+    // The selected Agent is client-side until the first message. Clear it
+    // before navigating so a fresh chat is truly a regular Quick Chat.
+    clearUnavailableSharedAgent();
+    window.location.assign('/ai-plus/agent-workspace');
   }
 
   function syncConversationTitle(title) {
@@ -67,6 +141,7 @@ document.addEventListener('DOMContentLoaded', function () {
         agentName.className = 'agent-breadcrumb-name';
         agentName.textContent = '🤖 ' + agent.title;
         crumb.appendChild(agentName);
+        crumb.appendChild(createLeaveAgentButton());
         hasAgent = true;
       }
     }
@@ -107,6 +182,17 @@ document.addEventListener('DOMContentLoaded', function () {
     setTimeout(() => { toast.style.opacity = '0'; }, 850);
   }
 
+  function updateTokenQuota(quota) {
+    if (!quota) return;
+
+    const quotaText = document.querySelector('[data-token-quota-text]');
+    const quotaFill = document.querySelector('[data-token-quota-fill]');
+    if (quotaText) {
+      quotaText.textContent = `${Number(quota.used).toLocaleString()} / ${Number(quota.limit).toLocaleString()} tokens (in ${quota.month_name})`;
+    }
+    if (quotaFill) quotaFill.style.width = `${quota.percentage}%`;
+  }
+
   function renderInitialMessages() {
     const messages = window.__INITIAL_MESSAGES__ || [];
     if (messages.length === 0) return;
@@ -139,11 +225,12 @@ document.addEventListener('DOMContentLoaded', function () {
       : 'background:var(--card-bg);border:1px solid var(--line);padding:12px 16px;border-radius:14px;white-space:normal;';
 
     // Render markdown cho assistant + user (nếu có ảnh kèm) — để ảnh hiện trong lịch sử.
-    const hasImageMd = typeof text === 'string' && text.includes('![');
+    const displayText = role === 'assistant' ? prioritizeArtifactLinks(text) : text;
+    const hasImageMd = typeof displayText === 'string' && displayText.includes('![');
     if (typeof marked !== 'undefined' && (role === 'assistant' || hasImageMd)) {
-      bubble.innerHTML = renderSafeMarkdown(text);
+      bubble.innerHTML = renderSafeMarkdown(displayText);
     } else {
-      bubble.textContent = text;
+      bubble.textContent = displayText;
     }
 
     wrap.appendChild(bubble);
@@ -281,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderAssistantMarkdown(bubble, text) {
     if (typeof marked !== 'undefined') {
-      bubble.innerHTML = renderSafeMarkdown(text);
+      bubble.innerHTML = renderSafeMarkdown(prioritizeArtifactLinks(text));
     } else {
       bubble.textContent = text;
     }
@@ -293,6 +380,22 @@ document.addEventListener('DOMContentLoaded', function () {
         // bỏ qua nếu typeset fail
       }
     }
+  }
+
+  // File generation happens after the model has written its response, so the
+  // persisted download link is normally at the end of a long bubble. Move it
+  // to the top for visibility without altering the stored conversation.
+  function prioritizeArtifactLinks(text) {
+    if (typeof text !== 'string' || !text.includes('/ai-plus/artifacts/')) return text;
+
+    const artifactLine = /(?:^|\n)(📄 \*\*File ready:\*\* \[[^\]]+\]\((?:https?:\/\/[^\s)]+)?\/ai-plus\/artifacts\/\d+\/download\))/g;
+    const links = [];
+    const remainder = text.replace(artifactLine, (_, link) => {
+      links.push(link);
+      return '';
+    }).trim();
+
+    return links.length === 0 ? text : `${links.join('\n')}\n\n${remainder}`;
   }
 
   // marked turns Markdown into HTML but does not sanitize it. Keep only the HTML that
@@ -316,11 +419,18 @@ document.addEventListener('DOMContentLoaded', function () {
       if (tag === 'a') {
         const href = element.getAttribute('href') || '';
         [...element.attributes].forEach((attribute) => element.removeAttribute(attribute.name));
-        if (!/^https?:\/\//i.test(href)) {
+        const isExternalHttpLink = /^https?:\/\//i.test(href);
+        const isArtifactDownloadLink = /^\/ai-plus\/artifacts\/\d+\/download(?:[?#].*)?$/i.test(href);
+        if (!isExternalHttpLink && !isArtifactDownloadLink) {
           element.removeAttribute('href');
         } else {
-          element.setAttribute('target', '_blank');
-          element.setAttribute('rel', 'noopener noreferrer');
+          // Attributes were removed above to prevent event handlers and other
+          // unsafe markup. Restore only the URL we just validated.
+          element.setAttribute('href', href);
+          if (isExternalHttpLink) {
+            element.setAttribute('target', '_blank');
+            element.setAttribute('rel', 'noopener noreferrer');
+          }
         }
       }
       if (tag === 'img') {
@@ -582,20 +692,9 @@ document.addEventListener('DOMContentLoaded', function () {
       },
     );
 
-    const updateTokenQuota = (quota) => {
-      if (!quota) return;
-
-      const quotaText = document.querySelector('[data-token-quota-text]');
-      const quotaFill = document.querySelector('[data-token-quota-fill]');
-      if (quotaText) {
-        quotaText.textContent = `${Number(quota.used).toLocaleString()} / ${Number(quota.limit).toLocaleString()} tokens (in ${quota.month_name})`;
-      }
-      if (quotaFill) {
-        quotaFill.style.width = `${quota.percentage}%`;
-      }
-    };
     const showOutputs = (data) => {
-      (data.artifacts || []).forEach((artifact) => appendMessage('assistant', `📄 Đã tạo file: [${artifact.name}](${artifact.url})`));
+      // Artifact links are already included in the final assistant reply so
+      // they remain available after a reload. Do not append a duplicate bubble.
       if (data.email_draft) appendMessage('assistant', `✉️ Đã tạo email nháp: **${data.email_draft.subject}**`);
     };
 
@@ -913,6 +1012,43 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  // Delete a generated file directly from Recent files in the sidebar.
+  document.querySelectorAll('.artifact-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const artifactId = btn.dataset.artifactId;
+      if (!artifactId) return;
+      const ok = await confirmDialog('This generated file will be permanently deleted. This cannot be undone.', {
+        title: 'Delete file',
+        confirmText: 'Delete file',
+      });
+      if (!ok) return;
+
+      btn.disabled = true;
+      try {
+        const response = await fetch('/ai-plus/artifacts/' + encodeURIComponent(artifactId), {
+          method: 'DELETE',
+          headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+          },
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || 'The file could not be deleted. Please try again.');
+        }
+
+        btn.closest('.artifact-item-wrap')?.remove();
+        showMiniToast('🗑️ File deleted');
+      } catch (error) {
+        btn.disabled = false;
+        await WebUI.notice(error.message || 'We could not reach the server. Please try again.', { title: 'Could not delete file' });
+      }
+    });
+  });
+
   sendBtn.addEventListener('click', function (e) {
     e.preventDefault();
     sendMessage();
@@ -938,34 +1074,51 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   const exportBtn = document.querySelector('[data-behavior="export-chat"]');
+  const exportModal = document.getElementById('export-file-modal');
+  const exportForm = document.getElementById('export-file-form');
   exportBtn?.addEventListener('click', function () {
-    exportConversationTxt();
+    if (!conversationId) {
+      showMiniToast('⚠️ Send a message first, then export the AI response');
+      return;
+    }
+    exportModal?.removeAttribute('hidden');
   });
 
-  function exportConversationTxt() {
-    const container = ensureMessagesContainer();
-    const bubbles = Array.from(container.querySelectorAll('div'));
+  document.querySelectorAll('[data-behavior="close-export-modal"]').forEach((button) => {
+    button.addEventListener('click', () => exportModal?.setAttribute('hidden', ''));
+  });
+  exportModal?.addEventListener('click', (event) => {
+    if (event.target === exportModal) exportModal.setAttribute('hidden', '');
+  });
+  exportForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!conversationId) return;
 
-    const lines = [];
-    bubbles.forEach((bubble) => {
-      const text = bubble.textContent?.trim();
-      if (!text) return;
-      const isUser = bubble.style.alignSelf === 'flex-end';
-      lines.push((isUser ? '[Me] ' : '[AI] ') + text);
-    });
+    const submit = exportForm.querySelector('.export-submit');
+    const form = new FormData(exportForm);
+    submit.disabled = true;
+    submit.textContent = 'Preparing…';
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const response = await fetch(`/ai-plus/agent-workspace/conversations/${encodeURIComponent(conversationId)}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+        body: JSON.stringify(Object.fromEntries(form.entries())),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.message || 'Could not create the file.');
 
-    const content = lines.join('\n\n');
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const title = (document.querySelector('.user-name')?.textContent || 'chat').trim().replace(/\s+/g, '_');
-    a.href = url;
-    a.download = 'agent-chat-' + title + '.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
+      appendMessage('assistant', `📄 **File ready:** [${data.name}](${data.url})`);
+      updateTokenQuota(data.token_quota);
+      exportModal?.setAttribute('hidden', '');
+      showMiniToast('✅ File is ready to download');
+    } catch (error) {
+      appendWarning(error.message || 'Could not create the file.');
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Create file';
+    }
+  });
 
   const settingsBtn = document.querySelector('[data-behavior="settings"]');
   const settingsPopover = document.getElementById('settings-popover');
@@ -1012,6 +1165,19 @@ document.addEventListener('DOMContentLoaded', function () {
     const behavior = quickBtnBehaviors[btn.dataset.behavior];
     if (behavior) {
       btn.addEventListener('click', behavior);
+    }
+  });
+
+  // Returning to the Chat tab intentionally clears the client-side Agent
+  // selection. Existing Agent conversations remain available in the sidebar.
+  document.querySelector('[data-behavior="new-quick-chat"]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    startQuickChat();
+  });
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-behavior="leave-agent"]')) {
+      event.preventDefault();
+      startQuickChat();
     }
   });
 });

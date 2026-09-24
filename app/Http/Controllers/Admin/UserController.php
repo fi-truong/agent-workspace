@@ -56,8 +56,9 @@ class UserController extends Controller
         $departments = User::distinct()->pluck('department')->filter()->all();
 
         $activeStatuses = ['1' => 'Active', '0' => 'Inactive'];
+        $defaultTokenQuota = max((int) (config('usage.token_limits.'.config('usage.phase', 'testing')) ?? config('usage.token_limits.testing', 20_000_000)), 1);
 
-        return view('admin.users.index', compact('users', 'roles', 'departments', 'activeStatuses'));
+        return view('admin.users.index', compact('users', 'roles', 'departments', 'activeStatuses', 'defaultTokenQuota'));
     }
 
     public function create()
@@ -77,6 +78,7 @@ class UserController extends Controller
             'department' => 'nullable|string|max:100',
             'employee_id' => 'nullable|string|max:50',
             'is_active' => 'boolean',
+            'token_quota_limit' => 'nullable|integer|min:1|max:1000000000',
         ]);
 
         $data['password'] = Hash::make($data['password']);
@@ -109,6 +111,7 @@ class UserController extends Controller
             'department' => 'nullable|string|max:100',
             'employee_id' => 'nullable|string|max:50',
             'is_active' => 'boolean',
+            'token_quota_limit' => 'nullable|integer|min:1|max:1000000000',
         ]);
 
         // An unchecked HTML checkbox is omitted from the request. On an edit, that
@@ -133,9 +136,40 @@ class UserController extends Controller
         $data['is_active'] = $isActive;
 
         $user->update($data);
-        AdminAuditLog::record('user.updated', $user, ['role' => $user->role, 'is_active' => $user->is_active]);
+        AdminAuditLog::record('user.updated', $user, ['role' => $user->role, 'is_active' => $user->is_active, 'token_quota_limit' => $user->token_quota_limit]);
 
         return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
+    }
+
+    /** Apply a custom monthly quota or restore the phase default for selected users. */
+    public function updateTokenQuota(Request $request)
+    {
+        $data = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer', 'exists:users,id'],
+            'action' => ['required', 'in:set,reset'],
+            'token_quota_limit' => ['nullable', 'integer', 'min:1', 'max:1000000000'],
+        ]);
+        if ($data['action'] === 'set' && empty($data['token_quota_limit'])) {
+            return back()->withErrors(['token_quota_limit' => 'Enter a token quota to apply.'])->withInput();
+        }
+
+        $limit = $data['action'] === 'set' ? (int) $data['token_quota_limit'] : null;
+        $selectedUsers = User::query()->whereIn('id', $data['user_ids'])->get();
+        foreach ($selectedUsers as $user) {
+            $user->update(['token_quota_limit' => $limit]);
+            AdminAuditLog::record('user.token_quota_updated', $user, [
+                'token_quota_limit' => $limit,
+                'mode' => $limit === null ? 'default' : 'custom',
+                'bulk_count' => $selectedUsers->count(),
+            ]);
+        }
+
+        $message = $limit === null
+            ? 'Restored the default token quota for '.$selectedUsers->count().' user(s).'
+            : 'Set '.number_format($limit).' monthly tokens for '.$selectedUsers->count().' user(s).';
+
+        return redirect()->route('admin.users.index')->with('success', $message);
     }
 
     public function destroy(User $user)

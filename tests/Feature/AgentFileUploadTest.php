@@ -89,9 +89,9 @@ it('limits each agent to ten Knowledge files', function () {
     expect($this->user->agents()->count())->toBe(0);
 });
 
-it('limits new Agent Knowledge to twenty five MB in total', function () {
-    $files = collect(range(1, 6))
-        ->map(fn (int $number) => UploadedFile::fake()->create("large-{$number}.txt", 4500, 'text/plain'))
+it('limits new Agent Knowledge to fifty MB in total', function () {
+    $files = collect(range(1, 4))
+        ->map(fn (int $number) => UploadedFile::fake()->create("large-{$number}.txt", 14000, 'text/plain'))
         ->all();
 
     $this->post('/ai-plus/agent-workspace/agents', [

@@ -33,13 +33,38 @@ class AgentWorkspaceController extends Controller
         $agentAccessMessage = null;
 
         if ($user) {
-            $conversations = $user->conversations()->where('type', \App\Models\Conversation::TYPE_CHAT)->latest('updated_at')->get()->map(fn ($c) => [
-                'id' => $c->id, 'title' => $c->title, 'type' => 'chat',
+            $conversationModels = $user->conversations()
+                ->where('type', \App\Models\Conversation::TYPE_CHAT)
+                ->with('agent:id,title,user_id')
+                ->latest('updated_at')
+                ->get();
+            $conversations = $conversationModels->map(fn ($c) => [
+                'id' => $c->id, 'title' => $c->title, 'type' => 'chat', 'agent_id' => $c->agent_id,
             ])->toArray();
+            $quickConversations = $conversationModels->whereNull('agent_id')->map(fn ($c) => [
+                'id' => $c->id, 'title' => $c->title,
+            ])->values()->all();
+            $agentConversations = $conversationModels->filter(fn ($c) => $c->agent_id !== null && $c->agent !== null)
+                ->groupBy('agent_id')
+                ->map(fn ($group) => $group->map(fn ($c) => ['id' => $c->id, 'title' => $c->title])->values()->all())
+                ->all();
 
             $myAgents = $user->agents()->latest()->get()->map(fn ($a) => [
-                'id' => $a->id, 'title' => $a->title, 'type' => 'agent',
-            ])->toArray();
+                'id' => $a->id, 'title' => $a->title, 'type' => 'agent', 'is_owned' => true,
+            ])->keyBy('id');
+            // A Use-only shared Agent is not owned by this user, but its
+            // conversations still belong in the same sidebar tree.
+            foreach ($conversationModels->filter(fn ($c) => $c->agent !== null) as $conversation) {
+                if (! $myAgents->has($conversation->agent_id)) {
+                    $myAgents->put($conversation->agent_id, [
+                        'id' => $conversation->agent->id,
+                        'title' => $conversation->agent->title,
+                        'type' => 'agent',
+                        'is_owned' => false,
+                    ]);
+                }
+            }
+            $myAgents = $myAgents->values()->all();
 
             $workflows = $user->workflows()->latest()->get()->map(fn ($w) => [
                 'id' => $w->id, 'title' => $w->title, 'type' => 'workflow',
@@ -72,8 +97,27 @@ class AgentWorkspaceController extends Controller
                     $initialMessages = $conversation->messages()
                         ->orderBy('id')
                         ->get()
-                        ->map(fn ($m) => ['role' => $m->role, 'content' => $this->secureAttachmentUrls($m->content)])
+                        ->map(fn ($m) => ['role' => $m->role, 'content' => $this->displayMessageContent($m->role, $m->content)])
                         ->toArray();
+
+                    // Files created before download links were stored in the
+                    // assistant reply still exist in private artifact storage.
+                    // Surface their links again when this conversation opens.
+                    $history = implode("\n", array_column($initialMessages, 'content'));
+                    $missingArtifactLinks = $user->aiArtifacts()
+                        ->where('conversation_id', $conversation->id)
+                        ->oldest()
+                        ->get(['id', 'name'])
+                        ->filter(fn ($artifact) => ! str_contains($history, '/ai-plus/artifacts/'.$artifact->id.'/download'))
+                        ->map(fn ($artifact) => '📄 **File ready:** ['.$artifact->name.']('.route('ai-plus.artifacts.download', $artifact, false).')')
+                        ->implode("\n");
+
+                    if ($missingArtifactLinks !== '') {
+                        $initialMessages[] = [
+                            'role' => 'assistant',
+                            'content' => "**Files created in this conversation**\n\n".$missingArtifactLinks,
+                        ];
+                    }
 
                     // Agent + tên prompt (conversation) gắn → hiển thị trong chat.
                     $activeAgent = $conversation->agent;
@@ -89,6 +133,8 @@ class AgentWorkspaceController extends Controller
 
         return view('ai-plus.agent-workspace.index', [
             'conversations' => $conversations,
+            'quickConversations' => $quickConversations ?? [],
+            'agentConversations' => $agentConversations ?? [],
             'myAgents' => $myAgents,
             'workflows' => $workflows,
             'quickActions' => $quickActions,
@@ -119,5 +165,30 @@ class AgentWorkspaceController extends Controller
             ], false),
             $content,
         ) ?? $content;
+    }
+
+    /** Correct historic model refusals when a real artifact was created anyway. */
+    private function displayMessageContent(string $role, string $content): string
+    {
+        $content = $this->secureAttachmentUrls($content);
+        if ($role !== 'assistant' || ! str_contains($content, '/ai-plus/artifacts/')) {
+            return $content;
+        }
+
+        $normalized = mb_strtolower($content);
+        $incorrectRefusal = str_contains($normalized, 'không có công cụ')
+            || str_contains($normalized, 'không thể tạo')
+            || str_contains($normalized, 'không thể cung cấp')
+            || str_contains($normalized, 'cannot create')
+            || str_contains($normalized, 'do not have the tools');
+        if (! $incorrectRefusal) {
+            return $content;
+        }
+
+        preg_match_all('/📄 \*\*File ready:\*\* \[[^\]]+\]\([^\)]+\)/u', $content, $matches);
+
+        return $matches[0] === []
+            ? $content
+            : 'Đã tạo file từ nội dung liên quan trong cuộc chat này.'."\n\n".implode("\n", $matches[0]);
     }
 }

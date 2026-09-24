@@ -45,15 +45,16 @@
   @forelse($users as $user)
     @php
       $used = (int) $user->used_tokens;
-      $percentage = min(($used / $limit) * 100, 100);
-      $remaining = max($limit - $used, 0);
-      $status = $used >= $limit ? ['At limit', 'pending', 'danger'] : ($percentage >= 85 ? ['Near limit', 'new', 'warning'] : ['Normal', 'published', 'normal']);
+      $userLimit = max((int) ($user->token_quota_limit ?? $limit), 1);
+      $percentage = min(($used / $userLimit) * 100, 100);
+      $remaining = max($userLimit - $used, 0);
+      $status = $used >= $userLimit ? ['At limit', 'pending', 'danger'] : ($percentage >= 85 ? ['Near limit', 'new', 'warning'] : ['Normal', 'published', 'normal']);
     @endphp
     <tr>
       <td><div class="item-title">{{ $user->name }}</div><div class="item-sub">{{ $user->email }}</div></td>
       <td>{{ ucfirst($user->role) }}</td>
       <td class="usage-cell"><div><strong>{{ number_format($used) }}</strong> <span>{{ number_format($percentage, 1) }}%</span></div><div class="usage-bar {{ $status[2] }}"><span style="width:{{ $percentage }}%"></span></div></td>
-      <td>{{ number_format($limit) }}<span class="token-caption">tokens</span></td><td>{{ number_format($remaining) }}<span class="token-caption">tokens left</span></td>
+      <td>{{ number_format($userLimit) }}<span class="token-caption">tokens · {{ $user->token_quota_limit ? 'custom' : 'default' }}</span></td><td>{{ number_format($remaining) }}<span class="token-caption">tokens left</span></td>
       <td><span class="badge {{ $status[1] }}">{{ $status[0] }}</span></td>
       <td><a href="{{ route('admin.users.edit', $user) }}" class="action-btn">View user</a></td>
     </tr>

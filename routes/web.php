@@ -65,11 +65,15 @@ Route::post('/ai-plus/guide/reply', [AiPlusGuideController::class, 'reply'])
 // AI+ Module Routes
 Route::prefix('ai-plus')->name('ai-plus.')->middleware(['auth', 'ai.policy'])->group(function () {
     Route::get('/artifacts/{artifact}/download', [AiArtifactController::class, 'download'])->name('artifacts.download');
+    Route::delete('/artifacts/{artifact}', [AiArtifactController::class, 'destroy'])->name('artifacts.destroy');
     Route::get('/agent-workspace/attachments/{conversation}/{filename}', [ChatMessageController::class, 'attachment'])
         ->where('filename', '[A-Za-z0-9_.-]+')
         ->name('agent-workspace.attachments.show');
     Route::patch('/agent-workspace/conversations/{conversation}', [ChatMessageController::class, 'rename'])
         ->name('conversations.rename');
+    Route::post('/agent-workspace/conversations/{conversation}/export', [ChatMessageController::class, 'exportConversation'])
+        ->middleware('throttle:chat')
+        ->name('conversations.export');
     Route::delete('/agent-workspace/conversations/{conversation}', [ChatMessageController::class, 'destroy'])
         ->name('conversations.destroy');
     Route::get('/agent-workspace', [AgentWorkspaceController::class, 'index'])->name('agent-workspace.index');
@@ -127,6 +131,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'ai.policy', 'admin'
     Route::post('tickets/{ticket}/replies', [TicketController::class, 'reply'])->name('tickets.replies.store');
 
     // Users & Roles
+    Route::post('users/token-quota', [UserController::class, 'updateTokenQuota'])->name('users.token-quota.update');
     Route::resource('users', UserController::class)->except('show');
     Route::get('usage', [UsageController::class, 'index'])->name('usage.index');
 

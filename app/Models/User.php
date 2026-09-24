@@ -28,6 +28,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $remember_token
  * @property Carbon|null $last_login_at
  * @property Carbon|null $ai_policy_accepted_at
+ * @property int|null $token_quota_limit
  * @property string|null $ai_policy_version
  * @property int|null $current_team_id
  * @property Carbon|null $created_at
@@ -37,7 +38,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property-read Collection<int, Membership> $teamMemberships
  * @property-read Collection<int, Team> $teams
  */
-#[Fillable(['name', 'email', 'password', 'current_team_id', 'is_active', 'role', 'department', 'employee_id'])]
+#[Fillable(['name', 'email', 'password', 'current_team_id', 'is_active', 'token_quota_limit', 'role', 'department', 'employee_id'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {

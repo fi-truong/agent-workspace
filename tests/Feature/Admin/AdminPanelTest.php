@@ -8,6 +8,7 @@ use App\Models\SupportTicket;
 use App\Models\SupportTicketReply;
 use App\Models\UsageLog;
 use App\Models\User;
+use App\Services\TokenQuotaService;
 use Illuminate\Support\Facades\Mail;
 
 test('guests are redirected away from the admin panel', function () {
@@ -155,6 +156,45 @@ test('administrators can create an active user with profile fields', function ()
         'employee_id' => 'T-100',
         'is_active' => 1,
     ]);
+});
+
+test('administrators can set and reset a custom monthly quota for selected users', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $first = User::factory()->create(['name' => 'Quota One']);
+    $second = User::factory()->create(['name' => 'Quota Two']);
+
+    $this->actingAs($admin)
+        ->post(route('admin.users.token-quota.update'), [
+            'user_ids' => [$first->id, $second->id],
+            'action' => 'set',
+            'token_quota_limit' => 10_000_000,
+        ])
+        ->assertRedirect(route('admin.users.index'));
+
+    expect($first->fresh()->token_quota_limit)->toBe(10_000_000)
+        ->and($second->fresh()->token_quota_limit)->toBe(10_000_000)
+        ->and(app(TokenQuotaService::class)->summary($first->fresh())['limit'])->toBe(10_000_000);
+
+    $this->post(route('admin.users.token-quota.update'), [
+        'user_ids' => [$first->id, $second->id],
+        'action' => 'reset',
+    ])->assertRedirect(route('admin.users.index'));
+
+    expect($first->fresh()->token_quota_limit)->toBeNull()
+        ->and($second->fresh()->token_quota_limit)->toBeNull();
+});
+
+test('the user list selects token quota recipients with checkboxes', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $user = User::factory()->create(['name' => 'Checkbox Recipient']);
+
+    $this->actingAs($admin)
+        ->get(route('admin.users.index'))
+        ->assertOk()
+        ->assertSee('No users selected. Tick users in the list below.')
+        ->assertSee('tokenQuotaBulkForm', false)
+        ->assertSee('token-quota-user-checkbox', false)
+        ->assertSee('Checkbox Recipient');
 });
 
 test('administrators can open the user create and edit forms with department choices', function () {

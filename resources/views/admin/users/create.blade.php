@@ -60,6 +60,12 @@
             @include('admin.partials.field-error', ['field' => 'employee_id'])
         </div>
         <div class="form-group">
+            <label>Monthly token quota</label>
+            <input type="number" name="token_quota_limit" class="form-input" min="1" max="1000000000" step="1" placeholder="Use phase default" value="{{ old('token_quota_limit') }}">
+            <p class="form-hint">Optional. Leave blank to use the default quota for the current phase.</p>
+            @include('admin.partials.field-error', ['field' => 'token_quota_limit'])
+        </div>
+        <div class="form-group">
             <label style="display:flex;align-items:center;gap:8px;">
                 <input type="checkbox" name="is_active" value="1" {{ old('is_active', '1') ? 'checked' : '' }}>
                 Active account

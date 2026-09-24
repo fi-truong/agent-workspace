@@ -33,11 +33,17 @@ class KnowledgeService
      */
     public const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'html', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
 
-    public const MAX_FILE_SIZE_KB = 5120;
+    // Direct chat attachments remain deliberately small so one turn cannot
+    // consume excessive context or upload bandwidth.
+    public const MAX_CHAT_DOCUMENT_SIZE_KB = 5120;
 
     public const MAX_AGENT_FILES = 10;
 
-    public const MAX_AGENT_TOTAL_SIZE_KB = 25_600;
+    // Agent Knowledge is persistent and intended to accommodate a textbook or
+    // other substantial teaching reference.
+    public const MAX_AGENT_FILE_SIZE_KB = 15_360;
+
+    public const MAX_AGENT_TOTAL_SIZE_KB = 51_200;
 
     public const MAX_HTML_CODE_CONTEXT_CHARS = 20_000;
 
@@ -106,7 +112,7 @@ class KnowledgeService
 
         if ($existingBytes + $newBytes > self::MAX_AGENT_TOTAL_SIZE_KB * 1024) {
             throw ValidationException::withMessages([
-                'knowledge' => 'Tổng dung lượng Knowledge của mỗi Agent chỉ được tối đa 25 MB.',
+                'knowledge' => 'Tổng dung lượng Knowledge của mỗi Agent chỉ được tối đa 50 MB.',
             ]);
         }
     }
@@ -841,7 +847,7 @@ class KnowledgeService
             'knowledge' => 'nullable|array|max:'.self::MAX_AGENT_FILES,
             'knowledge.*' => [
                 'file',
-                'max:'.self::MAX_FILE_SIZE_KB,
+                'max:'.self::MAX_AGENT_FILE_SIZE_KB,
                 'mimes:'.implode(',', self::ALLOWED_EXTENSIONS),
             ],
         ];

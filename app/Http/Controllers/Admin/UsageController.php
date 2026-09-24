@@ -39,7 +39,7 @@ class UsageController extends Controller
             'users' => $allUsage->count(),
             'active_users' => $allUsage->where('is_active', true)->count(),
             'total_tokens' => $allUsage->sum(fn (User $user) => (int) $user->used_tokens),
-            'near_limit' => $allUsage->filter(fn (User $user) => ((int) $user->used_tokens / $limit) >= 0.85)->count(),
+            'near_limit' => $allUsage->filter(fn (User $user) => ((int) $user->used_tokens / max((int) ($user->token_quota_limit ?? $limit), 1)) >= 0.85)->count(),
         ];
 
         $users = $baseQuery

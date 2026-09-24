@@ -33,7 +33,7 @@
         </div>
         <div class="knowledge-file-chips" id="knowledge-file-chips" aria-live="polite"></div>
         <div class="knowledge-saved-list" id="knowledge-saved-list" aria-live="polite"></div>
-        <small class="form-hint">Up to 10 files per Agent · 5 MB per file · 25 MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) for the agent to reference when answering.</small>
+        <small class="form-hint">Up to 10 files per Agent · 15 MB per file · 50 MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) for the agent to reference when answering.</small>
         <div class="form-hint" id="knowledge-limit-status" aria-live="polite"></div>
       </div>
       <div class="form-group checkbox-group">

@@ -14,7 +14,8 @@ class TokenQuotaService
     {
         $phase = (string) config('usage.phase', 'testing');
         $limits = config('usage.token_limits', []);
-        $limit = max((int) ($limits[$phase] ?? $limits['testing'] ?? 20_000_000), 1);
+        $defaultLimit = (int) ($limits[$phase] ?? $limits['testing'] ?? 20_000_000);
+        $limit = max((int) ($user->token_quota_limit ?? $defaultLimit), 1);
         $cycleStartedAt = now()->startOfMonth();
         $phaseStartedAt = config('usage.phase_started_at');
 

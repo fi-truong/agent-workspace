@@ -14,6 +14,7 @@ use App\Models\Message;
 use App\Models\UsageLog;
 use App\Models\User;
 use App\Services\KnowledgeService;
+use App\Services\ArtifactService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
@@ -55,6 +56,58 @@ it('creates conversation and stores both messages', function () {
         ->and(Conversation::first()->type)->toBe(Conversation::TYPE_CHAT)
         ->and(Conversation::first()->messages()->count())->toBe(2) // user + assistant
         ->and(UsageLog::count())->toBe(1);
+});
+
+it('tells the model that AI+ can export requested files', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Hãy tạo file Word cho báo cáo này',
+    ])->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => str_contains(
+        json_encode($request->data(), JSON_UNESCAPED_UNICODE),
+        'AI+ can generate downloadable DOCX (Word), XLSX (Excel), PDF, and HTML files',
+    ));
+});
+
+it('groups Agent conversations beneath their Agent in the workspace sidebar', function () {
+    $agent = Agent::create([
+        'user_id' => $this->user->id,
+        'title' => 'Admissions Assistant',
+        'is_shared' => false,
+    ]);
+    Conversation::create(['user_id' => $this->user->id, 'title' => 'Quick question', 'type' => Conversation::TYPE_CHAT]);
+    Conversation::create([
+        'user_id' => $this->user->id,
+        'agent_id' => $agent->id,
+        'title' => 'Admissions chat',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+
+    $this->get(route('ai-plus.agent-workspace.index'))
+        ->assertOk()
+        ->assertSeeInOrder(['Quick Chats', 'Quick question', 'My Agents', 'Admissions Assistant', 'Admissions chat']);
+});
+
+it('repairs a historic file message when the model incorrectly refused after creating it', function () {
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Exported plan',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create([
+        'conversation_id' => $conversation->id,
+        'role' => 'assistant',
+        'content' => 'Xin lỗi, tôi không có công cụ tạo file. 📄 **File ready:** [plan.docx](/ai-plus/artifacts/99/download)',
+    ]);
+
+    $this->get(route('ai-plus.agent-workspace.index', ['conversation_id' => $conversation->id]))
+        ->assertOk()
+        ->assertViewHas('initialMessages', fn (array $messages): bool => str_starts_with(
+            $messages[0]['content'] ?? '',
+            'Đã tạo file từ nội dung liên quan trong cuộc chat này.',
+        ));
 });
 
 it('generates and stores an image when the administrator enables the feature', function () {
@@ -252,6 +305,10 @@ it('creates a requested Excel artifact and returns an authorized download URL', 
 
     $response->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name) => str_ends_with($name, '.xlsx'));
     $artifact = AiArtifact::firstOrFail();
+    $downloadUrl = route('ai-plus.artifacts.download', $artifact, false);
+    $response->assertJsonPath('reply', fn (string $reply) => str_contains($reply, $downloadUrl));
+    expect(Message::query()->where('role', 'assistant')->latest('id')->value('content'))
+        ->toContain($downloadUrl);
     Storage::disk('ai-artifacts')->assertExists($artifact->path);
     expect(AdminAuditLog::where('event', 'ai_artifact.created')->exists())->toBeTrue();
     $this->get(route('ai-plus.artifacts.download', $artifact))->assertOk();
@@ -267,6 +324,132 @@ it('creates requested Word and PDF artifacts', function (string $request, string
     ['Hãy tạo file Word cho nội dung này', '.docx'],
     ['Hãy xuất PDF cho nội dung này', '.pdf'],
 ]);
+
+it('replaces an incorrect model refusal when the requested file was created', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake([
+        'https://api.openai.com/*' => Http::response([
+            'choices' => [['message' => ['content' => 'Xin lỗi, hiện tại phiên này không có công cụ tạo và đính kèm tệp Word thực tế.']]],
+            'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 3],
+            'model' => 'gpt-5.6-luna',
+        ]),
+    ]);
+
+    $response = $this->postJson('/ai-plus/agent-workspace/send', ['message' => 'Tạo file Word cho nội dung này']);
+
+    $response->assertOk()
+        ->assertJsonPath('reply', fn (string $reply) => str_starts_with($reply, 'Đã tạo file'));
+});
+
+it('exports the previously prepared content when a user asks to export it as Word', function () {
+    config(['openai.api_key' => 'sk-test']);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Trip plan',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create([
+        'conversation_id' => $conversation->id,
+        'role' => 'assistant',
+        'content' => "# Detailed trip plan prepared earlier\n\n## Budget\n\n- Hotel: **80 USD**\n\n| Item | Cost |\n| --- | ---: |\n| Hotel | 80 USD |",
+    ]);
+    Message::create([
+        'conversation_id' => $conversation->id,
+        'role' => 'assistant',
+        'content' => 'I cannot create the file. 📄 **File ready:** [old.docx](/ai-plus/artifacts/99/download)',
+    ]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id,
+        'message' => 'Tạo file Word mới với nội dung kế hoạch đã lập ở trên',
+    ])->assertOk();
+
+    $artifact = AiArtifact::firstOrFail();
+    $archive = new ZipArchive;
+    expect($archive->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
+    $documentXml = $archive->getFromName('word/document.xml');
+    $archive->close();
+
+    expect($documentXml)
+        ->toContain('Detailed trip plan prepared earlier')
+        ->toContain('80 USD')
+        ->toContain('<w:b w:val="1"/>')
+        ->toContain('<w:tbl>');
+});
+
+it('formats Markdown exports for Excel, PDF, and HTML', function () {
+    $content = "# Budget summary\n\n- Hotel: **80 USD**\n\n| Item | Cost |\n| --- | ---: |\n| Hotel | 80 USD |";
+    $service = app(ArtifactService::class);
+
+    $excel = $service->generate($this->user, null, 'excel', $content);
+    $workbook = \PhpOffice\PhpSpreadsheet\IOFactory::load(Storage::disk('ai-artifacts')->path($excel->path));
+    $sheet = $workbook->getActiveSheet();
+    expect($sheet->getCell('A1')->getValue())->toBe('Budget summary')
+        ->and($sheet->getCell('A5')->getValue())->toBe('Item')
+        ->and($sheet->getCell('B6')->getValue())->toBe('80 USD');
+
+    $pdf = $service->generate($this->user, null, 'pdf', $content);
+    expect(Storage::disk('ai-artifacts')->get($pdf->path))->toStartWith('%PDF');
+
+    $html = $service->generate($this->user, null, 'html', $content);
+    expect(Storage::disk('ai-artifacts')->get($html->path))
+        ->toContain('<h1>Budget summary</h1>')
+        ->toContain('<table>');
+});
+
+it('exports a conversation with user-selected document options', function () {
+    config(['openai.api_key' => 'sk-test']);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Business trip',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create([
+        'conversation_id' => $conversation->id,
+        'role' => 'assistant',
+        'content' => '# Business trip budget\n\n| Item | Cost |\n| --- | ---: |\n| Hotel | 80 USD |',
+    ]);
+
+    $response = $this->postJson(route('ai-plus.conversations.export', $conversation), [
+        'format' => 'excel',
+        'filename' => 'Business Trip Budget',
+        'language' => 'en',
+        'template' => 'budget',
+    ]);
+
+    $response->assertOk()
+        ->assertJsonPath('name', 'business-trip-budget.xlsx')
+        ->assertJsonPath('url', fn (string $url) => str_contains($url, '/ai-plus/artifacts/'));
+    $artifact = AiArtifact::firstOrFail();
+    Storage::disk('ai-artifacts')->assertExists($artifact->path);
+    expect(UsageLog::where('source', 'agent_workspace_export')->exists())->toBeTrue();
+});
+
+it('lets an owner delete a generated file from recent files', function () {
+    $artifact = app(ArtifactService::class)->generate($this->user, null, 'html', '# Temporary file');
+    Storage::disk('ai-artifacts')->assertExists($artifact->path);
+
+    $this->deleteJson(route('ai-plus.artifacts.destroy', $artifact))
+        ->assertOk()
+        ->assertJsonPath('deleted', true);
+
+    expect(AiArtifact::find($artifact->id))->toBeNull();
+    Storage::disk('ai-artifacts')->assertMissing($artifact->path);
+    expect(AdminAuditLog::where('event', 'ai_artifact.deleted')->exists())->toBeTrue();
+});
+
+it('does not let another user delete a generated file', function () {
+    $artifact = app(ArtifactService::class)->generate($this->user, null, 'html', '# Private file');
+    $other = User::factory()->create();
+
+    $this->actingAs($other)
+        ->deleteJson(route('ai-plus.artifacts.destroy', $artifact))
+        ->assertForbidden();
+
+    expect(AiArtifact::find($artifact->id))->not->toBeNull();
+    Storage::disk('ai-artifacts')->assertExists($artifact->path);
+});
 
 it('creates an HTML artifact from the AI code block', function () {
     config(['openai.api_key' => 'sk-test']);
