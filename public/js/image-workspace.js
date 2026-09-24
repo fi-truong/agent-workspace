@@ -19,8 +19,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (!form || !promptInput || !submit || !results) return;
 
+  function scrollResultsToLatest() {
+    results.scrollTop = results.scrollHeight;
+  }
+
   function appendImage({url, prompt, messageId, downloadUrl, isLatest = false}) {
     if (empty) empty.remove();
+    const turn = document.createElement('article');
+    turn.className = 'image-turn';
+    const userMessage = document.createElement('div');
+    userMessage.className = 'image-user-message';
+    userMessage.textContent = prompt || 'Create an image';
+    const assistantMessage = document.createElement('div');
+    assistantMessage.className = 'image-assistant-message';
     const card = document.createElement('article');
     card.className = 'generated-image-card';
     if (messageId) card.dataset.messageId = messageId;
@@ -28,8 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
     image.src = url;
     image.alt = prompt || 'Generated image';
     image.loading = 'lazy';
-    const caption = document.createElement('p');
-    caption.textContent = prompt || 'Generated image';
     const actions = document.createElement('div');
     actions.className = 'generated-image-actions';
     const download = document.createElement('a');
@@ -51,9 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
     remove.textContent = 'Delete';
     remove.addEventListener('click', () => deleteImage(card, messageId, remove));
     actions.append(download, copy, edit, remove);
-    card.append(image, caption, actions);
-    results.prepend(card);
+    card.append(image, actions);
+    assistantMessage.append(card);
+    turn.append(userMessage, assistantMessage);
+    results.append(turn);
     if (isLatest) setActiveSource({messageId, url, prompt}, false);
+    scrollResultsToLatest();
   }
 
   function setActiveSource(source, focusPrompt) {
@@ -119,7 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       if (!response.ok) throw new Error();
       const data = await response.json();
-      card.remove();
+      const turn = card.closest('.image-turn');
+      turn?.remove();
       if (activeSource?.messageId === messageId) clearActiveSource();
       if (data.conversation_deleted) window.location.assign('/ai-plus/agent-workspace/images');
     } catch (_) {
@@ -137,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const url = imageUrlFromMarkdown(entry.content);
     if (url) appendImage({url, prompt: entry.prompt, messageId: entry.message_id, downloadUrl: entry.download_url, isLatest: entry.is_latest});
   });
+  scrollResultsToLatest();
 
   document.querySelectorAll('.image-prompt-examples button').forEach((button) => {
     button.addEventListener('click', () => {
@@ -266,7 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const progress = document.createElement('div');
     progress.className = 'image-generating';
     progress.textContent = 'Creating your image…';
-    results.prepend(progress);
+    results.append(progress);
+    scrollResultsToLatest();
 
     try {
       const response = await fetch('/ai-plus/agent-workspace/generate-image', {

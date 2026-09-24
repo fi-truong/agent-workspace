@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AiImageSettingsController;
 use App\Http\Controllers\Admin\AiPlusGuideSettingsController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\PromptController;
+use App\Http\Controllers\Admin\SchoolKnowledgeController;
 use App\Http\Controllers\Admin\ShowcaseController;
 use App\Http\Controllers\Admin\TemplateController;
 use App\Http\Controllers\Admin\TicketController;
@@ -136,6 +137,13 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'ai.policy', 'admin'
     Route::put('ai-image', [AiImageSettingsController::class, 'update'])->name('ai-image.update');
     Route::get('work-use', [WorkUseMonitoringController::class, 'index'])->name('work-use.index');
     Route::put('work-use', [WorkUseMonitoringController::class, 'update'])->name('work-use.update');
+    Route::get('school-knowledge', [SchoolKnowledgeController::class, 'index'])->name('school-knowledge.index');
+    Route::put('school-knowledge', [SchoolKnowledgeController::class, 'update'])->name('school-knowledge.update');
+    Route::post('school-knowledge/documents', [SchoolKnowledgeController::class, 'upload'])->name('school-knowledge.upload');
+    Route::post('school-knowledge/website', [SchoolKnowledgeController::class, 'addWebsite'])->name('school-knowledge.website');
+    Route::post('school-knowledge/import-introduction', [SchoolKnowledgeController::class, 'importIntroduction'])->name('school-knowledge.import-introduction');
+    Route::post('school-knowledge/{source}/sync', [SchoolKnowledgeController::class, 'sync'])->name('school-knowledge.sync');
+    Route::delete('school-knowledge/{source}', [SchoolKnowledgeController::class, 'destroy'])->name('school-knowledge.destroy');
 });
 
 // Legacy route redirect

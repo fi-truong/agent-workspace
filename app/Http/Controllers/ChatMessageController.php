@@ -14,6 +14,7 @@ use App\Services\EmailDraftService;
 use App\Services\ImageGenerationService;
 use App\Services\KnowledgeService;
 use App\Services\PiiFilterService;
+use App\Services\SchoolKnowledgeService;
 use App\Services\TokenQuotaService;
 use App\Services\WebPageReaderService;
 use App\Services\WorkUsePolicyService;
@@ -56,6 +57,7 @@ class ChatMessageController extends Controller
         PiiFilterService $piiFilter,
         ChatCompletionService $chatService,
         KnowledgeService $knowledgeService,
+        SchoolKnowledgeService $schoolKnowledgeService,
         WebPageReaderService $webPageReader,
         WorkUsePolicyService $workUsePolicy,
         TokenQuotaService $tokenQuotaService, ArtifactService $artifactService, EmailDraftService $emailDraftService,
@@ -73,7 +75,7 @@ class ChatMessageController extends Controller
             return $this->tokenQuotaExceededResponse();
         }
 
-        $ctx = $this->prepareTurn($request, $knowledgeService, $webPageReader, $workUsePolicy);
+        $ctx = $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy);
 
         try {
             $completion = $chatService->complete($ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier']);
@@ -112,6 +114,7 @@ class ChatMessageController extends Controller
         PiiFilterService $piiFilter,
         ChatCompletionService $chatService,
         KnowledgeService $knowledgeService,
+        SchoolKnowledgeService $schoolKnowledgeService,
         WebPageReaderService $webPageReader,
         WorkUsePolicyService $workUsePolicy,
         TokenQuotaService $tokenQuotaService, ArtifactService $artifactService, EmailDraftService $emailDraftService,
@@ -130,7 +133,7 @@ class ChatMessageController extends Controller
             return $this->tokenQuotaExceededResponse();
         }
 
-        $ctx = $this->prepareTurn($request, $knowledgeService, $webPageReader, $workUsePolicy);
+        $ctx = $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy);
 
         return response()->stream(function () use ($ctx, $chatService, $request, $tokenQuotaService, $artifactService, $emailDraftService) {
             while (ob_get_level() > 0) {
@@ -399,7 +402,7 @@ class ChatMessageController extends Controller
      *
      * @return array{conversation: Conversation, history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, user: User, createdNew: bool}
      */
-    private function prepareTurn(Request $request, KnowledgeService $knowledgeService, WebPageReaderService $webPageReader, WorkUsePolicyService $workUsePolicy): array
+    private function prepareTurn(Request $request, KnowledgeService $knowledgeService, SchoolKnowledgeService $schoolKnowledgeService, WebPageReaderService $webPageReader, WorkUsePolicyService $workUsePolicy): array
     {
         $images = array_slice($request->input('images', []), 0, 4);
         $documents = array_slice($request->input('documents', []), 0, 5);
@@ -539,7 +542,7 @@ class ChatMessageController extends Controller
             ];
         }
 
-        $systemPrompt = $this->buildSystemPrompt($conversation, $knowledgeService, $request->message, $workUsePolicy);
+        $systemPrompt = $this->buildSystemPrompt($conversation, $knowledgeService, $schoolKnowledgeService, $request->message, $workUsePolicy);
 
         return [
             'conversation' => $conversation,
@@ -584,19 +587,22 @@ class ChatMessageController extends Controller
         ]);
     }
 
-    private function buildSystemPrompt(Conversation $conversation, KnowledgeService $knowledgeService, string $query, WorkUsePolicyService $workUsePolicy): string
+    private function buildSystemPrompt(Conversation $conversation, KnowledgeService $knowledgeService, SchoolKnowledgeService $schoolKnowledgeService, string $query, WorkUsePolicyService $workUsePolicy): string
     {
         $agent = $conversation->agent;
 
         $policyPrompt = $workUsePolicy->systemPrompt();
 
-        if (! $agent) {
-            return $policyPrompt;
+        $systemPrompt = $agent
+            ? trim($agent->system_prompt."\n\n".$policyPrompt)
+            : $policyPrompt;
+
+        $schoolContext = $schoolKnowledgeService->retrieveContext($query);
+        if ($schoolContext !== '') {
+            $systemPrompt = trim($systemPrompt."\n\n".$schoolContext);
         }
 
-        $systemPrompt = trim($agent->system_prompt."\n\n".$policyPrompt);
-
-        if ($agent->knowledge_files) {
+        if ($agent && $agent->knowledge_files) {
             // RAG: lấy đoạn liên quan nhất đến câu hỏi; nếu rỗng (chưa index/embed lỗi) → fallback đọc nguyên file.
             $context = $knowledgeService->retrieveContext($agent, $query);
 

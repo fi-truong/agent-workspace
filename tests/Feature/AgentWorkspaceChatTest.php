@@ -8,6 +8,8 @@ use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\EmailDraft;
 use App\Models\KnowledgeChunk;
+use App\Models\SchoolKnowledgeChunk;
+use App\Models\SchoolKnowledgeSource;
 use App\Models\Message;
 use App\Models\UsageLog;
 use App\Models\User;
@@ -649,6 +651,32 @@ it('uses default when no agent linked', function () {
         return ($first['role'] ?? '') === 'system'
             && str_contains((string) ($first['content'] ?? ''), 'AI+ is an LSTS workplace assistant.');
     });
+});
+
+it('adds relevant School Knowledge Base context to a regular workspace chat', function () {
+    config(['openai.api_key' => 'sk-test', 'openai.rag_embeddings_enabled' => false]);
+    $source = SchoolKnowledgeSource::create([
+        'type' => 'upload',
+        'title' => 'School handbook',
+        'status' => 'ready',
+    ]);
+    SchoolKnowledgeChunk::create([
+        'school_knowledge_source_id' => $source->id,
+        'chunk_index' => 0,
+        'content' => 'SCHOOLHANDBOOK2026 explains the official staff leave procedure.',
+        'embedding' => [],
+    ]);
+    $conv = Conversation::create(['user_id' => $this->user->id, 'title' => 'School Knowledge']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'What does SCHOOLHANDBOOK2026 say?',
+        'conversation_id' => $conv->id,
+    ])->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => str_contains(
+        (string) data_get($request->data(), 'messages.0.content'),
+        '=== SCHOOL KNOWLEDGE BASE (retrieved reference material) ===',
+    ));
 });
 
 it('returns friendly error on upstream 429', function () {

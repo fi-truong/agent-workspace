@@ -83,6 +83,9 @@
         <a href="{{ route('admin.work-use.index') }}" class="nav-item {{ request()->routeIs('admin.work-use.*') ? 'active' : '' }}">
           <span class="nav-icon">🛡️</span><span>Work-Use Monitoring</span>
         </a>
+        <a href="{{ route('admin.school-knowledge.index') }}" class="nav-item {{ request()->routeIs('admin.school-knowledge.*') ? 'active' : '' }}">
+          <span class="nav-icon">🏫</span><span>School Knowledge Base</span>
+        </a>
       </div>
     </nav>
 

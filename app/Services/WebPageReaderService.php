@@ -37,6 +37,15 @@ class WebPageReaderService
         return array_map(fn (string $url): string => $this->read($url), $urls);
     }
 
+    /**
+     * Read one explicitly administrator-approved public page. The same SSRF,
+     * size, redirect and rendering safeguards used for chat links still apply.
+     */
+    public function readUrl(string $url): string
+    {
+        return $this->read($url);
+    }
+
     /** @return array<int, string> */
     private function extractUrls(string $message): array
     {
