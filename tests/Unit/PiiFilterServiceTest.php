@@ -43,6 +43,28 @@ it('allows an internal LSTS email', function () {
         ->and($this->filter->redact($text))->toBe($text);
 });
 
+it('allows a single numeric LSTS student email without student-record context', function () {
+    $text = 'Gửi thông báo đến 1234567@lsts.edu.vn.';
+
+    expect($this->filter->scan($text)['flagged'])->toBeFalse();
+});
+
+it('flags a batch of ten seven-digit LSTS student identifiers', function () {
+    $identifiers = implode(', ', range(1_000_001, 1_000_010));
+    $result = $this->filter->scan('Danh sách liên hệ: '.$identifiers);
+
+    expect($result['flagged'])->toBeTrue()
+        ->and($result['matches'])->toHaveKey('student_id_batch')
+        ->and($this->filter->redact('Danh sách liên hệ: '.$identifiers))->not->toContain('1000001');
+});
+
+it('flags a seven-digit identifier in student-record context', function () {
+    $result = $this->filter->scan('MSSV: 1234567; Điểm: 9.0');
+
+    expect($result['flagged'])->toBeTrue()
+        ->and($result['matches'])->toHaveKey('student_record_context');
+});
+
 it('redacts an external email', function () {
     $redacted = $this->filter->redact('Email của tôi là abc@gmail.com');
 

@@ -235,6 +235,22 @@ class RegexPiiFilter
             $filtered = preg_replace($config['pattern'], $config['replacement'], $filtered);
 
         }
+
+        $studentIdentifierRisks = $this->studentIdentifierRisks($text);
+        foreach ($studentIdentifierRisks as $type => $identifiers) {
+            $detected[] = [
+                'type' => $type,
+                'description' => $type === 'student_id_batch'
+                    ? 'Batch of ten or more seven-digit student identifiers'
+                    : 'Seven-digit student identifier in student-record context',
+                'original' => implode(', ', array_slice($identifiers, 0, 10)),
+                'replacement' => '[MÃ_HS]',
+            ];
+        }
+
+        if ($replace && ! $detectOnly && $studentIdentifierRisks !== []) {
+            $filtered = preg_replace('/(?<!\d)\d{7}(?!\d)/', '[MÃ_HS]', $filtered);
+        }
  
         return [
 
@@ -283,6 +299,10 @@ class RegexPiiFilter
             }
 
         }
+
+        if ($this->studentIdentifierRisks($text) !== []) {
+            return true;
+        }
  
         return false;
 
@@ -320,5 +340,27 @@ class RegexPiiFilter
 
     }
 
-}
+    /** @return array<string, array<int, string>> */
+    private function studentIdentifierRisks(string $text): array
+    {
+        preg_match_all('/(?<!\d)\d{7}(?!\d)/', $text, $found);
+        $identifiers = array_values(array_unique($found[0] ?? []));
 
+        if ($identifiers === []) {
+            return [];
+        }
+
+        $risks = [];
+        if (count($identifiers) >= 10) {
+            $risks['student_id_batch'] = $identifiers;
+        }
+
+        $studentRecordLabels = '/(?:\bMSSV\b|\bMSHS\b|\bstudent\s*id\b|họ\s*tên|ho\s*ten|\blớp\b|\blop\b|\bđiểm\b|\bdiem\b)/iu';
+        if (preg_match($studentRecordLabels, $text) === 1) {
+            $risks['student_record_context'] = $identifiers;
+        }
+
+        return $risks;
+    }
+
+}

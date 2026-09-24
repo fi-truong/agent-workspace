@@ -35,6 +35,22 @@ class GuardrailMiddleware
         // Layer 1: Regex PII filter
         $result = $this->piiFilter->filter($content, ['replace' => true]);
 
+        $studentRecordRisk = array_intersect(
+            ['student_id_batch', 'student_record_context'],
+            array_column($result['detected'], 'type'),
+        );
+        if ($studentRecordRisk !== []) {
+            $this->logPiiDetection($request, $result['detected']);
+
+            return response()->json([
+                'blocked' => true,
+                'warning' => 'Tin nhắn có thể chứa '.($studentRecordRisk === ['student_id_batch']
+                    ? 'danh sách từ 10 mã số học sinh'
+                    : 'mã số học sinh kèm dữ liệu học sinh')
+                    .'. Vui lòng bỏ dữ liệu định danh học sinh trước khi gửi — nội dung này CHƯA được lưu.',
+            ], 422);
+        }
+
         if ($result['has_pii']) {
             // Log detected PII for audit (without storing the actual PII)
             $this->logPiiDetection($request, $result['detected']);

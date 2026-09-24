@@ -293,6 +293,23 @@ describe('RegexPiiFilter', function () {
         test('returns false for clean text', function () {
             expect($this->filter->hasPii('Chào bạn, hôm nay đẹp trời'))->toBeFalse();
         });
+
+        test('detects a batch of ten seven-digit student identifiers', function () {
+            $text = implode(', ', range(1_000_001, 1_000_010));
+            $result = $this->filter->filter($text);
+
+            expect($result['has_pii'])->toBeTrue()
+                ->and(array_column($result['detected'], 'type'))->toContain('student_id_batch')
+                ->and($result['filtered'])->toContain('[MÃ_HS]')
+                ->and($this->filter->hasPii($text))->toBeTrue();
+        });
+
+        test('detects a seven-digit student identifier in student-record context', function () {
+            $result = $this->filter->filter('Họ tên: Test Student; MSSV: 1234567');
+
+            expect($result['has_pii'])->toBeTrue()
+                ->and(array_column($result['detected'], 'type'))->toContain('student_record_context');
+        });
     });
 
     describe('getPatterns static method', function () {

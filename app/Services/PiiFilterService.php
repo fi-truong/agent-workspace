@@ -51,6 +51,10 @@ class PiiFilterService
             }
         }
 
+        foreach ($this->studentIdentifierRisks($text) as $type => $identifiers) {
+            $matches[$type] = $identifiers;
+        }
+
         return [
             'flagged' => count($matches) > 0,
             'matches' => $matches,
@@ -79,7 +83,40 @@ class PiiFilterService
             $redacted = preg_replace($pattern, "[$type đã bị ẩn]", $redacted);
         }
 
+        if ($this->studentIdentifierRisks($text) !== []) {
+            $redacted = preg_replace('/(?<!\d)\d{7}(?!\d)/', '[mã số học sinh đã bị ẩn]', $redacted);
+        }
+
         return $redacted;
+    }
+
+    /**
+     * LSTS student numbers contain exactly seven digits. A lone seven-digit
+     * number is allowed because it can be a harmless reference number. It
+     * becomes sensitive in a large list or in student-record context.
+     *
+     * @return array<string, array<int, string>>
+     */
+    private function studentIdentifierRisks(string $text): array
+    {
+        preg_match_all('/(?<!\d)\d{7}(?!\d)/', $text, $found);
+        $identifiers = array_values(array_unique($found[0] ?? []));
+
+        if ($identifiers === []) {
+            return [];
+        }
+
+        $risks = [];
+        if (count($identifiers) >= 10) {
+            $risks['student_id_batch'] = array_slice($identifiers, 0, 10);
+        }
+
+        $studentRecordLabels = '/(?:\bMSSV\b|\bMSHS\b|\bstudent\s*id\b|họ\s*tên|ho\s*ten|\blớp\b|\blop\b|\bđiểm\b|\bdiem\b)/iu';
+        if (preg_match($studentRecordLabels, $text) === 1) {
+            $risks['student_record_context'] = array_slice($identifiers, 0, 10);
+        }
+
+        return $risks;
     }
 
     private function isWhitelistedEmail(string $email): bool

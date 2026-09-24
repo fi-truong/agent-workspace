@@ -64,7 +64,7 @@ class ChatMessageController extends Controller
     ) {
         set_time_limit(120);
 
-        $blocked = $this->validateAndScanPii($request, $piiFilter);
+        $blocked = $this->validateAndScanPii($request, $piiFilter, $knowledgeService);
         if ($blocked) {
             return $blocked;
         }
@@ -195,7 +195,7 @@ class ChatMessageController extends Controller
     ): StreamedResponse|JsonResponse {
         set_time_limit(120);
 
-        $blocked = $this->validateAndScanPii($request, $piiFilter);
+        $blocked = $this->validateAndScanPii($request, $piiFilter, $knowledgeService);
         if ($blocked) {
             // Chặn PII: trả JSON thường (chưa mở stream), giữ hành vi giống store().
             return $blocked;
@@ -378,7 +378,7 @@ class ChatMessageController extends Controller
     /**
      * Validate input + scan PII. Trả về JsonResponse nếu cần chặn ngay, null nếu ok để đi tiếp.
      */
-    private function validateAndScanPii(Request $request, PiiFilterService $piiFilter): ?JsonResponse
+    private function validateAndScanPii(Request $request, PiiFilterService $piiFilter, KnowledgeService $knowledgeService): ?JsonResponse
     {
         $request->validate([
             'message' => 'nullable|string|max:5000',
@@ -416,12 +416,60 @@ class ChatMessageController extends Controller
             return response()->json([
                 'blocked' => true,
                 'warning' => 'Tin nhắn của bạn có thể chứa thông tin cá nhân nhạy cảm ('
-                    .implode(', ', array_keys($scan['matches']))
+                    .implode(', ', $this->piiWarningLabels(array_keys($scan['matches'])))
                     .'). Vui lòng chỉnh sửa và gửi lại — nội dung này CHƯA được lưu.',
             ], 422);
         }
 
+        if ($documentRisks = $this->scanAttachedStudentIdentifiers($request, $piiFilter, $knowledgeService)) {
+            return response()->json([
+                'blocked' => true,
+                'warning' => 'Tài liệu đính kèm có thể chứa thông tin học sinh nhạy cảm ('
+                    .implode(', ', $this->piiWarningLabels($documentRisks))
+                    .'). Vui lòng bỏ mã số/danh sách học sinh trước khi gửi — nội dung này CHƯA được lưu.',
+            ], 422);
+        }
+
         return null;
+    }
+
+    /** @return array<int, string> */
+    private function scanAttachedStudentIdentifiers(Request $request, PiiFilterService $piiFilter, KnowledgeService $knowledgeService): array
+    {
+        $riskTypes = [];
+        foreach ($request->input('documents', []) as $document) {
+            $name = is_array($document) ? (string) ($document['name'] ?? '') : '';
+            $dataUrl = is_array($document) ? (string) ($document['data_url'] ?? '') : '';
+            if (! preg_match('#^data:[^;]+;base64,(.+)$#s', $dataUrl, $match)) {
+                continue;
+            }
+
+            $binary = base64_decode($match[1], true);
+            $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+            if ($binary === false || ! in_array($extension, KnowledgeService::CHAT_DOCUMENT_EXTENSIONS, true)) {
+                continue;
+            }
+
+            $text = $knowledgeService->extractTextFromBinary($binary, $extension);
+            $matches = array_keys($piiFilter->scan($text)['matches']);
+            foreach (['student_id_batch', 'student_record_context'] as $type) {
+                if (in_array($type, $matches, true)) {
+                    $riskTypes[] = $type;
+                }
+            }
+        }
+
+        return array_values(array_unique($riskTypes));
+    }
+
+    /** @param array<int, string> $types @return array<int, string> */
+    private function piiWarningLabels(array $types): array
+    {
+        return array_map(fn (string $type): string => match ($type) {
+            'student_id_batch' => 'danh sách từ 10 mã số học sinh',
+            'student_record_context' => 'mã số học sinh kèm dữ liệu học sinh',
+            default => $type,
+        }, $types);
     }
 
     private function validateAttachmentPayload(Request $request): ?string

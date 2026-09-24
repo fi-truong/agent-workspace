@@ -1027,3 +1027,31 @@ it('filters PII via guardrail middleware instead of storing raw PII', function (
     $stored = Message::where('role', 'user')->latest('id')->first();
     expect($stored->content)->not->toContain('0901234567');
 });
+
+it('blocks a prompt containing ten seven-digit student identifiers', function () {
+    $identifiers = implode(', ', range(1_000_001, 1_000_010));
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Hãy phân tích danh sách sau: '.$identifiers,
+    ])->assertStatus(422)
+        ->assertJsonPath('blocked', true)
+        ->assertJsonPath('warning', fn (string $warning) => str_contains($warning, '10 mã số học sinh'));
+
+    expect(Conversation::count())->toBe(0);
+});
+
+it('blocks a text attachment containing a student identifier with student-record labels', function () {
+    $document = "Họ tên,MSSV,Lớp,Điểm\nNguyễn A,1234567,10A1,9";
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Đọc tài liệu đính kèm',
+        'documents' => [[
+            'name' => 'student-list.txt',
+            'data_url' => 'data:text/plain;base64,'.base64_encode($document),
+        ]],
+    ])->assertStatus(422)
+        ->assertJsonPath('blocked', true)
+        ->assertJsonPath('warning', fn (string $warning) => str_contains($warning, 'dữ liệu học sinh'));
+
+    expect(Conversation::count())->toBe(0);
+});
