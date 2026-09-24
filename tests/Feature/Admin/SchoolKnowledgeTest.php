@@ -41,3 +41,27 @@ test('School Knowledge Base page offers the suggested LSTS starter import', func
         ->assertOk()
         ->assertSee('Import basic school information');
 });
+
+test('keyword fallback prioritizes a matching School Knowledge source title', function () {
+    config(['openai.rag_embeddings_enabled' => false, 'openai.rag_top_k' => 1]);
+    $generic = SchoolKnowledgeSource::create(['type' => 'website', 'title' => 'LSTS official website', 'status' => 'ready']);
+    SchoolKnowledgeChunk::create([
+        'school_knowledge_source_id' => $generic->id,
+        'chunk_index' => 0,
+        'content' => 'Trường Đinh Thiện Lý giới thiệu các hoạt động của trường.',
+        'embedding' => [],
+    ]);
+    $purpose = SchoolKnowledgeSource::create(['type' => 'website', 'title' => 'LSTS · Mục đích thành lập', 'status' => 'ready']);
+    SchoolKnowledgeChunk::create([
+        'school_knowledge_source_id' => $purpose->id,
+        'chunk_index' => 0,
+        'content' => 'Công ty Phú Mỹ Hưng đầu tư xây dựng Trường Đinh Thiện Lý mang tên ông Đinh Thiện Lý.',
+        'embedding' => [],
+    ]);
+
+    $context = app(\App\Services\SchoolKnowledgeService::class)
+        ->retrieveContext('Trường Đinh Thiện Lý do ai sáng lập?');
+
+    expect($context)->toContain('Công ty Phú Mỹ Hưng')
+        ->not->toContain('giới thiệu các hoạt động');
+});

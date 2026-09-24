@@ -345,13 +345,32 @@ class SchoolKnowledgeService
     {
         $stopWords = ['của', 'và', 'là', 'có', 'cho', 'theo', 'với', 'một', 'những', 'để', 'trong', 'từ', 'không', 'được', 'cần', 'này', 'đó', 'các', 'vào', 'trên', 'the', 'of', 'and', 'is', 'to', 'in', 'for', 'with', 'on', 'at'];
         $tokens = (array) preg_split('/[\s,.;:!?\/|()\[\]{}]+/u', mb_strtolower($query));
-        $tokens = array_values(array_diff(array_filter($tokens), $stopWords));
+        // One- and two-character terms such as "ai", "do", or English articles
+        // occur inside many Vietnamese words and make keyword fallback select
+        // generic navigation/footer content instead of the relevant source.
+        $tokens = array_values(array_filter(
+            array_diff(array_filter($tokens), $stopWords),
+            fn (string $token): bool => mb_strlen($token) >= 3,
+        ));
 
         return $chunks->map(function (SchoolKnowledgeChunk $chunk) use ($tokens): array {
             $lower = mb_strtolower($chunk->content);
-            $score = array_sum(array_map(fn (string $token) => mb_substr_count($lower, $token), $tokens));
+            // Cap repeated occurrences so a homepage/navigation dump cannot
+            // outrank a focused source merely by repeating the school name.
+            $contentScore = array_sum(array_map(
+                fn (string $token) => min(mb_substr_count($lower, $token), 2),
+                $tokens,
+            ));
+            // A source title is curated by an administrator / the official site
+            // menu, so matching it is a strong retrieval signal. It also makes
+            // pages such as "Mục đích thành lập" win over generic page footers.
+            $title = mb_strtolower((string) ($chunk->source?->title ?? ''));
+            $titleScore = array_sum(array_map(
+                fn (string $token) => mb_substr_count($title, $token) * 5,
+                $tokens,
+            ));
 
-            return ['chunk' => $chunk, 'score' => $score];
+            return ['chunk' => $chunk, 'score' => $contentScore + $titleScore];
         })->sortByDesc('score')->take($topK);
     }
 }
