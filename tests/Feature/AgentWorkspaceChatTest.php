@@ -595,6 +595,57 @@ it('preserves an internal LSTS email in an Agent chat', function () {
     ));
 });
 
+it('does not turn an existing Quick Chat into an Agent chat from a stale agent id', function () {
+    config(['openai.api_key' => 'sk-test']);
+    $agent = Agent::create([
+        'user_id' => $this->user->id,
+        'title' => 'Previous Agent',
+        'system_prompt' => 'You help with school work.',
+        'is_shared' => false,
+    ]);
+    $quickChat = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Quick Chat',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Continue this quick chat',
+        'conversation_id' => $quickChat->id,
+        // Simulates an outdated browser tab that still remembers a selected Agent.
+        'agent_id' => $agent->id,
+    ])->assertOk();
+
+    expect($quickChat->fresh()->agent_id)->toBeNull();
+});
+
+it('moves a conversation between Quick Chat and an owned Agent without removing its history', function () {
+    $agent = Agent::create([
+        'user_id' => $this->user->id,
+        'title' => 'Writing Assistant',
+        'system_prompt' => 'Help write school documents.',
+        'is_shared' => false,
+    ]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Staff note',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+    $conversation->messages()->create(['role' => 'user', 'content' => 'Existing message']);
+
+    $this->patchJson(route('ai-plus.conversations.move', $conversation), ['agent_id' => $agent->id])
+        ->assertOk()
+        ->assertJsonPath('agent_id', $agent->id);
+    expect($conversation->fresh()->agent_id)->toBe($agent->id)
+        ->and($conversation->messages()->count())->toBe(1);
+
+    $this->patchJson(route('ai-plus.conversations.move', $conversation), ['agent_id' => null])
+        ->assertOk()
+        ->assertJsonPath('agent_id', null);
+    expect($conversation->fresh()->agent_id)->toBeNull()
+        ->and($conversation->messages()->count())->toBe(1);
+});
+
 it('sends full history (max 20) on subsequent messages', function () {
     config(['openai.api_key' => 'sk-test']);
 
@@ -762,6 +813,104 @@ it('uses indexed RAG context for an agent conversation', function () {
         (string) data_get($request->data(), 'messages.0.content'),
         '=== KNOWLEDGE (đoạn liên quan nhất đến câu hỏi, RAG) ===',
     ));
+});
+
+it('labels an Agent reply when the question is outside its indexed Knowledge', function () {
+    config(['openai.api_key' => 'sk-test']);
+    $agent = Agent::create([
+        'user_id' => $this->user->id,
+        'title' => 'Leave policy Agent',
+        'system_prompt' => 'Answer staff questions.',
+        'knowledge' => json_encode([['path' => 'placeholder.txt', 'original_name' => 'leave-policy.txt']]),
+        'is_shared' => false,
+    ]);
+    KnowledgeChunk::create([
+        'agent_id' => $agent->id,
+        'source_file' => 'leave-policy.txt',
+        'chunk_index' => 0,
+        'content' => 'Nhân viên cần nộp đơn nghỉ phép trước ba ngày làm việc.',
+        'embedding' => [],
+    ]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id,
+        'agent_id' => $agent->id,
+        'title' => 'Agent chat',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Giải giúp tôi bài toán 2 + 2.',
+        'conversation_id' => $conversation->id,
+    ])->assertOk()
+        ->assertJsonPath('reply', 'ℹ️ **Knowledge notice:** This question appears to be outside this Agent’s Knowledge. The response below is based on the AI model’s general knowledge, not the Agent’s uploaded materials.'."\n\n".'Phản hồi từ AI');
+
+    expect($conversation->messages()->where('role', 'assistant')->sole()->content)
+        ->toStartWith('ℹ️ **Knowledge notice:**');
+});
+
+it('does not label an Agent reply when indexed Knowledge is relevant', function () {
+    config(['openai.api_key' => 'sk-test']);
+    $agent = Agent::create([
+        'user_id' => $this->user->id,
+        'title' => 'Leave policy Agent',
+        'knowledge' => json_encode([['path' => 'placeholder.txt', 'original_name' => 'leave-policy.txt']]),
+        'is_shared' => false,
+    ]);
+    KnowledgeChunk::create([
+        'agent_id' => $agent->id,
+        'source_file' => 'leave-policy.txt',
+        'chunk_index' => 0,
+        'content' => 'Nhân viên cần nộp đơn nghỉ phép trước ba ngày làm việc.',
+        'embedding' => [],
+    ]);
+    $conversation = Conversation::create(['user_id' => $this->user->id, 'agent_id' => $agent->id, 'title' => 'Agent chat']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Quy trình nộp đơn nghỉ phép như thế nào?',
+        'conversation_id' => $conversation->id,
+    ])->assertOk()
+        ->assertJsonPath('reply', 'Phản hồi từ AI');
+});
+
+it('uses the Agent system prompt as an additional scope signal', function () {
+    config(['openai.api_key' => 'sk-test']);
+    $agent = Agent::create([
+        'user_id' => $this->user->id,
+        'title' => 'Business Trip Budget Agent',
+        'system_prompt' => 'You are a business trip budget specialist. Help staff calculate airfare, hotel, meals, and travel allowances.',
+        'is_shared' => false,
+    ]);
+    $conversation = Conversation::create(['user_id' => $this->user->id, 'agent_id' => $agent->id, 'title' => 'Budget chat']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Giải giúp tôi bài toán 2 + 2.',
+        'conversation_id' => $conversation->id,
+    ])->assertOk()
+        ->assertJsonPath('reply', 'ℹ️ **Knowledge notice:** This question appears to be outside this Agent’s Knowledge. The response below is based on the AI model’s general knowledge, not the Agent’s uploaded materials.'."\n\n".'Phản hồi từ AI');
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'How should I calculate hotel allowance for a business trip?',
+        'conversation_id' => $conversation->id,
+    ])->assertOk()
+        ->assertJsonPath('reply', 'Phản hồi từ AI');
+});
+
+it('does not mistake overlapping generic prompt words for Agent scope', function () {
+    $agent = Agent::create([
+        'user_id' => $this->user->id,
+        'title' => 'Budget Agent',
+        'system_prompt' => 'Prepare travel budgets, payment proposals, quantities, and equipment costs for school trips.',
+        'is_shared' => false,
+    ]);
+
+    expect(app(KnowledgeService::class)->promptScopeMatches(
+        $agent->system_prompt,
+        'Thiết kế một bài toán lớp 9 về góc lượng giác.',
+    ))->toBeFalse()
+        ->and(app(KnowledgeService::class)->promptScopeMatches(
+            $agent->system_prompt,
+            'Prepare a hotel budget and travel allowance proposal.',
+        ))->toBeTrue();
 });
 
 it('uses semantic RAG when embeddings are available', function () {

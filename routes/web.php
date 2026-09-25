@@ -71,6 +71,8 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware(['auth', 'ai.policy'])->g
         ->name('agent-workspace.attachments.show');
     Route::patch('/agent-workspace/conversations/{conversation}', [ChatMessageController::class, 'rename'])
         ->name('conversations.rename');
+    Route::patch('/agent-workspace/conversations/{conversation}/move', [ChatMessageController::class, 'move'])
+        ->name('conversations.move');
     Route::post('/agent-workspace/conversations/{conversation}/export', [ChatMessageController::class, 'exportConversation'])
         ->middleware('throttle:chat')
         ->name('conversations.export');

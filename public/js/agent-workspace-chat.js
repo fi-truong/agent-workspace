@@ -64,15 +64,23 @@ document.addEventListener('DOMContentLoaded', function () {
   restoreSidebarWidth();
   window.addEventListener('resize', restoreSidebarWidth);
 
-  let selectedAgentId = window.__SELECTED_AGENT_ID__ || sessionStorage.getItem('selectedAgentId');
-  if (window.__SELECTED_AGENT_ID__) {
-    sessionStorage.setItem('selectedAgentId', window.__SELECTED_AGENT_ID__);
-  }
-
   const urlParams = new URLSearchParams(window.location.search);
   const urlConversationId = urlParams.get('conversation_id');
   if (urlConversationId) {
     conversationId = urlConversationId;
+  }
+
+  // An existing conversation already owns its Agent context on the server.
+  // Never revive the Agent saved for a previous "new chat" here: doing so
+  // could turn an old Quick Chat into an Agent chat on its next message.
+  let selectedAgentId = null;
+  if (window.__SELECTED_AGENT_ID__) {
+    selectedAgentId = window.__SELECTED_AGENT_ID__;
+    sessionStorage.setItem('selectedAgentId', selectedAgentId);
+  } else if (!urlConversationId) {
+    selectedAgentId = sessionStorage.getItem('selectedAgentId');
+  } else {
+    sessionStorage.removeItem('selectedAgentId');
   }
 
   // Drafts are intentionally kept in sessionStorage, not the database or
@@ -339,14 +347,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     container.appendChild(wrap);
 
-    if (role === 'assistant' && typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
-      try {
-        MathJax.typesetPromise([bubble]);
-      } catch (e) {
-        // bỏ qua nếu typeset fail
-      }
-    }
-
     container.scrollTop = container.scrollHeight;
     return wrap;
   }
@@ -537,13 +537,6 @@ document.addEventListener('DOMContentLoaded', function () {
       bubble.textContent = text;
     }
 
-    if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
-      try {
-        MathJax.typesetPromise([bubble]);
-      } catch (e) {
-        // bỏ qua nếu typeset fail
-      }
-    }
   }
 
   // File generation happens after the model has written its response, so the
@@ -565,6 +558,14 @@ document.addEventListener('DOMContentLoaded', function () {
   // marked turns Markdown into HTML but does not sanitize it. Keep only the HTML that
   // Markdown needs; AI output and shared-agent prompts must never run browser code.
   function renderSafeMarkdown(text) {
+    const knowledgeNotice = /^ℹ️ \*\*Knowledge notice:\*\* This question appears to be outside this Agent’s Knowledge\. The response below is based on the AI model’s general knowledge, not the Agent’s uploaded materials\.\s*/;
+    const showKnowledgeWarning = knowledgeNotice.test(text);
+    if (showKnowledgeWarning) text = text.replace(knowledgeNotice, '');
+    text = normalizeBareMathNotation(text);
+    // Render equations with our deterministic in-app formatter. MathJax was
+    // loaded from a CDN and could race page restoration, intermittently
+    // leaving users with raw $$...$$ source after refresh.
+    text = latexToReadableText(text);
     const template = document.createElement('template');
     template.innerHTML = marked.parse(text);
     const allowedTags = new Set(['a', 'b', 'blockquote', 'br', 'code', 'del', 'div', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'li', 'ol', 'p', 'pre', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'th', 'thead', 'tr', 'ul']);
@@ -600,17 +601,152 @@ document.addEventListener('DOMContentLoaded', function () {
       if (tag === 'img') {
         const src = element.getAttribute('src') || '';
         [...element.attributes].forEach((attribute) => element.removeAttribute(attribute.name));
-        if (!src.startsWith('/ai-plus/agent-workspace/attachments/')) {
+        // A just-pasted image is rendered from a temporary data URL before the
+        // server has saved it. On reload it is replaced with the private
+        // attachment URL below. Allow only raster image MIME types and base64,
+        // never SVG or arbitrary data: payloads.
+        const isTemporaryPastedImage = /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/i.test(src);
+        const isSavedChatAttachment = src.startsWith('/ai-plus/agent-workspace/attachments/');
+        if (!isTemporaryPastedImage && !isSavedChatAttachment) {
           element.remove();
         } else {
           element.setAttribute('src', src);
+          element.setAttribute('alt', 'Attached image');
+          element.setAttribute('loading', 'lazy');
+          // Keep uploads compact inside a chat bubble regardless of the
+          // original camera/screenshot resolution.
+          element.style.maxWidth = 'min(320px, 100%)';
+          element.style.maxHeight = '260px';
+          element.style.width = 'auto';
+          element.style.height = 'auto';
+          element.style.objectFit = 'contain';
+          element.style.borderRadius = '8px';
+          element.style.display = 'block';
         }
       } else if (tag !== 'a') {
         [...element.attributes].forEach((attribute) => element.removeAttribute(attribute.name));
       }
     });
 
+    if (showKnowledgeWarning) {
+      const callout = document.createElement('section');
+      callout.setAttribute('role', 'alert');
+      callout.style.cssText = 'display:flex;align-items:flex-start;gap:12px;margin:0 0 18px;padding:15px 16px;border:1px solid #d8921d;border-left:5px solid #b66b00;border-radius:10px;background:#fff4d9;color:#513000;box-shadow:0 2px 8px rgba(128,78,0,.10);';
+
+      const icon = document.createElement('span');
+      icon.textContent = '⚠️';
+      icon.style.cssText = 'font-size:21px;line-height:1.2;flex:0 0 auto;';
+      callout.appendChild(icon);
+
+      const copy = document.createElement('div');
+      const title = document.createElement('div');
+      title.textContent = 'Outside Agent Knowledge';
+      title.style.cssText = 'font-weight:800;font-size:16px;letter-spacing:.01em;margin-bottom:5px;';
+      const detail = document.createElement('div');
+      detail.textContent = 'This answer is based on the AI model’s general knowledge, not this Agent’s uploaded Knowledge. Please verify it before using it for school work.';
+      detail.style.cssText = 'font-size:15px;line-height:1.5;';
+      copy.append(title, detail);
+      callout.appendChild(copy);
+      template.content.prepend(callout);
+    }
+
     return template.innerHTML;
+  }
+
+  // Models occasionally emit a small LaTex fragment without MathJax delimiters
+  // (for example `35^\\circ` instead of `\\(35^\\circ\\)`). Render those
+  // common forms readably rather than exposing LaTex braces to users.
+  function normalizeBareMathNotation(text) {
+    if (typeof text !== 'string') return text;
+
+    const superscripts = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹', '+': '⁺', '-': '⁻' };
+    return text
+      // Recover from a common model typo such as
+      // $$ \\boxed{\\alpha\\approx38{,}0°. $$ (missing the final }).
+      // Only math-looking dollar blocks are touched; normal currency prose is
+      // left alone by repairLatexFormula().
+      .replace(/\$\$([\s\S]*?)\$\$/g, (_, formula) => `$$\n${repairLatexFormula(formula.trim())}\n$$`)
+      // Preserve the standard LaTex delimiters emitted by the model before
+      // marked() can consume their backslashes as Markdown escapes.
+      .replace(/\\\[([\s\S]*?)\\\]/g, (_, formula) => `\n$$\n${formula.trim()}\n$$`)
+      .replace(/\\\(([^()\n]*?)\\\)/g, (_, formula) => `$${formula.trim()}$`)
+      // AI models often use [ BD=... ] or [ \\frac{...} ] as informal
+      // display-math delimiters. Markdown treats them as ordinary text, so
+      // convert a standalone bracketed expression into $$...$$. Plain prose
+      // in brackets remains untouched.
+      .replace(/(^|\n)\s*\[\s*([^\]\n]+?)\s*\](?=\s*(?:\n|$))/g,
+        (whole, prefix, formula) => /\\[A-Za-z]+|[=^]|\d\s*[+*/-]\s*\d/.test(formula)
+          ? `${prefix}\n$$\n${formula.trim()}\n$$`
+          : whole)
+      // Inline formulae are commonly wrapped in regular parentheses, e.g.
+      // (40\\text{ m}) or (AD=AB=40\\text{ m}). Preserve normal prose such
+      // as (A) by requiring an equation or a LaTex command.
+      .replace(/\(([^()\n]*(?:\\[A-Za-z]+|=)[^()\n]*)\)/g, (_, formula) => `$${formula.trim()}$`)
+      .replace(/(\d+(?:[.,]\d+)?)\s*\^\s*\{?\\circ\}?/g, '$1°')
+      .replace(/\^\{([0-9+-]+)\}/g, (_, exponent) => [...exponent].map((character) => superscripts[character] || character).join(''))
+      .replace(/\\qquad/g, ' ')
+      // A malformed \frac without brace groups cannot be interpreted safely;
+      // keep its numeric text rather than exposing a broken LaTex command.
+      .replace(/\\frac\s*([0-9][0-9,.)]*)/g, '$1')
+      .replace(/\\times/g, '×')
+      .replace(/\\div/g, '÷');
+  }
+
+  function repairLatexFormula(formula) {
+    if (!/[\\^{}]/.test(formula)) return formula;
+
+    // A final period belongs in the sentence, not inside \boxed{...}.
+    const punctuation = formula.match(/([.!?;:])\s*$/)?.[1] || '';
+    const expression = punctuation ? formula.replace(/[.!?;:]\s*$/, '') : formula;
+    let openGroups = 0;
+    for (let index = 0; index < expression.length; index++) {
+      if (expression[index] === '\\') {
+        index++;
+        continue;
+      }
+      if (expression[index] === '{') openGroups++;
+      if (expression[index] === '}' && openGroups > 0) openGroups--;
+    }
+
+    return expression + '}'.repeat(openGroups) + punctuation;
+  }
+
+  // A reliable in-browser fallback for environments where the MathJax CDN is
+  // unavailable or still loading. It intentionally favors legibility over
+  // typesetting: users see a readable formula, never an empty space or raw
+  // LaTex command.
+  function latexToReadableText(text) {
+    const format = (formula) => {
+      let output = repairLatexFormula(formula.trim());
+      // Unwrap boxed results before removing grouping braces. A box may itself
+      // contain groups such as 29{,}5, which a simple regular expression
+      // cannot safely match as a whole.
+      output = output.replace(/\\boxed\s*\{/g, '▣ ');
+      // Work inside-out so \boxed{...\text{ m}} can be unwrapped safely.
+      for (let pass = 0; pass < 3; pass++) {
+        output = output.replace(/\\text\{([^{}]*)\}/g, '$1');
+        // LaTex often protects a decimal comma as {,}; flatten it before
+        // parsing fractions so \frac{15{,}951}{20} remains a valid fraction.
+        output = output.replace(/\{,\}/g, ',');
+        output = output.replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '($1 / $2)');
+      }
+      return output
+        .replace(/\\arctan/g, 'arctan')
+        .replace(/\\(?:tan|sin|cos|cot)\s*/g, (command) => command.slice(1).trim() + ' ')
+        .replace(/\\alpha/g, 'α')
+        .replace(/\\beta/g, 'β')
+        .replace(/\\theta/g, 'θ')
+        .replace(/\\approx/g, '≈')
+        .replace(/\\cdot/g, '·')
+        .replace(/\\circ/g, '°')
+        .replace(/\\qquad/g, ' ')
+        .replace(/\\frac\s*([0-9][0-9,.)]*)/g, '$1')
+        .replace(/[{}]/g, '');
+    };
+
+    return text
+      .replace(/\$\$([\s\S]*?)\$\$/g, (_, formula) => `\n\n${format(formula)}\n\n`)
+      .replace(/\$([^$\n]+)\$/g, (_, formula) => format(formula));
   }
 
   // Parse 1 khối SSE thô (đã tách bằng \n\n) → {event, data} hoặc null nếu không hợp lệ.
@@ -1053,16 +1189,52 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  textarea.addEventListener('paste', function (e) {
-    const items = e.clipboardData?.items || [];
+  function clipboardImageFile(item, index) {
+    if (item.kind !== 'file') return null;
 
-    for (const item of items) {
-      if (item.type && item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (!file) continue;
-        handleIncomingFile(file);
-      }
+    const file = item.getAsFile();
+    if (!file) return null;
+
+    // Chrome, Edge, Office and screenshot tools do not always put the same
+    // MIME type on ClipboardItem and File. Normalize it so FileReader emits
+    // an image data URL that the server can persist and display.
+    const mimeType = file.type || item.type;
+    if (!mimeType || !mimeType.startsWith('image/')) return null;
+
+    if (file.type === mimeType && file.name) return file;
+
+    const extension = mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+    return new File(
+      [file],
+      file.name || `pasted-image-${Date.now()}-${index}.${extension}`,
+      { type: mimeType },
+    );
+  }
+
+  textarea.addEventListener('paste', function (e) {
+    const clipboard = e.clipboardData;
+    if (!clipboard) return;
+
+    const images = Array.from(clipboard.items || [])
+      .map((item, index) => clipboardImageFile(item, index))
+      .filter(Boolean);
+
+    // Some browsers expose clipboard screenshots only through FileList.
+    if (images.length === 0) {
+      Array.from(clipboard.files || []).forEach((file, index) => {
+        if (!file.type.startsWith('image/')) return;
+        images.push(file.type && file.name
+          ? file
+          : new File([file], file.name || `pasted-image-${Date.now()}-${index}.png`, { type: file.type || 'image/png' }));
+      });
     }
+
+    if (images.length === 0) return;
+
+    // Keep normal text paste intact, but do not paste an unreadable object
+    // marker into the composer when the clipboard contains an image.
+    e.preventDefault();
+    images.forEach((file) => handleIncomingFile(file));
   });
 
   const dropTargets = [document.querySelector('.input-box'), document.querySelector('.input-area'), main];
@@ -1338,21 +1510,48 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  const settingsBtn = document.querySelector('[data-behavior="settings"]');
-  const settingsPopover = document.getElementById('settings-popover');
-
-  settingsBtn?.addEventListener('click', function (e) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (settingsPopover) {
-      const visible = settingsPopover.style.display === 'block';
-      settingsPopover.style.display = visible ? 'none' : 'block';
-    }
+  const moveConversationModal = document.getElementById('move-conversation-modal');
+  const moveConversationForm = document.getElementById('move-conversation-form');
+  document.querySelector('[data-behavior="move-conversation"]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    moveConversationModal?.removeAttribute('hidden');
   });
+  document.querySelectorAll('[data-behavior="close-move-modal"]').forEach((button) => {
+    button.addEventListener('click', () => moveConversationModal?.setAttribute('hidden', ''));
+  });
+  moveConversationModal?.addEventListener('click', (event) => {
+    if (event.target === moveConversationModal) moveConversationModal.setAttribute('hidden', '');
+  });
+  moveConversationForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!conversationId) return;
 
-  document.addEventListener('click', function () {
-    if (settingsPopover) settingsPopover.style.display = 'none';
+    const submit = moveConversationForm.querySelector('.export-submit');
+    const agentId = document.getElementById('move-conversation-agent')?.value || null;
+    submit.disabled = true;
+    submit.textContent = 'Moving…';
+    try {
+      const response = await fetch(`/ai-plus/agent-workspace/conversations/${encodeURIComponent(conversationId)}/move`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+        },
+        body: JSON.stringify({ agent_id: agentId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || data.message || 'The conversation could not be moved.');
+
+      moveConversationModal?.setAttribute('hidden', '');
+      showMiniToast(agentId ? '🤖 Conversation moved to Agent' : '💬 Conversation moved to Quick Chat');
+      window.setTimeout(() => window.location.reload(), 550);
+    } catch (error) {
+      await WebUI.notice(error.message || 'The conversation could not be moved. Please try again.', { title: 'Could not move conversation' });
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Move conversation';
+    }
   });
 
   renderInitialMessages();

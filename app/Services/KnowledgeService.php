@@ -269,25 +269,22 @@ class KnowledgeService
      */
     public function retrieveContext(Agent $agent, string $query, ?int $topK = null): string
     {
+        // Preserve the original retrieval contract for callers that only need
+        // the best chunks. Scope labelling uses retrieveContextResult() below.
         $topK ??= (int) config('openai.rag_top_k', 4);
-
         $chunks = KnowledgeChunk::where('agent_id', $agent->id)->get();
-
         if ($chunks->isEmpty()) {
             return '';
         }
 
         $queryEmbedding = $this->embeddingService->embed($query);
         $semanticChunks = $chunks->filter(fn (KnowledgeChunk $chunk) => $chunk->embedding !== []);
-
-        if ($queryEmbedding !== [] && $semanticChunks->isNotEmpty()) {
-            $scored = $semanticChunks->map(fn (KnowledgeChunk $chunk) => [
+        $scored = $queryEmbedding !== [] && $semanticChunks->isNotEmpty()
+            ? $semanticChunks->map(fn (KnowledgeChunk $chunk) => [
                 'chunk' => $chunk,
                 'score' => $this->embeddingService->cosineSimilarity($queryEmbedding, $chunk->embedding),
-            ])->sortByDesc('score')->take($topK);
-        } else {
-            $scored = $this->rankKeywordChunks($chunks->all(), $query, $topK);
-        }
+            ])->sortByDesc('score')->take($topK)
+            : $this->rankKeywordChunks($chunks->all(), $query, $topK);
 
         if ($scored->isEmpty()) {
             return '';
@@ -300,6 +297,104 @@ class KnowledgeService
         })->values()->all();
 
         return "=== KNOWLEDGE (đoạn liên quan nhất đến câu hỏi, RAG) ===\n\n".implode("\n\n", $parts);
+    }
+
+    /**
+     * Retrieve Agent Knowledge together with a conservative relevance signal.
+     * The signal is intentionally only conclusive for indexed content: when
+     * indexing has not completed, callers may retain the legacy full-file
+     * fallback instead of incorrectly warning the user.
+     *
+     * @return array{context: string, has_indexed_knowledge: bool, is_relevant: bool}
+     */
+    public function retrieveContextResult(Agent $agent, string $query, ?int $topK = null): array
+    {
+        $topK ??= (int) config('openai.rag_top_k', 4);
+
+        $chunks = KnowledgeChunk::where('agent_id', $agent->id)->get();
+
+        if ($chunks->isEmpty()) {
+            return ['context' => '', 'has_indexed_knowledge' => false, 'is_relevant' => false];
+        }
+
+        $queryEmbedding = $this->embeddingService->embed($query);
+        $semanticChunks = $chunks->filter(fn (KnowledgeChunk $chunk) => $chunk->embedding !== []);
+
+        if ($queryEmbedding !== [] && $semanticChunks->isNotEmpty()) {
+            $scored = $semanticChunks->map(fn (KnowledgeChunk $chunk) => [
+                'chunk' => $chunk,
+                'score' => $this->embeddingService->cosineSimilarity($queryEmbedding, $chunk->embedding),
+            ])->sortByDesc('score')->take($topK);
+            $isRelevant = (float) data_get($scored->first(), 'score', 0) >= (float) config('openai.rag_relevance_threshold', 0.32);
+        } else {
+            $scored = $this->rankKeywordChunks($chunks->all(), $query, $topK);
+            $isRelevant = (int) data_get($scored->first(), 'score', 0) > 0;
+        }
+
+        if ($scored->isEmpty() || ! $isRelevant) {
+            return ['context' => '', 'has_indexed_knowledge' => true, 'is_relevant' => false];
+        }
+
+        $parts = $scored->map(function ($item) {
+            $chunk = is_array($item) ? $item['chunk'] : $item;
+
+            return "[Trích từ file: {$chunk->source_file}]\n{$chunk->content}\n[/Trích]";
+        })->values()->all();
+
+        return [
+            'context' => "=== KNOWLEDGE (đoạn liên quan nhất đến câu hỏi, RAG) ===\n\n".implode("\n\n", $parts),
+            'has_indexed_knowledge' => true,
+            'is_relevant' => true,
+        ];
+    }
+
+    /**
+     * Check whether a question has a meaningful overlap with the Agent's own
+     * system-prompt scope. Generic instructions such as "be helpful" are not
+     * treated as a scope, because they should not suppress a source notice.
+     *
+     * @return bool|null true = related, false = outside a defined scope,
+     *                   null = prompt does not define a clear scope
+     */
+    public function promptScopeMatches(?string $systemPrompt, string $query): ?bool
+    {
+        $scopeTokens = $this->scopeTokens((string) $systemPrompt);
+        if (count($scopeTokens) < 2) {
+            return null;
+        }
+
+        $queryTokens = $this->scopeTokens($query);
+        if ($queryTokens === []) {
+            // The Agent has an explicit domain, while the question contains
+            // only generic wording (for example, "do this math problem").
+            // Treat it as outside that domain rather than silently assuming
+            // the prompt is relevant.
+            return false;
+        }
+
+        $matches = [];
+        foreach ($queryTokens as $queryToken) {
+            foreach ($scopeTokens as $scopeToken) {
+                if ($queryToken === $scopeToken) {
+                    $matches[$queryToken] = true;
+                    continue;
+                }
+
+                // A small stem-like comparison keeps common forms such as
+                // "budget"/"budgets" and "recommend"/"recommendation"
+                // useful without needing a language-specific stemmer.
+                if (mb_strlen($queryToken) >= 5 && mb_strlen($scopeToken) >= 5
+                    && (str_starts_with($queryToken, $scopeToken) || str_starts_with($scopeToken, $queryToken))) {
+                    $matches[$queryToken] = true;
+                }
+            }
+        }
+
+        // A long specific term (budget, allowance, recommendation…) is
+        // meaningful on its own. Short Vietnamese words are often ambiguous
+        // across domains, so require at least two independent matches.
+        return collect(array_keys($matches))->contains(fn (string $term): bool => mb_strlen($term) >= 5)
+            || count($matches) >= 2;
     }
 
     /**
@@ -352,7 +447,31 @@ class KnowledgeService
         $stopWords = ['của', 'và', 'là', 'có', 'cho', 'theo', 'với', 'một', 'những', 'để', 'trong', 'từ', 'không', 'được', 'cần', 'này', 'đó', 'các', 'vào', 'trên', 'bởi', 'đã', 'sẽ', 'tôi', 'bạn', 'anh', 'chị', 'em', 'the', 'of', 'and', 'is', 'to', 'in', 'for', 'with', 'on', 'at', 'not', 'have', 'be'];
         $tokens = (array) preg_split('/[\s,.;:!?\/|()\[\]{}]+/u', mb_strtolower($query));
 
-        return array_values(array_diff(array_filter($tokens), $stopWords));
+        return array_values(array_filter(
+            array_diff(array_filter($tokens), $stopWords),
+            // A bare number is a poor relevance signal: a budget document
+            // naturally contains many numbers, so it made generic requests
+            // such as "solve 2 + 2" look like they came from that Knowledge.
+            fn (string $token): bool => preg_match('/\p{L}{2,}/u', $token) === 1,
+        ));
+    }
+
+    /** @return array<int, string> */
+    private function scopeTokens(string $text): array
+    {
+        $genericAgentWords = [
+            'assistant', 'assist', 'answer', 'answers', 'question', 'questions', 'help', 'helpful',
+            'user', 'users', 'staff', 'school', 'work', 'workplace', 'information', 'task', 'tasks',
+            'bạn', 'trợ', 'lý', 'giúp', 'người', 'dùng', 'trả', 'lời', 'câu', 'hỏi', 'cung', 'cấp',
+            'trường', 'công', 'việc', 'thông', 'tin', 'nhiệm', 'vụ', 'yêu', 'cầu', 'hướng', 'dẫn',
+            // These are common instruction/math words, not an Agent domain.
+            // In particular, "toán" also occurs in "thanh toán" in budget
+            // prompts, but must not make a general school math question match.
+            'làm', 'bài', 'toán', 'giải', 'tạo', 'viết', 'đọc', 'xem', 'cho', 'đây', 'này',
+            'thiết', 'kế', 'về', 'lượng',
+        ];
+
+        return array_values(array_diff($this->queryTokens($text), $genericAgentWords));
     }
 
     /**

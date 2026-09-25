@@ -156,14 +156,12 @@
         @endif
       </div>
       <div class="topbar-right">
+        @if($activeConversationId)
+        <button class="icon-btn move-conversation-btn" data-behavior="move-conversation" title="Move conversation" aria-label="Move conversation">⇄</button>
+        @endif
         <button class="icon-btn" data-behavior="attach-topbar" title="Upload files">📎</button>
         <button class="icon-btn" data-behavior="save-as-agent" title="Save as Agent">🤖</button>
         <button class="icon-btn" data-behavior="export-chat" title="Export conversation">↓</button>
-        <button class="icon-btn" data-behavior="settings" title="Settings">⚙</button>
-      </div>
-      <div class="settings-popover" id="settings-popover" style="display:none;">
-        <div class="sp-item"><span class="sp-label">Model</span><span class="sp-value">GPT-5.6 Luna</span></div>
-        <div class="sp-item"><span class="sp-label">Khu vực</span><span class="sp-value">School AI</span></div>
       </div>
     </div>
 
@@ -217,6 +215,26 @@
     <div class="export-modal-actions"><button type="button" class="export-cancel" data-behavior="close-export-modal">Cancel</button><button type="submit" class="export-submit">Create file</button></div>
   </form>
 </div>
+
+@if($activeConversationId)
+<div class="export-modal-overlay" id="move-conversation-modal" hidden>
+  <form class="export-modal move-conversation-modal" id="move-conversation-form">
+    <div class="export-modal-header"><div><h3>Move conversation</h3><p>Messages stay exactly as they are. The selected Agent applies to future messages only.</p></div><button type="button" class="export-modal-close" data-behavior="close-move-modal" aria-label="Close">×</button></div>
+    <div class="export-modal-body move-conversation-body">
+      <label>Conversation location
+        <select name="agent_id" id="move-conversation-agent">
+          <option value="">Quick Chat — no Agent</option>
+          @foreach($myAgents as $agent)
+          <option value="{{ $agent['id'] }}" @selected($activeAgent?->id === $agent['id'])>{{ $agent['title'] }}@if(!empty($agent['is_used_shared'])) (Shared)@endif</option>
+          @endforeach
+        </select>
+      </label>
+      <p class="export-modal-note">When moved to Quick Chat, no Agent instructions or Knowledge files will be used in new replies.</p>
+    </div>
+    <div class="export-modal-actions"><button type="button" class="export-cancel" data-behavior="close-move-modal">Cancel</button><button type="submit" class="export-submit">Move conversation</button></div>
+  </form>
+</div>
+@endif
 @endsection
 
 @push('styles')
@@ -300,12 +318,10 @@
   .topbar-right{display:flex;align-items:center;gap:8px;}
   .icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--topbar-border);background: var(--topbar-bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color: var(--topbar-crumb);font-size:16px;transition: background 0.15s;}
   .icon-btn:hover{background: var(--surface);color: var(--topbar-link);}
-  .settings-popover{position:absolute;top:54px;right:16px;z-index:50;background: var(--card-bg);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px -12px rgba(31,56,100,0.25);padding:12px;min-width:180px;display:flex;flex-direction:column;gap:8px;}
-  .settings-popover .sp-item{display:flex;justify-content:space-between;align-items:center;gap:16px;font-size:13px;}
-  .settings-popover .sp-label{color: var(--text-soft);}
-  .settings-popover .sp-value{color: var(--text-main);font-family:'IBM Plex Mono',monospace;}
+  .move-conversation-btn{font-size:20px;font-weight:600;line-height:1;}
   .export-modal-overlay{position:fixed;inset:0;z-index:2000;background:rgba(20,37,32,.46);display:flex;align-items:center;justify-content:center;padding:20px;}
   .export-modal-overlay[hidden]{display:none;}.export-modal{width:min(100%,500px);background:var(--card-bg);border:1px solid var(--line);border-radius:16px;box-shadow:0 22px 50px rgba(0,0,0,.22);overflow:hidden;}.export-modal-header{padding:20px 22px 14px;display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line)}.export-modal-header h3{margin:0;color:var(--text-main);font:600 21px 'Fraunces',serif}.export-modal-header p,.export-modal-note{margin:5px 0 0;color:var(--text-soft);font-size:13px}.export-modal-close{border:0;background:transparent;font-size:25px;color:var(--text-soft);cursor:pointer}.export-modal-body{padding:18px 22px;display:grid;grid-template-columns:1fr 1fr;gap:14px}.export-modal-body label{display:flex;flex-direction:column;gap:6px;color:var(--text-main);font-size:13px;font-weight:600}.export-modal-body input,.export-modal-body select{min-width:0;box-sizing:border-box;width:100%;padding:9px 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:14px inherit}.export-modal-body label:nth-child(2),.export-modal-note{grid-column:1/-1}.export-modal-actions{padding:14px 22px 20px;display:flex;justify-content:flex-end;gap:10px}.export-modal-actions button{border-radius:8px;padding:9px 14px;font:600 14px inherit;cursor:pointer}.export-cancel{border:1px solid var(--input-border);background:transparent;color:var(--text-main)}.export-submit{border:0;background:var(--navy);color:#fff}.export-submit:disabled{opacity:.6;cursor:wait;}
+  .move-conversation-body{grid-template-columns:1fr;}.move-conversation-body .export-modal-note{grid-column:auto;line-height:1.45;}
 
   /* Empty State */
   .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center;}
@@ -366,13 +382,6 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-<script>
-  window.MathJax = {
-    tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
-    svg: { fontCache: 'global' },
-  };
-</script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
 <script src="{{ asset('js/agent-workspace-chat.js') }}?v={{ filemtime(public_path('js/agent-workspace-chat.js')) }}"></script>
 @endpush
 

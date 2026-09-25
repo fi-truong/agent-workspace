@@ -68,6 +68,10 @@ return [
     // Số đoạn liên quan nhất lấy vào system prompt mỗi lượt hỏi.
     'rag_top_k' => (int) env('RAG_TOP_K', 4),
 
+    // Minimum cosine similarity for an indexed Agent Knowledge result to be
+    // presented as relevant. Keyword retrieval requires at least one match.
+    'rag_relevance_threshold' => (float) env('RAG_RELEVANCE_THRESHOLD', 0.32),
+
     // Kích thước mỗi đoạn (ký tự) khi cắt file Knowledge.
     'rag_chunk_chars' => (int) env('RAG_CHUNK_CHARS', 900),
 
