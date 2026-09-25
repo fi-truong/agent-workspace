@@ -58,6 +58,49 @@ it('creates conversation and stores both messages', function () {
         ->and(UsageLog::count())->toBe(1);
 });
 
+it('replaces only the newest user prompt and regenerates its reply', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Bản nháp ban đầu',
+    ])->assertOk();
+
+    $conversation = Conversation::firstOrFail();
+    $prompt = $conversation->messages()->where('role', 'user')->firstOrFail();
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Bản nháp đã chỉnh sửa',
+        'conversation_id' => $conversation->id,
+        'edit_message_id' => $prompt->id,
+    ])->assertOk()
+        ->assertJsonPath('conversation_id', $conversation->id);
+
+    expect($conversation->fresh()->messages()->count())->toBe(2)
+        ->and($conversation->messages()->where('role', 'user')->sole()->content)->toBe('Bản nháp đã chỉnh sửa')
+        ->and($conversation->messages()->where('role', 'assistant')->sole()->content)->toBe('Phản hồi từ AI');
+});
+
+it('exposes an edit control only for the newest text-only user prompt', function () {
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Editable prompt',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+    $first = Message::create(['conversation_id' => $conversation->id, 'role' => 'user', 'content' => 'Prompt cũ']);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => 'Phản hồi cũ']);
+    $latest = Message::create(['conversation_id' => $conversation->id, 'role' => 'user', 'content' => 'Prompt mới nhất']);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => 'Phản hồi mới nhất']);
+
+    $this->get(route('ai-plus.agent-workspace.index', ['conversation_id' => $conversation->id]))
+        ->assertOk()
+        ->assertViewHas('initialMessages', function (array $messages) use ($first, $latest): bool {
+            return $messages[0]['id'] === $first->id
+                && $messages[0]['editable'] === false
+                && $messages[2]['id'] === $latest->id
+                && $messages[2]['editable'] === true;
+        });
+});
+
 it('tells the model that AI+ can export requested files', function () {
     config(['openai.api_key' => 'sk-test']);
 
@@ -407,6 +450,11 @@ it('exports a conversation with user-selected document options', function () {
     ]);
     Message::create([
         'conversation_id' => $conversation->id,
+        'role' => 'user',
+        'content' => 'Please prepare the full business trip record.',
+    ]);
+    Message::create([
+        'conversation_id' => $conversation->id,
         'role' => 'assistant',
         'content' => '# Business trip budget\n\n| Item | Cost |\n| --- | ---: |\n| Hotel | 80 USD |',
     ]);
@@ -424,6 +472,13 @@ it('exports a conversation with user-selected document options', function () {
     $artifact = AiArtifact::firstOrFail();
     Storage::disk('ai-artifacts')->assertExists($artifact->path);
     expect(UsageLog::where('source', 'agent_workspace_export')->exists())->toBeTrue();
+    Http::assertSent(fn (Request $request): bool => str_contains(
+        json_encode($request->data(), JSON_UNESCAPED_UNICODE),
+        'Please prepare the full business trip record.',
+    ) && str_contains(
+        json_encode($request->data(), JSON_UNESCAPED_UNICODE),
+        'Business trip budget',
+    ));
 });
 
 it('lets an owner delete a generated file from recent files', function () {

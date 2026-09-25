@@ -69,5 +69,12 @@ it('redacts an external email', function () {
     $redacted = $this->filter->redact('Email của tôi là abc@gmail.com');
 
     expect($redacted)->not->toContain('abc@gmail.com');
-    expect($redacted)->toContain('[email đã bị ẩn]');
+    expect($redacted)->toContain('[EMAIL]');
+});
+
+it('uses the same complete rules as chat', function () {
+    $result = $this->filter->scan('Hộ chiếu: C12345678; Số tài khoản: 1234567890123456');
+
+    expect($result['flagged'])->toBeTrue()
+        ->and($result['matches'])->toHaveKeys(['passport', 'bank_account']);
 });

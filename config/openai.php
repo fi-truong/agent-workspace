@@ -58,6 +58,13 @@ return [
     'pdf_scan_max_pages' => (int) env('PDF_SCAN_MAX_PAGES', 10),
     'pdf_scan_max_width' => (int) env('PDF_SCAN_MAX_WIDTH', 1280),
 
+    // Agent Knowledge images are OCR'd locally before indexing, so their text
+    // can participate in RAG without sending the original image to an AI API.
+    'knowledge_ocr_binary' => env('KNOWLEDGE_OCR_BINARY'),
+    'knowledge_ocr_languages' => env('KNOWLEDGE_OCR_LANGUAGES', 'vie+eng'),
+    'knowledge_ocr_timeout' => (int) env('KNOWLEDGE_OCR_TIMEOUT', 30),
+    'knowledge_ocr_max_chars' => (int) env('KNOWLEDGE_OCR_MAX_CHARS', 60000),
+
     // Số đoạn liên quan nhất lấy vào system prompt mỗi lượt hỏi.
     'rag_top_k' => (int) env('RAG_TOP_K', 4),
 

@@ -75,6 +75,86 @@ document.addEventListener('DOMContentLoaded', function () {
     conversationId = urlConversationId;
   }
 
+  // Drafts are intentionally kept in sessionStorage, not the database or
+  // localStorage: they survive moving between chats in this browser tab but
+  // disappear when the tab/session closes. They are also scoped to the user.
+  const draftStoragePrefix = 'ai-plus.workspace-draft.v1';
+  let draftSaveTimer = null;
+
+  function currentDraftKey() {
+    const userId = window.__WORKSPACE_USER_ID__ || 'anonymous';
+    const context = conversationId
+      ? `conversation:${conversationId}`
+      : `new:${selectedAgentId || 'quick-chat'}`;
+
+    return `${draftStoragePrefix}:${userId}:${context}`;
+  }
+
+  function resizeComposer() {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 400) + 'px';
+  }
+
+  function saveDraft() {
+    if (draftSaveTimer) {
+      window.clearTimeout(draftSaveTimer);
+      draftSaveTimer = null;
+    }
+
+    try {
+      const value = textarea.value;
+      const key = currentDraftKey();
+      if (value === '') {
+        sessionStorage.removeItem(key);
+        return;
+      }
+
+      sessionStorage.setItem(key, JSON.stringify({ text: value, savedAt: Date.now() }));
+    } catch (_) {
+      // Storage can be unavailable in a strict privacy mode. Chat remains usable.
+    }
+  }
+
+  function queueDraftSave() {
+    if (draftSaveTimer) window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = window.setTimeout(saveDraft, 250);
+  }
+
+  function restoreDraft() {
+    try {
+      const raw = sessionStorage.getItem(currentDraftKey());
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (typeof draft?.text !== 'string' || draft.text === '') return;
+
+      textarea.value = draft.text;
+      resizeComposer();
+      showMiniToast('✏️ Draft restored');
+    } catch (_) {
+      // Ignore an invalid or inaccessible browser storage entry.
+    }
+  }
+
+  function resolveSentDraft(draft) {
+    if (!draft) return;
+    try {
+      const saved = sessionStorage.getItem(draft.key);
+      const parsed = saved ? JSON.parse(saved) : null;
+      // The user may have started typing the next prompt while AI was working.
+      // Only remove the stored draft if it is still the message just sent. A
+      // new chat receives its conversation ID after the first reply, so move a
+      // newer draft to that permanent conversation key instead of losing it.
+      if (parsed?.text === draft.text) {
+        sessionStorage.removeItem(draft.key);
+      } else if (saved && draft.key !== currentDraftKey()) {
+        sessionStorage.setItem(currentDraftKey(), saved);
+        sessionStorage.removeItem(draft.key);
+      }
+    } catch (_) {}
+  }
+
+  window.addEventListener('pagehide', saveDraft);
+
   // Hiển thị breadcrumb tên agent ở topbar (từ selectedAgentId hoặc activeAgent server-side).
   function syncAgentBadge() {
     const topbarLeft = document.querySelector('.topbar-left');
@@ -94,7 +174,15 @@ document.addEventListener('DOMContentLoaded', function () {
     crumb.className = 'active-agent-breadcrumb';
     const n = document.createElement('span');
     n.className = 'agent-breadcrumb-name';
-    n.textContent = '🤖 ' + agent.title;
+    if (agent.avatar_url) {
+      const avatar = document.createElement('img');
+      avatar.src = agent.avatar_url;
+      avatar.alt = '';
+      n.appendChild(avatar);
+    } else {
+      n.append('🤖 ');
+    }
+    n.append(agent.title);
     crumb.appendChild(n);
     crumb.appendChild(createLeaveAgentButton());
     topbarLeft.appendChild(crumb);
@@ -139,7 +227,15 @@ document.addEventListener('DOMContentLoaded', function () {
       if (agent) {
         const agentName = document.createElement('span');
         agentName.className = 'agent-breadcrumb-name';
-        agentName.textContent = '🤖 ' + agent.title;
+        if (agent.avatar_url) {
+          const avatar = document.createElement('img');
+          avatar.src = agent.avatar_url;
+          avatar.alt = '';
+          agentName.appendChild(avatar);
+        } else {
+          agentName.append('🤖 ');
+        }
+        agentName.append(agent.title);
         crumb.appendChild(agentName);
         crumb.appendChild(createLeaveAgentButton());
         hasAgent = true;
@@ -198,7 +294,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (messages.length === 0) return;
 
     if (emptyState) emptyState.style.display = 'none';
-    messages.forEach((m) => appendMessage(m.role, m.content));
+    messages.forEach((m) => appendMessage(m.role, m.content, {
+      messageId: m.id,
+      editable: Boolean(m.editable),
+    }));
   }
 
   function ensureMessagesContainer() {
@@ -210,12 +309,13 @@ document.addEventListener('DOMContentLoaded', function () {
     return messagesContainer;
   }
 
-  function appendMessage(role, text) {
+  function appendMessage(role, text, { messageId = null, editable = false } = {}) {
     const container = ensureMessagesContainer();
 
     // Wrapper chứa bubble + nút copy (để copy nằm ở góc).
     const wrap = document.createElement('div');
     wrap.className = 'chat-msg-wrap';
+    if (messageId) wrap.dataset.messageId = String(messageId);
     wrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-width:85%;'+(role === 'user' ? 'align-self:flex-end;' : 'align-self:flex-start;');
 
     const bubble = document.createElement('div');
@@ -234,6 +334,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     wrap.appendChild(bubble);
+    if (role === 'user' && editable && messageId) addEditButton(wrap, bubble, messageId);
     addCopyButton(wrap, bubble);
 
     container.appendChild(wrap);
@@ -248,6 +349,69 @@ document.addEventListener('DOMContentLoaded', function () {
 
     container.scrollTop = container.scrollHeight;
     return wrap;
+  }
+
+  function disableAllPromptEditing() {
+    document.querySelectorAll('.chat-edit-btn, .chat-edit-form').forEach((element) => element.remove());
+  }
+
+  function addEditButton(wrap, bubble, messageId) {
+    if (!messageId || wrap.querySelector('.chat-edit-btn')) return;
+
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'chat-edit-btn';
+    editBtn.textContent = '✎ Edit';
+    editBtn.title = 'Edit and regenerate this prompt';
+    editBtn.style.cssText = 'align-self:flex-end;background:transparent;border:none;cursor:pointer;color:var(--text-soft,#5B6B7C);font-size:12px;padding:2px 6px;border-radius:6px;transition:background .15s;';
+    editBtn.addEventListener('mouseenter', () => { editBtn.style.background = 'var(--input-bg, rgba(0,0,0,0.05))'; });
+    editBtn.addEventListener('mouseleave', () => { editBtn.style.background = 'transparent'; });
+    editBtn.addEventListener('click', () => startPromptEdit(wrap, bubble, messageId));
+    wrap.appendChild(editBtn);
+  }
+
+  let editingPrompt = null;
+
+  function startPromptEdit(wrap, bubble, messageId) {
+    if (sending || wrap.querySelector('.chat-edit-form')) return;
+
+    const originalText = bubble.innerText || bubble.textContent || '';
+    const form = document.createElement('div');
+    form.className = 'chat-edit-form';
+    form.style.cssText = 'display:flex;flex-direction:column;gap:8px;width:100%;';
+    const editor = document.createElement('textarea');
+    editor.value = originalText;
+    editor.rows = 3;
+    editor.setAttribute('aria-label', 'Edit prompt');
+    editor.style.cssText = 'width:100%;box-sizing:border-box;resize:vertical;min-height:76px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--input-bg);color:var(--text-main);font:inherit;line-height:1.45;';
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancel';
+    cancel.style.cssText = 'padding:7px 11px;border:1px solid var(--line);border-radius:7px;background:var(--card-bg);color:var(--text-main);cursor:pointer;';
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.textContent = 'Update & resend';
+    save.style.cssText = 'padding:7px 11px;border:none;border-radius:7px;background:var(--navy);color:#fff;cursor:pointer;';
+    cancel.addEventListener('click', () => form.remove());
+    save.addEventListener('click', () => {
+      const updated = editor.value.trim();
+      if (!updated) return;
+      if (updated === originalText.trim()) {
+        form.remove();
+        return;
+      }
+      form.remove();
+      editingPrompt = { messageId, wrap, bubble, originalText, removedNodes: [] };
+      textarea.value = updated;
+      resizeComposer();
+      sendMessage();
+    });
+    actions.append(cancel, save);
+    form.append(editor, actions);
+    wrap.insertBefore(form, bubble.nextSibling);
+    editor.focus();
   }
 
   function addCopyButton(wrap, bubble) {
@@ -627,7 +791,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   async function sendMessage() {
     const message = textarea.value.trim();
+    const activeEdit = editingPrompt;
     if ((!message && pendingImages.length === 0 && pendingDocuments.length === 0) || sending) return;
+    if (activeEdit && (pendingImages.length > 0 || pendingDocuments.length > 0)) {
+      await WebUI.notice('Editing a prompt cannot include new attachments. Send attachments as a new message instead.', { title: 'Attachments unavailable while editing' });
+      return;
+    }
+
+    const sentDraft = { key: currentDraftKey(), text: textarea.value };
+    saveDraft();
 
     sending = true;
     if (sendBtn) {
@@ -639,18 +811,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (emptyState) emptyState.style.display = 'none';
 
-    // Hien anh + ten tai lieu kem trong bubble user ngay khi gui (dung snapshot truoc khi clear).
+    disableAllPromptEditing();
+
+    // Hiện ảnh + tên tài liệu kèm trong bubble user ngay khi gửi (dùng snapshot trước khi clear).
     const pendingSnapshot = pendingImages.slice();
     const pendingDocsSnapshot = pendingDocuments.slice();
     const docsLine = pendingDocsSnapshot.length > 0
       ? pendingDocsSnapshot.map((d) => '📎 ' + d.name).join('\n')
       : '';
-    if (pendingSnapshot.length > 0 || docsLine) {
+    let userWrap;
+    if (activeEdit) {
+      editingPrompt = null;
+      activeEdit.bubble.textContent = message;
+      let node = activeEdit.wrap.nextSibling;
+      while (node) {
+        const next = node.nextSibling;
+        activeEdit.removedNodes.push(node);
+        node.remove();
+        node = next;
+      }
+      userWrap = activeEdit.wrap;
+    } else if (pendingSnapshot.length > 0 || docsLine) {
       const mdImg = pendingSnapshot.map((d) => `![Ảnh đính kèm](${d})`).join('\n');
       const parts = [message, mdImg, docsLine].filter(Boolean);
-      appendMessage('user', parts.join('\n\n'));
+      userWrap = appendMessage('user', parts.join('\n\n'));
     } else {
-      appendMessage('user', message || '[Gửi tệp đính kèm]');
+      userWrap = appendMessage('user', message || '[Gửi tệp đính kèm]');
     }
     textarea.value = '';
     // Reset chiều cao đã auto-grow để prompt kế tiếp bắt đầu bằng ô nhập mặc định.
@@ -672,6 +858,17 @@ document.addEventListener('DOMContentLoaded', function () {
     let rawText = '';
     let firstDeltaReceived = false;
     let sawDoneOrError = false;
+    let committedUserMessageId = null;
+    const restoreUncommittedEdit = () => {
+      if (!activeEdit || committedUserMessageId !== null) return;
+      activeEdit.bubble.textContent = activeEdit.originalText;
+      let anchor = activeEdit.wrap;
+      activeEdit.removedNodes.forEach((node) => {
+        anchor.after(node);
+        anchor = node;
+      });
+      activeEdit.removedNodes = [];
+    };
     const sendChatRequest = (activeConversationId) => fetch(
       '/ai-plus/agent-workspace/send-stream',
       {
@@ -686,6 +883,7 @@ document.addEventListener('DOMContentLoaded', function () {
           message: message,
           conversation_id: activeConversationId,
           agent_id: selectedAgentId,
+          edit_message_id: activeEdit?.messageId || null,
           images: images,
           documents: documents,
         }),
@@ -722,6 +920,8 @@ document.addEventListener('DOMContentLoaded', function () {
           if (response.ok && data.reply) {
             sawDoneOrError = true;
             conversationId = data.conversation_id;
+            committedUserMessageId = data.user_message_id || null;
+            resolveSentDraft(sentDraft);
             syncConversationTitle(data.title);
             updateTokenQuota(data.token_quota);
             assistantBubble.style.whiteSpace = 'normal';
@@ -731,13 +931,16 @@ document.addEventListener('DOMContentLoaded', function () {
             ensureMessagesContainer().scrollTop = ensureMessagesContainer().scrollHeight;
           } else if (data.blocked) {
             assistantBubble.remove();
+            restoreUncommittedEdit();
             appendWarning(data.warning || 'Nội dung của bạn chứa thông tin nhạy cảm.');
           } else if (data.error) {
             assistantBubble.remove();
+            restoreUncommittedEdit();
             if (data.agent_unavailable || data.agent_copy_required) clearUnavailableSharedAgent();
             appendWarning(data.error);
           } else {
             assistantBubble.remove();
+            restoreUncommittedEdit();
             appendWarning(data.message || `Yêu cầu không thành công (HTTP ${response.status}).`);
           }
           return;
@@ -746,6 +949,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       if (!response.ok || !response.body) {
         assistantBubble.remove();
+        restoreUncommittedEdit();
         appendWarning(`Yêu cầu không thành công (HTTP ${response.status}).`);
         return;
       }
@@ -756,7 +960,10 @@ document.addEventListener('DOMContentLoaded', function () {
       const container = ensureMessagesContainer();
 
       function handleStreamEvent(parsed) {
-        if (parsed.event === 'delta') {
+        if (parsed.event === 'turn_started') {
+          committedUserMessageId = parsed.data.user_message_id || null;
+          if (committedUserMessageId) userWrap.dataset.messageId = String(committedUserMessageId);
+        } else if (parsed.event === 'delta') {
           if (!firstDeltaReceived) {
             firstDeltaReceived = true;
             if (sendBtn) sendBtn.textContent = 'Generating…';
@@ -775,6 +982,8 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (parsed.event === 'done') {
           sawDoneOrError = true;
           conversationId = parsed.data.conversation_id;
+          committedUserMessageId = parsed.data.user_message_id || committedUserMessageId;
+          resolveSentDraft(sentDraft);
           syncConversationTitle(parsed.data.title);
           updateTokenQuota(parsed.data.token_quota);
           assistantBubble.style.whiteSpace = 'normal';
@@ -823,9 +1032,18 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     } catch (err) {
       assistantBubble.remove();
+      restoreUncommittedEdit();
       appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
     } finally {
       sending = false;
+      if (committedUserMessageId && userWrap?.isConnected) {
+        userWrap.dataset.messageId = String(committedUserMessageId);
+        const userBubble = userWrap.querySelector('.chat-bubble');
+        if (userBubble) addEditButton(userWrap, userBubble, committedUserMessageId);
+      } else if (activeEdit && userWrap?.isConnected) {
+        const userBubble = userWrap.querySelector('.chat-bubble');
+        if (userBubble) addEditButton(userWrap, userBubble, activeEdit.messageId);
+      }
       if (sendBtn) {
         sendBtn.disabled = false;
         sendBtn.removeAttribute('aria-busy');
@@ -1063,8 +1281,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Auto-grow textarea: tự giãn chiều cao theo nội dung nhập vào (xem hết prompt dài).
   textarea.addEventListener('input', function () {
-    textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, 400) + 'px';
+    resizeComposer();
+    queueDraftSave();
   });
 
   const topbarAttach = document.querySelector('[data-behavior="attach-topbar"]');
@@ -1139,6 +1357,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   renderInitialMessages();
   syncAgentBadge();
+  restoreDraft();
   if (window.__AGENT_ACCESS_MESSAGE__) showMiniToast(window.__AGENT_ACCESS_MESSAGE__);
 
   const quickBtnBehaviors = {
@@ -1153,10 +1372,14 @@ document.addEventListener('DOMContentLoaded', function () {
     },
     'quick-draft-email': function () {
       textarea.value = 'Draft a professional email in Vietnamese for the following situation:\n\n';
+      resizeComposer();
+      queueDraftSave();
       textarea.focus();
     },
     'quick-generate-report': function () {
       textarea.value = 'Generate a concise report based on the following information:\n\n';
+      resizeComposer();
+      queueDraftSave();
       textarea.focus();
     },
   };

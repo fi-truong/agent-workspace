@@ -17,6 +17,16 @@
         <label for="description">Description</label>
         <textarea id="description" name="description" rows="3" placeholder="What does this agent do?"></textarea>
       </div>
+      <div class="form-group agent-avatar-field">
+        <label for="agent-avatar">Agent avatar <span class="form-hint">(optional)</span></label>
+        <div class="agent-avatar-editor">
+          <div class="agent-avatar-preview" id="agent-avatar-preview" aria-label="Agent avatar preview">🤖</div>
+          <div>
+            <input type="file" id="agent-avatar" name="avatar" accept="image/jpeg,image/png,image/webp">
+            <small class="form-hint">JPG, PNG, or WebP · up to 2 MB.</small>
+          </div>
+        </div>
+      </div>
       <div class="form-group">
         <label for="system_prompt">System Prompt</label>
         <textarea id="system_prompt" name="system_prompt" rows="6" placeholder="Instructions for the AI (e.g., 'You are a helpful math teacher...')"></textarea>
@@ -33,7 +43,7 @@
         </div>
         <div class="knowledge-file-chips" id="knowledge-file-chips" aria-live="polite"></div>
         <div class="knowledge-saved-list" id="knowledge-saved-list" aria-live="polite"></div>
-        <small class="form-hint">Up to 10 files per Agent · 15 MB per file · 50 MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) for the agent to reference when answering.</small>
+        <small class="form-hint">Up to 10 files per Agent · 15 MB per file · 50 MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) or images (JPG, PNG, GIF, WebP). Text in images is read with OCR and added to the agent’s Knowledge.</small>
         <div class="form-hint" id="knowledge-limit-status" aria-live="polite"></div>
       </div>
       <div class="form-group checkbox-group">
@@ -60,3 +70,9 @@
 </script>
 <script src="{{ asset('js/agent-modal.js') }}?v={{ filemtime(public_path('js/agent-modal.js')) }}"></script>
 @endpush
+
+@pushOnce('styles')
+<style>
+  .agent-avatar-editor{display:flex;align-items:center;gap:12px}.agent-avatar-preview{width:56px;height:56px;border-radius:14px;overflow:hidden;background:var(--navy,#1f3864);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;flex:none}.agent-avatar-preview img{width:100%;height:100%;object-fit:cover}#agent-avatar + .form-hint{display:block;margin-top:6px}
+</style>
+@endPushOnce

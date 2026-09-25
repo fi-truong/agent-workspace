@@ -14,11 +14,11 @@
   </div>
 
   <div class="agents-grid" id="agents-grid">
-    @if($agents->count() > 0)
+    @if($agents->count() > 0 || $usedSharedAgents->isNotEmpty())
     @foreach($agents as $agent)
     <article class="agent-card" data-agent-id="{{ $agent->id }}">
       <div class="agent-card-header">
-        <div class="agent-icon">🤖</div>
+        <div class="agent-icon">@if($agent->avatar_url)<img src="{{ $agent->avatar_url }}" alt="">@else 🤖 @endif</div>
         <div class="agent-title">{{ $agent->title }}</div>
       </div>
       @if($agent->description)
@@ -34,6 +34,24 @@
         <button class="btn-icon edit-agent" title="Edit" data-agent-id="{{ $agent->id }}">✏️</button>
         <button class="btn-icon use-agent" title="Use in Chat" data-agent-id="{{ $agent->id }}">💬</button>
         <button class="btn-icon delete-agent" title="Delete" data-agent-id="{{ $agent->id }}">🗑️</button>
+      </div>
+    </article>
+    @endforeach
+    @foreach($usedSharedAgents as $agent)
+    <article class="agent-card shared-agent-card" data-agent-id="{{ $agent->id }}">
+      <div class="agent-card-header">
+        <div class="agent-icon">@if($agent->avatar_url)<img src="{{ $agent->avatar_url }}" alt="">@else 🤖 @endif</div>
+        <div class="agent-title">{{ $agent->title }}</div>
+      </div>
+      @if($agent->description)
+      <p class="agent-description">{{ $agent->description }}</p>
+      @endif
+      <div class="agent-meta">
+        <span class="badge shared">Shared · Use-only</span>
+        <span class="updated-at">Shortcut in your workspace</span>
+      </div>
+      <div class="agent-actions">
+        <button class="btn-icon use-agent" title="Start a new chat" data-agent-id="{{ $agent->id }}">💬</button>
       </div>
     </article>
     @endforeach
@@ -60,8 +78,10 @@
 .agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
 .agent-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px; transition: transform .15s, box-shadow .15s, border-color .15s; }
 .agent-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -12px rgba(31,56,100,0.25); border-color: rgba(31,56,100,0.2); }
+.shared-agent-card{border-color:rgba(35,95,78,.28);background:linear-gradient(135deg,rgba(238,248,243,.72),var(--card-bg));}
 .agent-card-header { display: flex; align-items: center; gap: 12px; }
-.agent-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--navy); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.agent-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--navy); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; overflow:hidden; }
+.agent-icon img{width:100%;height:100%;object-fit:cover;}
 .agent-title { font-family: 'Fraunces', serif; font-weight: 600; font-size: 18px; color: var(--ink); }
 .agent-description { color: var(--ink-soft); font-size: 14px; margin: 0; line-height: 1.5; }
 .agent-meta { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); }
@@ -96,6 +116,7 @@
 .form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px rgba(31,56,100,0.1); }
 .form-group textarea { resize: vertical; min-height: 100px; }
 .form-hint { font-size: 12px; color: var(--ink-soft); }
+.agent-avatar-editor{display:flex;align-items:center;gap:12px}.agent-avatar-preview{width:56px;height:56px;border-radius:14px;overflow:hidden;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;flex:none}.agent-avatar-preview img{width:100%;height:100%;object-fit:cover}
 
 /* Knowledge dropzone */
 .knowledge-dropzone {

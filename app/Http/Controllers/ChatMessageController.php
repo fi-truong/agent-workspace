@@ -95,6 +95,7 @@ class ChatMessageController extends Controller
         return response()->json([
             'blocked' => false,
             'conversation_id' => $ctx['conversation']->id,
+            'user_message_id' => $ctx['userMessageId'],
             'title' => $ctx['conversation']->fresh()->title,
             'reply' => $completion['content'],
             'token_quota' => $tokenQuotaService->summary($ctx['user']),
@@ -125,16 +126,11 @@ class ChatMessageController extends Controller
             return $this->tokenQuotaExceededResponse();
         }
 
-        $source = $conversation->messages()
-            ->where('role', 'assistant')
-            ->latest('id')
-            ->limit(self::CHAT_HISTORY_LIMIT)
-            ->pluck('content')
-            ->first(fn (string $content): bool => ! str_contains($content, '/ai-plus/artifacts/'));
-
-        if (! is_string($source) || trim($source) === '') {
+        $messages = $conversation->messages()->orderBy('id')->get(['role', 'content']);
+        if ($messages->isEmpty() || ! $messages->contains('role', 'assistant')) {
             return response()->json(['error' => 'There is no AI response in this conversation to export.'], 422);
         }
+        $source = $this->conversationExportTranscript($conversation, $messages);
 
         $language = match ($data['language']) {
             'vi' => 'Write the entire document in Vietnamese.',
@@ -149,29 +145,58 @@ class ChatMessageController extends Controller
             default => 'clear professional document with sensible headings and Markdown tables or lists where useful',
         };
 
-        try {
-            $completion = $chatService->complete([
-                ['role' => 'user', 'content' => "Source content:\n\n".Str::limit($source, self::MAX_CURRENT_TURN_CHARS)],
-            ], "You format an existing AI+ workplace response for file export. Return only the complete document in Markdown. {$language} Use a {$template}. Preserve all factual information from the source; do not invent people, amounts, dates, policy, or sources.", $workUsePolicy->safetyIdentifier($user));
-        } catch (\RuntimeException $exception) {
-            return response()->json(['error' => $exception->getMessage()], 502);
+        // A transcript beyond the safe single-request size is still exported in
+        // full. It skips AI reformatting rather than silently losing older turns.
+        if (mb_strlen($source) > self::MAX_CURRENT_TURN_CHARS) {
+            $completion = ['content' => $source, 'prompt_tokens' => 0, 'completion_tokens' => 0];
+        } else {
+            try {
+                $completion = $chatService->complete([
+                    ['role' => 'user', 'content' => "Complete chat transcript:\n\n{$source}"],
+                ], "You format a complete AI+ chat transcript for file export. Return only the complete document in Markdown. {$language} Use a {$template}. Keep every User and AI+ turn in its original order. Do not summarize, omit, or replace any turn; only improve headings, spacing, lists, and tables. Preserve all factual information and do not invent people, amounts, dates, policy, or sources.", $workUsePolicy->safetyIdentifier($user));
+            } catch (\RuntimeException $exception) {
+                return response()->json(['error' => $exception->getMessage()], 502);
+            }
         }
 
         $artifact = $artifactService->generate($user, $conversation, $data['format'], $completion['content'], $data['filename'] ?: null);
-        UsageLog::create([
-            'user_id' => $user->id,
-            'activity_title' => 'Export '.$data['format'].' file: '.$artifact->name,
-            'source' => 'agent_workspace_export',
-            'related_conversation_id' => $conversation->id,
-            'prompt_tokens' => $completion['prompt_tokens'],
-            'completion_tokens' => $completion['completion_tokens'],
-        ]);
+        try {
+            UsageLog::create([
+                'user_id' => $user->id,
+                'activity_title' => 'Export '.$data['format'].' file: '.$artifact->name,
+                'source' => 'agent_workspace_export',
+                'related_conversation_id' => $conversation->id,
+                'prompt_tokens' => $completion['prompt_tokens'],
+                'completion_tokens' => $completion['completion_tokens'],
+            ]);
+        } catch (\Throwable $exception) {
+            // The export itself has succeeded and remains available to the user.
+            // A secondary usage-audit failure must not turn it into a 500 error.
+            Log::error('Unable to record AI+ export usage', [
+                'user_id' => $user->id,
+                'conversation_id' => $conversation->id,
+                'exception' => $exception::class,
+            ]);
+        }
 
         return response()->json([
             'name' => $artifact->name,
             'url' => route('ai-plus.artifacts.download', $artifact, false),
             'token_quota' => $tokenQuotaService->summary($user),
+            'full_transcript_exported' => true,
         ]);
+    }
+
+    /** @param \Illuminate\Support\Collection<int, Message> $messages */
+    private function conversationExportTranscript(Conversation $conversation, \Illuminate\Support\Collection $messages): string
+    {
+        $turns = $messages->map(function (Message $message): string {
+            $speaker = $message->role === 'user' ? 'User' : 'AI+';
+
+            return "## {$speaker}\n\n".trim($message->content);
+        })->implode("\n\n---\n\n");
+
+        return '# '.trim($conversation->title)."\n\n".$turns;
     }
 
     /**
@@ -224,6 +249,10 @@ class ChatMessageController extends Controller
                 flush();
             };
 
+            // The prompt is safely persisted before streaming begins. This also
+            // lets the browser enable Edit again if a later streaming error occurs.
+            $send('turn_started', ['user_message_id' => $ctx['userMessageId']]);
+
             try {
                 $completion = $chatService->streamComplete(
                     $ctx['history'],
@@ -241,6 +270,7 @@ class ChatMessageController extends Controller
                 $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
                 $send('done', [
                     'conversation_id' => $ctx['conversation']->id,
+                    'user_message_id' => $ctx['userMessageId'],
                     'title' => $ctx['conversation']->fresh()->title,
                     'reply' => $completion['content'],
                     'token_quota' => $tokenQuotaService->summary($ctx['user']),
@@ -383,6 +413,7 @@ class ChatMessageController extends Controller
         $request->validate([
             'message' => 'nullable|string|max:5000',
             'conversation_id' => 'nullable|integer|exists:conversations,id',
+            'edit_message_id' => 'nullable|integer',
             'agent_id' => 'nullable|integer|exists:agents,id',
             'images' => 'nullable|array|max:4',
             'images.*' => 'string',
@@ -523,7 +554,7 @@ class ChatMessageController extends Controller
     /**
      * Chuẩn bị conversation + history + system prompt — logic dùng chung cho store() và stream().
      *
-     * @return array{conversation: Conversation, history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, user: User, createdNew: bool}
+     * @return array{conversation: Conversation, history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, user: User, createdNew: bool, userMessageId: int}
      */
     private function prepareTurn(Request $request, KnowledgeService $knowledgeService, SchoolKnowledgeService $schoolKnowledgeService, WebPageReaderService $webPageReader, WorkUsePolicyService $workUsePolicy): array
     {
@@ -554,6 +585,8 @@ class ChatMessageController extends Controller
                 'title' => now()->format('Y.m.d H:i').' · '.Str::limit($request->message, 40),
                 'type' => Conversation::TYPE_CHAT,
             ]);
+
+        $this->replaceLatestPromptWhenRequested($request, $conversation, $user, $createdNew);
 
         // A Use-only conversation points to the owner's source agent. If that owner
         // later unshares it, revoke access before any prompt or Knowledge can be used.
@@ -673,8 +706,37 @@ class ChatMessageController extends Controller
             'systemPrompt' => $systemPrompt,
             'user' => $user,
             'createdNew' => $createdNew,
+            'userMessageId' => $userMessage->id,
             'safetyIdentifier' => $workUsePolicy->safetyIdentifier($user),
         ];
+    }
+
+    /**
+     * A prompt may only be replaced when it is the newest user turn in the
+     * caller's conversation. Removing its subsequent assistant output keeps
+     * the stored history consistent with the regenerated answer.
+     */
+    private function replaceLatestPromptWhenRequested(Request $request, Conversation $conversation, User $user, bool $createdNew): void
+    {
+        if (! $request->filled('edit_message_id')) {
+            return;
+        }
+
+        abort_unless(! $createdNew && (int) $request->conversation_id === $conversation->id, 422);
+
+        $message = $conversation->messages()
+            ->whereKey($request->integer('edit_message_id'))
+            ->where('role', 'user')
+            ->firstOrFail();
+        $latestUserMessageId = $conversation->messages()
+            ->where('role', 'user')
+            ->max('id');
+
+        abort_unless($message->id === $latestUserMessageId, 422);
+
+        // Artifacts already downloaded/generated stay in Recent files. They
+        // are separate user files and must not be silently deleted by an edit.
+        $conversation->messages()->where('id', '>=', $message->id)->delete();
     }
 
     private function referencesEarlierLink(string $message): bool

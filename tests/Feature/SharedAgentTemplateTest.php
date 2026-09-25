@@ -136,6 +136,20 @@ test('use-only sharing opens the source agent without copying its setup or knowl
     $this->actingAs($recipient)
         ->get(route('ai-plus.agent-workspace.agents.show', $source))
         ->assertForbidden();
+
+    $this->get(route('ai-plus.agent-workspace.agents.index'))
+        ->assertOk()
+        ->assertSee('Private knowledge agent')
+        ->assertSee('Shared · Use-only')
+        ->assertSee('Shortcut in your workspace');
+
+    // The Use-only Agent is a persistent workspace shortcut, not an owned
+    // clone, so the recipient can begin another chat without returning to the
+    // Sharing & Showcase page.
+    $this->get(route('ai-plus.agent-workspace.index'))
+        ->assertOk()
+        ->assertSee('Private knowledge agent')
+        ->assertSee('Shared');
 });
 
 test('using a use-only agent more than once does not inflate its use count', function () {

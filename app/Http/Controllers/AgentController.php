@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreAgentRequest;
 use App\Http\Requests\UpdateAgentRequest;
 use App\Models\Agent;
+use App\Models\ShowcaseUse;
+use App\Services\AgentAvatarService;
 use App\Services\KnowledgeService;
 use App\Services\SharedAgentTemplateSyncService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -23,6 +25,7 @@ class AgentController extends Controller
 
     public function __construct(
         private readonly KnowledgeService $knowledgeService,
+        private readonly AgentAvatarService $agentAvatarService,
         private readonly SharedAgentTemplateSyncService $sharedAgentTemplateSyncService,
     ) {}
 
@@ -32,16 +35,27 @@ class AgentController extends Controller
 
         if (! $user) {
             $agents = collect();
+            $usedSharedAgents = collect();
         } else {
             $agents = $user->agents()->latest()->get();
+            $usedSharedAgents = ShowcaseUse::query()
+                ->where('user_id', $user->id)
+                ->with('showcase.sourceAgent')
+                ->latest('updated_at')
+                ->get()
+                ->map(fn (ShowcaseUse $use) => $use->showcase?->sourceAgent)
+                ->filter(fn (?Agent $agent) => $agent !== null && $agent->is_shared && $agent->sharing_access !== 'copy')
+                ->reject(fn (Agent $agent) => $agents->contains('id', $agent->id))
+                ->values();
         }
 
         if ($request->wantsJson()) {
-            return response()->json($agents);
+            return response()->json($agents->concat($usedSharedAgents)->values());
         }
 
         return view('ai-plus.agent-workspace.agents.index', [
             'agents' => $agents,
+            'usedSharedAgents' => $usedSharedAgents,
         ]);
     }
 
@@ -70,6 +84,9 @@ class AgentController extends Controller
         ]);
 
         $this->saveKnowledgeFiles($request->file('knowledge', []), $user->id, $agent);
+        if ($request->hasFile('avatar')) {
+            $this->agentAvatarService->replace($agent, $request->file('avatar'));
+        }
         $this->knowledgeService->indexAgent($agent);
         $agent->refresh();
         $this->sharedAgentTemplateSyncService->sync($agent);
@@ -110,6 +127,12 @@ class AgentController extends Controller
             'shared_with_team_id' => null,
         ]);
 
+        if ($request->hasFile('avatar')) {
+            $this->agentAvatarService->replace($agent, $request->file('avatar'));
+        } elseif ($request->boolean('remove_avatar')) {
+            $this->agentAvatarService->delete($agent);
+        }
+
         $this->knowledgeService->indexAgent($agent);
         $agent->refresh();
         $this->sharedAgentTemplateSyncService->sync($agent);
@@ -127,6 +150,7 @@ class AgentController extends Controller
         $this->authorize('delete', $agent);
 
         $this->knowledgeService->deleteAgentKnowledge($agent->user_id, $agent->id);
+        $this->agentAvatarService->delete($agent);
 
         // The owner can remove their own chats with this agent. Conversations
         // created by other people through Use-only sharing remain theirs; detach
@@ -147,6 +171,19 @@ class AgentController extends Controller
 
         return redirect()->route('ai-plus.agent-workspace.agents.index')
             ->with('success', 'Agent deleted successfully.');
+    }
+
+    public function avatar(Request $request, Agent $agent)
+    {
+        $canView = $request->user()?->id === $agent->user_id || $agent->is_shared;
+        abort_unless($canView && $agent->avatar_path, 404);
+
+        $disk = Storage::disk('agent-avatars');
+        abort_unless($disk->exists($agent->avatar_path), 404);
+
+        return $disk->response($agent->avatar_path, null, [
+            'Cache-Control' => 'private, max-age=86400',
+        ]);
     }
 
     /**

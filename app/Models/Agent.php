@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $copied_from_agent_id
  * @property string $title
  * @property string|null $description
+ * @property string|null $avatar_path
  * @property string|null $system_prompt
  * @property string|null $knowledge
  * @property bool $is_shared
@@ -24,7 +25,7 @@ use Illuminate\Support\Carbon;
  */
 class Agent extends Model
 {
-    protected $fillable = ['user_id', 'copied_from_agent_id', 'title', 'description', 'system_prompt', 'knowledge', 'is_shared', 'sharing_access', 'shared_with_team_id'];
+    protected $fillable = ['user_id', 'copied_from_agent_id', 'title', 'description', 'avatar_path', 'system_prompt', 'knowledge', 'is_shared', 'sharing_access', 'shared_with_team_id'];
 
     protected $casts = [
         'is_shared' => 'boolean',
@@ -32,7 +33,7 @@ class Agent extends Model
 
     // Đưa accessor knowledge_files vào JSON (toArray/toJson) để frontend đọc được
     // khi mở lại agent (Edit modal hiển thị file đã lưu).
-    protected $appends = ['knowledge_files'];
+    protected $appends = ['knowledge_files', 'avatar_url'];
 
     /**
      * @return BelongsTo<User, $this>
@@ -102,5 +103,12 @@ class Agent extends Model
         }
 
         return $decoded;
+    }
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        return $this->avatar_path
+            ? route('ai-plus.agent-workspace.agents.avatar', $this, false)
+            : null;
     }
 }

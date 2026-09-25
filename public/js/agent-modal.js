@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const titleInput = document.getElementById('title');
   const descInput = document.getElementById('description');
   const promptInput = document.getElementById('system_prompt');
+  const avatarInput = document.getElementById('agent-avatar');
+  const avatarPreview = document.getElementById('agent-avatar-preview');
   const sharedInput = document.getElementById('is_shared');
   const sharingAccessGroup = document.getElementById('sharing-access-group');
   const sharingAccessInputs = document.querySelectorAll('input[name="sharing_access"]');
@@ -34,6 +36,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Danh sách file user đã chọn (tích lũy) — vì <input type=file> tự reset mỗi lần mở dialog.
   let allFiles = [];
+  let avatarPreviewObjectUrl = null;
+
+  function renderAvatarPreview(url = null) {
+    if (!avatarPreview) return;
+    if (avatarPreviewObjectUrl) {
+      URL.revokeObjectURL(avatarPreviewObjectUrl);
+      avatarPreviewObjectUrl = null;
+    }
+    avatarPreview.replaceChildren();
+    if (!url) {
+      avatarPreview.textContent = '🤖';
+      return;
+    }
+    const image = document.createElement('img');
+    image.src = url;
+    image.alt = 'Agent avatar preview';
+    avatarPreview.appendChild(image);
+  }
+
+  function resetAvatarUI(agent = null) {
+    if (avatarInput) avatarInput.value = '';
+    renderAvatarPreview(agent?.avatar_url || null);
+  }
 
   function syncInputFromAllFiles() {
     if (!fileInput) return;
@@ -224,6 +249,7 @@ document.addEventListener('DOMContentLoaded', function () {
     modal.style.display = 'flex';
     form.reset();
     clearKnowledgeUI();
+    resetAvatarUI(agent);
 
     if (agent) {
       modalTitle.textContent = 'Edit Agent';
@@ -256,7 +282,26 @@ document.addEventListener('DOMContentLoaded', function () {
     modal.style.display = 'none';
     form.reset();
     clearKnowledgeUI();
+    resetAvatarUI();
   }
+
+  avatarInput?.addEventListener('change', () => {
+    const file = avatarInput.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      avatarInput.value = '';
+      showToast('⚠️ Agent avatar must be 2 MB or smaller');
+      return;
+    }
+    avatarPreviewObjectUrl = URL.createObjectURL(file);
+    if (avatarPreview) {
+      avatarPreview.replaceChildren();
+      const image = document.createElement('img');
+      image.src = avatarPreviewObjectUrl;
+      image.alt = 'Agent avatar preview';
+      avatarPreview.appendChild(image);
+    }
+  });
 
   createBtns.forEach((btn) => btn?.addEventListener('click', () => openModal()));
 

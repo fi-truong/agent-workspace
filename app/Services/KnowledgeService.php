@@ -47,6 +47,13 @@ class KnowledgeService
 
     public const MAX_HTML_CODE_CONTEXT_CHARS = 20_000;
 
+    /** @var array<int, string> */
+    private const OCR_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+
+    private ?string $ocrBinary = null;
+
+    private bool $ocrBinaryResolved = false;
+
     public function __construct(
         private readonly RegexPiiFilter $piiFilter,
         private readonly EmbeddingService $embeddingService,
@@ -509,8 +516,7 @@ class KnowledgeService
                 'pdf' => $this->readPdf($disk, $path),
                 'doc', 'docx' => $this->readWord($disk, $path),
                 'xls', 'xlsx' => $this->readExcel($disk, $path),
-                // Ảnh lưu được nhưng chưa OCR.
-                'png', 'jpg', 'jpeg', 'gif', 'webp' => '',
+                'png', 'jpg', 'jpeg', 'gif', 'webp' => $this->ocrImage($disk->get($path) ?: '', $extension, $path),
                 default => '',
             };
         } catch (Throwable $e) {
@@ -547,6 +553,10 @@ class KnowledgeService
             return $this->htmlToText($binary);
         }
 
+        if (in_array($extension, self::OCR_IMAGE_EXTENSIONS, true)) {
+            return $this->ocrImage($binary, $extension, 'direct-upload');
+        }
+
         $tmp = tempnam(sys_get_temp_dir(), 'chat_doc_');
 
         if ($tmp === false) {
@@ -581,6 +591,93 @@ class KnowledgeService
      * executing it. This keeps scripts, event handlers, and embedded content out
      * of both the browser and the model context.
      */
+    /**
+     * OCR an image locally for Agent Knowledge. Image bytes never leave this
+     * server; only the extracted text is passed through the existing PII
+     * filter and RAG index flow.
+     */
+    private function ocrImage(string $binary, string $extension, string $source): string
+    {
+        if ($binary === '' || ($binaryPath = $this->resolveOcrBinary()) === null) {
+            if ($binary !== '') {
+                Log::warning('Skipping Knowledge image OCR because Tesseract is unavailable', [
+                    'source' => $source,
+                ]);
+            }
+
+            return '';
+        }
+
+        $temporary = tempnam(sys_get_temp_dir(), 'knowledge_ocr_');
+        if ($temporary === false) {
+            return '';
+        }
+
+        $imagePath = $temporary.'.'.$extension;
+        @rename($temporary, $imagePath);
+        file_put_contents($imagePath, $binary);
+
+        try {
+            $process = new Process([
+                $binaryPath,
+                $imagePath,
+                'stdout',
+                '-l', (string) config('openai.knowledge_ocr_languages', 'vie+eng'),
+                '--psm', '3',
+            ]);
+            $process->setTimeout(max(5, min((int) config('openai.knowledge_ocr_timeout', 30), 60)));
+            $process->run();
+
+            if (! $process->isSuccessful()) {
+                Log::warning('Knowledge image OCR failed', [
+                    'source' => $source,
+                    'exit_code' => $process->getExitCode(),
+                ]);
+
+                return '';
+            }
+
+            return trim(Str::limit(
+                $process->getOutput(),
+                max(1, (int) config('openai.knowledge_ocr_max_chars', 60_000)),
+                '',
+            ));
+        } catch (Throwable $exception) {
+            Log::warning('Knowledge image OCR failed unexpectedly', [
+                'source' => $source,
+                'exception' => $exception::class,
+            ]);
+
+            return '';
+        } finally {
+            @unlink($imagePath);
+        }
+    }
+
+    private function resolveOcrBinary(): ?string
+    {
+        if ($this->ocrBinaryResolved) {
+            return $this->ocrBinary;
+        }
+
+        $this->ocrBinaryResolved = true;
+        $configured = config('openai.knowledge_ocr_binary');
+        $candidates = array_filter([
+            is_string($configured) ? $configured : null,
+            '/opt/homebrew/bin/tesseract',
+            '/usr/local/bin/tesseract',
+            '/usr/bin/tesseract',
+        ]);
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate) && is_executable($candidate)) {
+                return $this->ocrBinary = $candidate;
+            }
+        }
+
+        return null;
+    }
+
     private function htmlToText(string $html): string
     {
         $html = preg_replace('~<!--.*?-->~s', ' ', $html) ?? '';

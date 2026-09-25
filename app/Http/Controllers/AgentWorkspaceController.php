@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AppSetting;
 use App\Models\Agent;
+use App\Models\ShowcaseUse;
 use App\Services\TokenQuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -35,7 +36,7 @@ class AgentWorkspaceController extends Controller
         if ($user) {
             $conversationModels = $user->conversations()
                 ->where('type', \App\Models\Conversation::TYPE_CHAT)
-                ->with('agent:id,title,user_id')
+                ->with('agent:id,title,user_id,avatar_path')
                 ->latest('updated_at')
                 ->get();
             $conversations = $conversationModels->map(fn ($c) => [
@@ -50,8 +51,31 @@ class AgentWorkspaceController extends Controller
                 ->all();
 
             $myAgents = $user->agents()->latest()->get()->map(fn ($a) => [
-                'id' => $a->id, 'title' => $a->title, 'type' => 'agent', 'is_owned' => true,
+                'id' => $a->id, 'title' => $a->title, 'avatar_url' => $a->avatar_url, 'type' => 'agent', 'is_owned' => true,
             ])->keyBy('id');
+            // A Use-only showcase Agent remains a shortcut in this user's
+            // workspace after its first Use. It is still the owner's Agent:
+            // no setup or Knowledge is copied into the recipient account.
+            ShowcaseUse::query()
+                ->where('user_id', $user->id)
+                ->with('showcase.sourceAgent')
+                ->latest('updated_at')
+                ->get()
+                ->each(function (ShowcaseUse $use) use ($myAgents): void {
+                    $sharedAgent = $use->showcase?->sourceAgent;
+                    if (! $sharedAgent || ! $sharedAgent->is_shared || $sharedAgent->sharing_access === 'copy' || $myAgents->has($sharedAgent->id)) {
+                        return;
+                    }
+
+                    $myAgents->put($sharedAgent->id, [
+                        'id' => $sharedAgent->id,
+                        'title' => $sharedAgent->title,
+                        'avatar_url' => $sharedAgent->avatar_url,
+                        'type' => 'agent',
+                        'is_owned' => false,
+                        'is_used_shared' => true,
+                    ]);
+                });
             // A Use-only shared Agent is not owned by this user, but its
             // conversations still belong in the same sidebar tree.
             foreach ($conversationModels->filter(fn ($c) => $c->agent !== null) as $conversation) {
@@ -59,8 +83,10 @@ class AgentWorkspaceController extends Controller
                     $myAgents->put($conversation->agent_id, [
                         'id' => $conversation->agent->id,
                         'title' => $conversation->agent->title,
+                        'avatar_url' => $conversation->agent->avatar_url,
                         'type' => 'agent',
                         'is_owned' => false,
+                        'is_used_shared' => false,
                     ]);
                 }
             }
@@ -77,7 +103,7 @@ class AgentWorkspaceController extends Controller
             $userInitials = $user->initials;
 
             if ($request->filled('agent_id')) {
-                $requestedAgent = Agent::find($request->integer('agent_id'), ['id', 'user_id', 'title', 'is_shared', 'sharing_access']);
+                $requestedAgent = Agent::find($request->integer('agent_id'), ['id', 'user_id', 'title', 'avatar_path', 'is_shared', 'sharing_access']);
                 if ($requestedAgent?->user_id === $user->id
                     || ($requestedAgent?->is_shared && $requestedAgent->sharing_access !== 'copy')) {
                     $selectedAgentId = $requestedAgent->id;
@@ -94,10 +120,20 @@ class AgentWorkspaceController extends Controller
                 $conversation = $user->conversations()->where('type', \App\Models\Conversation::TYPE_CHAT)->find($activeConversationId);
 
                 if ($conversation) {
+                    $latestUserMessageId = $conversation->messages()
+                        ->where('role', 'user')
+                        ->max('id');
                     $initialMessages = $conversation->messages()
                         ->orderBy('id')
                         ->get()
-                        ->map(fn ($m) => ['role' => $m->role, 'content' => $this->displayMessageContent($m->role, $m->content)])
+                        ->map(fn ($m) => [
+                            'id' => $m->id,
+                            'role' => $m->role,
+                            'content' => $this->displayMessageContent($m->role, $m->content),
+                            'editable' => $m->role === 'user'
+                                && $m->id === $latestUserMessageId
+                                && ! str_contains($m->content, '![Ảnh đính kèm]('),
+                        ])
                         ->toArray();
 
                     // Files created before download links were stored in the

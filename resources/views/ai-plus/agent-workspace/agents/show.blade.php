@@ -9,7 +9,7 @@
   <div class="page-header">
     <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="back-link">← Back to Agents</a>
     <div>
-      <h1 class="page-title">{{ $agent->title }}</h1>
+      <h1 class="page-title agent-detail-title">@if($agent->avatar_url)<img src="{{ $agent->avatar_url }}" alt="">@else <span>🤖</span> @endif {{ $agent->title }}</h1>
       @if($agent->description)
       <p class="page-desc">{{ $agent->description }}</p>
       @endif
@@ -76,6 +76,7 @@
 <style>
 .agent-detail-page { max-width: 1080px; margin: 0 auto; padding: 24px 32px 48px; }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
+.agent-detail-title{display:flex;align-items:center;gap:10px}.agent-detail-title img,.agent-detail-title span{width:42px;height:42px;object-fit:cover;border-radius:11px;background:var(--navy);display:inline-flex;align-items:center;justify-content:center;font-size:22px;}
 .back-link { color: var(--navy); font-family: 'IBM Plex Mono', monospace; font-size: 13px; text-decoration: none; align-self: flex-start; margin-top: 4px; }
 .back-link:hover { text-decoration: underline; }
 .page-title { font-family: 'Fraunces', serif; font-weight: 600; font-size: clamp(28px, 3.5vw, 36px); color: var(--navy); margin: 0 0 6px; }

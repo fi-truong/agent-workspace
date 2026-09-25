@@ -12,6 +12,7 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
     Storage::fake('knowledge');
+    Storage::fake('agent-avatars');
 });
 
 it('stores uploaded txt file into knowledge path', function () {
@@ -48,6 +49,21 @@ it('stores a pdf file with correct mime', function () {
     Storage::disk('knowledge')->assertExists(Agent::first()->knowledge_files[0]['path']);
 });
 
+it('accepts a JPG image as Agent Knowledge for OCR indexing', function () {
+    $file = UploadedFile::fake()->image('campus-notice.jpg', 1200, 800);
+
+    $this->post('/ai-plus/agent-workspace/agents', [
+        'title' => 'Image Knowledge Agent',
+        'knowledge' => [$file],
+    ], ['Accept' => 'application/json'])
+        ->assertStatus(201);
+
+    $knowledge = Agent::first()->knowledge_files;
+    expect($knowledge)->toHaveCount(1)
+        ->and($knowledge[0]['original_name'])->toBe('campus-notice.jpg');
+    Storage::disk('knowledge')->assertExists($knowledge[0]['path']);
+});
+
 it('accepts an HTML file as Agent Knowledge', function () {
     $file = UploadedFile::fake()->createWithContent('saved-page.html', '<h1>School guide</h1><script>alert(1)</script><p>Useful content.</p>');
 
@@ -58,6 +74,38 @@ it('accepts an HTML file as Agent Knowledge', function () {
         ->assertStatus(201);
 
     expect(Agent::first()->knowledge_files[0]['original_name'])->toBe('saved-page.html');
+});
+
+it('stores a normalized private avatar for an Agent and allows the owner to view it', function () {
+    $avatar = UploadedFile::fake()->image('agent-avatar.png', 640, 400);
+
+    $this->post('/ai-plus/agent-workspace/agents', [
+        'title' => 'Avatar Agent',
+        'avatar' => $avatar,
+    ], ['Accept' => 'application/json'])
+        ->assertStatus(201);
+
+    $agent = Agent::firstOrFail();
+    expect($agent->avatar_path)->not->toBeNull()
+        ->and($agent->avatar_url)->toContain('/avatar');
+    Storage::disk('agent-avatars')->assertExists($agent->avatar_path);
+
+    $this->get($agent->avatar_url)->assertOk();
+});
+
+it('lets an owner restore the default Agent icon by removing a custom avatar', function () {
+    $agent = $this->user->agents()->create(['title' => 'Avatar Agent']);
+    Storage::disk('agent-avatars')->put('avatars/agent.webp', 'image bytes');
+    $agent->update(['avatar_path' => 'avatars/agent.webp']);
+
+    $this->put('/ai-plus/agent-workspace/agents/'.$agent->id, [
+        'title' => 'Avatar Agent',
+        'remove_avatar' => '1',
+    ], ['Accept' => 'application/json'])
+        ->assertOk();
+
+    expect($agent->fresh()->avatar_path)->toBeNull();
+    Storage::disk('agent-avatars')->assertMissing('avatars/agent.webp');
 });
 
 it('rejects disallowed file extension', function () {

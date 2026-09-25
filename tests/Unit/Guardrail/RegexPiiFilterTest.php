@@ -92,7 +92,7 @@ describe('RegexPiiFilter', function () {
         });
     });
 
-    describe('Student IDs (HS/SV/ST + digits)', function () {
+    describe('Student IDs (HS/SV + digits)', function () {
         test('detects HS format', function () {
             $text = 'Học sinh HS12345678 vắng hôm nay';
             $result = $this->filter->filter($text);
@@ -110,12 +110,12 @@ describe('RegexPiiFilter', function () {
                 ->and($result['detected'][0]['type'])->toBe('student_id');
         });
 
-        test('detects ST format', function () {
-            $text = 'ST11223344 là mã học sinh';
+        test('does not treat a generic ST-prefixed work code as a student ID', function () {
+            $text = 'Sự kiện ST20260925 sẽ diễn ra vào tháng sau';
             $result = $this->filter->filter($text);
 
-            expect($result['has_pii'])->toBeTrue()
-                ->and($result['detected'][0]['type'])->toBe('student_id');
+            expect($result['has_pii'])->toBeFalse()
+                ->and($result['filtered'])->toBe($text);
         });
 
         test('case insensitive', function () {
@@ -155,13 +155,12 @@ describe('RegexPiiFilter', function () {
                 ->and($result['filtered'])->toContain('[CMND]');
         });
 
-        test('does not flag other 12-digit numbers as CCCD if context suggests otherwise', function () {
-            // Bank account can also be 12 digits - both patterns match
-            // This is intentional: we flag both, replacement depends on order
-            $text = 'Số tài khoản: 123456789012';
+        test('does not flag a generic 9- or 12-digit work reference', function () {
+            $text = 'Mã hồ sơ 123456789, mã tham chiếu 202609241234';
             $result = $this->filter->filter($text);
 
-            expect($result['has_pii'])->toBeTrue();
+            expect($result['has_pii'])->toBeFalse()
+                ->and($result['filtered'])->toBe($text);
         });
     });
 
@@ -176,9 +175,18 @@ describe('RegexPiiFilter', function () {
         });
 
         test('detects various address keywords', function () {
-            $keywords = ['ngõ', 'ngách', 'khu', 'khối', 'tổ', 'lô', 'khu phố', 'phố', 'đường', 'hẻm'];
-            foreach ($keywords as $kw) {
-                $text = "Ở {$kw} 123 đường ABC";
+            $addresses = [
+                'Ở ngõ 123 phố Huế',
+                'Ở ngách 123, đường Nguyễn Văn Cừ',
+                'Ở khu 123, phường An Phú',
+                'Ở khối 123, xã Bình Minh',
+                'Ở tổ 3, quận 1',
+                'Ở lô 123, đường ABC',
+                'Ở khu phố 3, phường Linh Trung',
+                'Ở hẻm 123, đường ABC',
+                'Ở khu dân cư An Phú, phường Bình An',
+            ];
+            foreach ($addresses as $text) {
                 $result = $this->filter->filter($text);
                 expect($result['has_pii'])->toBeTrue();
             }
@@ -193,11 +201,43 @@ describe('RegexPiiFilter', function () {
             expect($result1['has_pii'])->toBeFalse()
                 ->and($result2['has_pii'])->toBeTrue();
         });
+
+        test('does not flag ordinary phrases containing address-area words', function () {
+            $text = 'Hai năm gần đây, bạn tiếp tục tham gia vào hội đồng học sinh và tổ chức tất cả sự kiện mang tính chất toàn trường ở khu vực chung.';
+            $result = $this->filter->filter($text);
+
+            expect($result['has_pii'])->toBeFalse()
+                ->and($result['filtered'])->toBe($text);
+        });
+
+        test('does not flag a capitalized place name or document title as an address', function () {
+            $text = 'Soạn bài giới thiệu Phố Cổ Hội An và phân tích Đường Lối Giáo dục.';
+            $result = $this->filter->filter($text);
+
+            expect($result['has_pii'])->toBeFalse()
+                ->and($result['filtered'])->toBe($text);
+        });
+
+        test('does not flag ordinary numbered school or work references as an address', function () {
+            $text = 'Câu số 12 dành cho khối 12; Tổ 3 chuẩn bị phần thuyết trình.';
+            $result = $this->filter->filter($text);
+
+            expect($result['has_pii'])->toBeFalse()
+                ->and($result['filtered'])->toBe($text);
+        });
+
+        test('does not flag a generic residential-area description as a specific address', function () {
+            $text = 'Khu dân cư mới gần trường cần được khảo sát thêm.';
+            $result = $this->filter->filter($text);
+
+            expect($result['has_pii'])->toBeFalse()
+                ->and($result['filtered'])->toBe($text);
+        });
     });
 
     describe('Bank account numbers (10-19 digits)', function () {
         test('detects typical bank account', function () {
-            $text = 'Chuyển khoản cho 1234567890123456';
+            $text = 'Số tài khoản: 1234567890123456';
             $result = $this->filter->filter($text);
 
             expect($result['has_pii'])->toBeTrue()

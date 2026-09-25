@@ -45,6 +45,14 @@ return [
             'report' => false,
         ],
 
+        'agent-avatars' => [
+            'driver' => 'local',
+            'root' => storage_path('app/agent-avatars'),
+            'visibility' => 'private',
+            'throw' => false,
+            'report' => false,
+        ],
+
         'chat-attachments' => [
             'driver' => 'local',
             'root' => storage_path('app/chat-attachments'),

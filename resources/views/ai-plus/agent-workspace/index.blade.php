@@ -12,6 +12,7 @@
   window.__SELECTED_AGENT_ID__ = @json($selectedAgentId);
   window.__SELECTED_AGENT_NAME__ = @json($selectedAgentName);
   window.__AGENT_ACCESS_MESSAGE__ = @json($agentAccessMessage);
+  window.__WORKSPACE_USER_ID__ = @json(auth()->id());
 </script>
   <!-- Sidebar -->
   <aside class="sidebar">
@@ -63,12 +64,12 @@
       <div class="agent-tree">
         @if($agent['is_owned'])
         <a href="{{ route('ai-plus.agent-workspace.agents.show', $agent['id']) }}" class="chat-item agent-tree-parent">
-          <span class="item-icon agent">🤖</span><span class="title">{{ $agent['title'] }}</span>
+          <span class="item-icon agent">@if($agent['avatar_url'])<img src="{{ $agent['avatar_url'] }}" alt="">@else 🤖 @endif</span><span class="title">{{ $agent['title'] }}</span>
         </a>
         @else
-        <div class="chat-item agent-tree-parent">
-          <span class="item-icon agent">🤖</span><span class="title">{{ $agent['title'] }}</span>
-        </div>
+        <a href="{{ route('ai-plus.agent-workspace.index', ['agent_id' => $agent['id']]) }}" class="chat-item agent-tree-parent" title="Start a new chat with {{ $agent['title'] }}">
+          <span class="item-icon agent">@if($agent['avatar_url'])<img src="{{ $agent['avatar_url'] }}" alt="">@else 🤖 @endif</span><span class="title">{{ $agent['title'] }}</span>@if(!empty($agent['is_used_shared']))<span class="shared-agent-label">Shared</span>@endif
+        </a>
         @endif
         @if(!empty($agentConversations[$agent['id']]))
         <div class="agent-conversation-list">
@@ -144,7 +145,7 @@
         @if($activeConversationTitle)
         <div class="active-agent-breadcrumb">
           @if($activeAgent)
-          <span class="agent-breadcrumb-name">🤖 {{ $activeAgent->title }}</span>
+          <span class="agent-breadcrumb-name">@if($activeAgent->avatar_url)<img src="{{ $activeAgent->avatar_url }}" alt="">@else 🤖 @endif {{ $activeAgent->title }}</span>
           <button type="button" class="agent-exit-btn" data-behavior="leave-agent" title="Leave this Agent and start a regular chat" aria-label="Leave this Agent">×</button>
           <span class="agent-breadcrumb-sep">→</span>
           <span class="agent-breadcrumb-prompt">{{ $activeConversationTitle }}</span>
@@ -157,7 +158,7 @@
       <div class="topbar-right">
         <button class="icon-btn" data-behavior="attach-topbar" title="Upload files">📎</button>
         <button class="icon-btn" data-behavior="save-as-agent" title="Save as Agent">🤖</button>
-        <button class="icon-btn" data-behavior="export-chat" title="Export file">↓</button>
+        <button class="icon-btn" data-behavior="export-chat" title="Export conversation">↓</button>
         <button class="icon-btn" data-behavior="settings" title="Settings">⚙</button>
       </div>
       <div class="settings-popover" id="settings-popover" style="display:none;">
@@ -205,13 +206,13 @@
 
 <div class="export-modal-overlay" id="export-file-modal" hidden>
   <form class="export-modal" id="export-file-form">
-    <div class="export-modal-header"><div><h3>Export file</h3><p>Prepare the latest AI response for download.</p></div><button type="button" class="export-modal-close" data-behavior="close-export-modal" aria-label="Close">×</button></div>
+    <div class="export-modal-header"><div><h3>Export conversation</h3><p>Prepare the full chat history for download.</p></div><button type="button" class="export-modal-close" data-behavior="close-export-modal" aria-label="Close">×</button></div>
     <div class="export-modal-body">
       <label>File format<select name="format"><option value="word">Word (.docx)</option><option value="excel">Excel (.xlsx)</option><option value="pdf">PDF (.pdf)</option><option value="html">HTML (.html)</option></select></label>
       <label>File name <input name="filename" maxlength="120" placeholder="Leave blank for a smart name"></label>
       <label>Language<select name="language"><option value="source">Keep original language</option><option value="vi">Vietnamese</option><option value="en">English</option></select></label>
       <label>Document template<select name="template"><option value="standard">Standard document</option><option value="report">Formal report</option><option value="lesson_plan">Lesson plan</option><option value="meeting_minutes">Meeting minutes</option><option value="budget">Budget</option></select></label>
-      <p class="export-modal-note">The content will be formatted from the latest substantive AI response. This uses AI tokens.</p>
+      <p class="export-modal-note">Every User and AI+ message in this conversation will be included in order. This uses AI tokens to improve formatting.</p>
     </div>
     <div class="export-modal-actions"><button type="button" class="export-cancel" data-behavior="close-export-modal">Cancel</button><button type="submit" class="export-submit">Create file</button></div>
   </form>
@@ -270,6 +271,8 @@
   .sidebar-footer{padding:16px 20px;border-top:1px solid var(--surface-border);}
   .user-info{display:flex;align-items:center;gap:10px;}
   .user-avatar{width:36px;height:36px;border-radius:50%;background: var(--navy-light);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px;}
+  .item-icon.agent{overflow:hidden;}.item-icon.agent img{width:100%;height:100%;object-fit:cover;border-radius:6px;display:block}.agent-breadcrumb-name{display:inline-flex;align-items:center;gap:6px}.agent-breadcrumb-name img{width:27px;height:27px;object-fit:cover;border-radius:7px;}
+  .shared-agent-label{margin-left:auto;padding:2px 5px;border-radius:5px;background:rgba(35,95,78,.12);color:var(--sage-deep,#235f4e);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
   .user-details{flex:1;min-width:0;}
   .user-name{color: var(--page-header-text);font-size:14px;font-weight:500;}
   .user-quota{color: var(--text-soft);font-size:12px;display:flex;align-items:center;gap:4px;}
@@ -288,7 +291,7 @@
   .model-selector .badge{background: var(--navy);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-family:'IBM Plex Mono', monospace;}
   .topbar-left{display:flex;flex-direction:column;align-items:flex-start;gap:6px;}
   .active-agent-breadcrumb{display:flex;align-items:center;gap:8px;max-width:100%;}
-  .agent-breadcrumb-name{display:inline-block;padding:6px 12px;background: linear-gradient(135deg, var(--gold) 0%, #E5AB45 100%);color:#fff;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;}
+  .agent-breadcrumb-name{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background: linear-gradient(135deg, var(--gold) 0%, #E5AB45 100%);color:#fff;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;}
   .agent-exit-btn{width:22px;height:22px;padding:0;border:0;border-radius:50%;background:var(--chip-bg);color:var(--text-soft);font-size:16px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;}
   .agent-exit-btn:hover{background:rgba(220,53,69,.14);color:#c43c3c;}
   .agent-breadcrumb-sep{color:var(--text-soft,#5B6B7C);font-size:14px;}

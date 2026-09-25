@@ -18,7 +18,7 @@ class RegexPiiFilter
 
         'phone_vn' => [
 
-            'pattern' => '/(?:\+84|84|0)(?:3[2-9]|5[689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}\b/',
+            'pattern' => '/(?<!\d)(?:\+84|84|0)(?:3[2-9]|5[689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}(?!\d)/',
 
             'replacement' => '[SĐT]',
 
@@ -38,17 +38,17 @@ class RegexPiiFilter
 
         'student_id' => [
 
-            'pattern' => '/\b(?:HS|SV|ST)[0-9]{6,8}\b/i',
+            'pattern' => '/\b(?:HS|SV)[-_]?\d{6,8}\b/i',
 
             'replacement' => '[MÃ_HS]',
 
-            'description' => 'Student ID (HS/SV/ST + 6-8 digits)',
+            'description' => 'Student ID (HS/SV + 6-8 digits)',
 
         ],
 
         'cccd_12' => [
 
-            'pattern' => '/(?<![A-Za-z0-9À-ỹ])[0-9]{12}(?![0-9])/iu',
+            'pattern' => '/\b(?:CCCD|căn\s*cước(?:\s*công\s*dân)?|citizen\s*id|national\s*id)(?:\s+[A-Za-zÀ-ỹ]{1,10}){0,2}\s*(?:số\s*)?[:#]?\s*\K\d{12}\b/iu',
 
             'replacement' => '[CCCD]',
 
@@ -58,7 +58,7 @@ class RegexPiiFilter
 
         'cmnd_9' => [
 
-            'pattern' => '/(?<![A-Za-z0-9À-ỹ])[0-9]{9}(?![0-9])/iu',
+            'pattern' => '/\b(?:CMND|chứng\s*minh\s*nhân\s*dân)(?:\s+[A-Za-zÀ-ỹ]{1,10}){0,2}\s*(?:số\s*)?[:#]?\s*\K\d{9}\b/iu',
 
             'replacement' => '[CMND]',
 
@@ -68,7 +68,11 @@ class RegexPiiFilter
 
         'address_specific' => [
 
-            'pattern' => '/\b(?:số|ngõ|ngách|khu|khối|tổ|lô|khu phố|khu dân cư|khu tái định cư|phố|đường|ngã|hẻm)\s+[0-9A-Za-zÀ-ỹ\s\-\/]{5,}\b/iu',
+            // Do not treat ordinary phrases such as "tổ chức" or "khu vực" as an address.
+            // A number alone is often normal school/work content ("câu số 12", "khối 12").
+            // Detect an address only when it has an address label, a house-number + street part,
+            // or an administrative-area qualifier.
+            'pattern' => '/\b(?:(?:địa\s*chỉ\s*[:\-]?\s*)(?:số\s+)?\d{1,5}[A-Za-z]?(?:\s*(?:\/|-)\s*\d{1,5}[A-Za-z]?)?(?:\s*,?\s*(?:ngõ|ngách|hẻm|đường|phố)\s+[A-Za-zÀ-ỹ0-9][A-Za-zÀ-ỹ0-9\s.-]{2,})?|(?:số|ngõ|ngách|hẻm|lô)\s+\d{1,5}[A-Za-z]?(?:\s*(?:\/|-)\s*\d{1,5}[A-Za-z]?)?\s*,?\s+(?:ngõ|ngách|hẻm|đường|phố)\s+[A-Za-zÀ-ỹ0-9][A-Za-zÀ-ỹ0-9\s.-]{2,}|(?:tổ|khối|khu|lô|khu\s+phố)\s+\d{1,3}\s*,?\s*(?:ấp|phường|xã|quận|huyện|tỉnh|thành\s+phố)\s+(?:[A-Za-zÀ-ỹ0-9.-]+(?:\s+[A-Za-zÀ-ỹ0-9.-]+){0,3})|(?:khu\s+dân\s+cư|khu\s+tái\s+định\s+cư)\s+(?:[A-Za-zÀ-ỹ0-9.-]+(?:\s+[A-Za-zÀ-ỹ0-9.-]+){0,3})\s*,?\s*(?:ấp|phường|xã|quận|huyện|tỉnh|thành\s+phố)\s+(?:[A-Za-zÀ-ỹ0-9.-]+(?:\s+[A-Za-zÀ-ỹ0-9.-]+){0,3}))/iu',
 
             'replacement' => '[ĐỊA_CHỈ]',
 
@@ -78,7 +82,7 @@ class RegexPiiFilter
 
         'bank_account' => [
 
-            'pattern' => '/(?<![A-Za-z0-9À-ỹ])[0-9]{12,19}(?![0-9])/iu',
+            'pattern' => '/\b(?:STK|số\s*tài\s*khoản|tài\s*khoản(?:\s*ngân\s*hàng)?|bank\s*account|account\s*(?:no\.?|number))\s*(?:số\s*)?[:#]?\s*\K\d{9,19}\b/iu',
 
             'replacement' => '[SỐ_TK]',
 
@@ -88,7 +92,7 @@ class RegexPiiFilter
 
         'passport' => [
 
-            'pattern' => '/\b[A-Z]{1,2}[0-9]{7,8}\b/',
+            'pattern' => '/\b(?:hộ\s*chiếu|passport)\s*(?:số\s*)?[:#]?\s*\K[A-Z]{1,2}\d{7,8}\b/iu',
 
             'replacement' => '[HỘ_CHIẾU]',
 
@@ -98,7 +102,7 @@ class RegexPiiFilter
 
         'license_plate' => [
 
-            'pattern' => '/\b[0-9]{2}[A-Z]?\-[0-9]{4,5}\b/',
+            'pattern' => '/\b(?:biển(?:\s*số)?|xe|license\s*plate)\s*(?:số\s*)?[:#]?\s*\K\d{2}[A-Z]?\-\d{4,5}\b/iu',
 
             'replacement' => '[BIỂN_SỐ]',
 
