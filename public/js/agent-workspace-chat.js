@@ -1167,7 +1167,7 @@ document.addEventListener('DOMContentLoaded', function () {
           sawDoneOrError = true;
           assistantBubble.remove();
           if (committedUserMessageId === null) restoreInterruptedDraft(sentDraft);
-          appendWarning(parsed.data.message || 'Có lỗi xảy ra, vui lòng thử lại.');
+          appendWarning(parsed.data.message || 'Something went wrong. Please try again.');
         } else if (parsed.event === 'done') {
           sawDoneOrError = true;
           conversationId = parsed.data.conversation_id;
@@ -1231,7 +1231,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!activeEdit) userWrap?.remove();
         restoreInterruptedDraft(sentDraft);
       }
-      appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
+      appendWarning('Something went wrong. Please try again.');
     } finally {
       sending = false;
       if (committedUserMessageId && userWrap?.isConnected) {

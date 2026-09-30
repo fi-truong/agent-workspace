@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Access Pending — AI+</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    @include('partials.favicon')
     <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}">
     <style>
         *{box-sizing:border-box;margin:0;padding:0}

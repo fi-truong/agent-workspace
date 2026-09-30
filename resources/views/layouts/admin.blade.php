@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>@yield('title', 'AI+ Admin - LSTS')</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+@include('partials.favicon')
 <!-- Fonts are self-hosted via @font-face in ai-plus.css (loaded by admin.css) -->
 <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
 @stack('styles')
