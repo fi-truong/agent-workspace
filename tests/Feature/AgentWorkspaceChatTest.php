@@ -36,7 +36,7 @@ beforeEach(function () {
         'https://api.openai.com/*' => Http::response([
             'choices' => [['message' => ['content' => 'Phản hồi từ AI']]],
             'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 3],
-            'model' => 'gpt-5.6-luna',
+            'model' => 'gpt-6-luna',
         ]),
     ]);
     Http::preventStrayRequests();
@@ -368,6 +368,18 @@ it('creates requested Word and PDF artifacts', function (string $request, string
     ['Hãy xuất PDF cho nội dung này', '.pdf'],
 ]);
 
+it('defaults a generic create-file request to a Word download', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $response = $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Hãy tạo ra file song ngữ, một dòng tiếng Việt, một dòng tiếng Hoa',
+    ]);
+
+    $response->assertOk()
+        ->assertJsonPath('artifacts.0.name', fn (string $name) => str_ends_with($name, '.docx'))
+        ->assertJsonPath('reply', fn (string $reply) => str_contains($reply, '/ai-plus/artifacts/'));
+});
+
 it('replaces an incorrect model refusal when the requested file was created', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
@@ -375,7 +387,7 @@ it('replaces an incorrect model refusal when the requested file was created', fu
         'https://api.openai.com/*' => Http::response([
             'choices' => [['message' => ['content' => 'Xin lỗi, hiện tại phiên này không có công cụ tạo và đính kèm tệp Word thực tế.']]],
             'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 3],
-            'model' => 'gpt-5.6-luna',
+            'model' => 'gpt-6-luna',
         ]),
     ]);
 
@@ -419,6 +431,53 @@ it('exports the previously prepared content when a user asks to export it as Wor
         ->toContain('80 USD')
         ->toContain('<w:b w:val="1"/>')
         ->toContain('<w:tbl>');
+});
+
+it('creates Word exports with well-formed XML when text contains ampersands', function () {
+    $artifact = app(ArtifactService::class)->generate(
+        $this->user,
+        null,
+        'word',
+        "# Lesson plan\n\nGoal & objectives\n\nData & assessment",
+    );
+
+    $archive = new ZipArchive;
+    expect($archive->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
+    $documentXml = $archive->getFromName('word/document.xml');
+    $archive->close();
+
+    $xml = new DOMDocument;
+    expect($documentXml)->toContain('Goal &amp; objectives')
+        ->and(@$xml->loadXML($documentXml))->toBeTrue();
+});
+
+it('creates an opening Word file from a translated document with nested lists and a table', function () {
+    $content = <<<'MARKDOWN'
+# English lesson plan
+
+## Learning objectives
+
+1. Understand flood risks.
+   - Identify affected communities.
+   - Compare nature inspired solutions.
+2. Design a flood resistant house.
+   - Explain how a water lily floats.
+
+| Activity | Goal & assessment |
+| --- | --- |
+| Discussion | Explain the concept & give examples |
+MARKDOWN;
+
+    $artifact = app(ArtifactService::class)->generate($this->user, null, 'word', $content);
+    $archive = new ZipArchive;
+    expect($archive->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
+    $xml = new DOMDocument;
+    $documentXml = $archive->getFromName('word/document.xml');
+    $archive->close();
+
+    expect(@$xml->loadXML($documentXml))->toBeTrue()
+        ->and($documentXml)->toContain('Identify affected communities')
+        ->toContain('Goal &amp; assessment');
 });
 
 it('formats Markdown exports for Excel, PDF, and HTML', function () {
@@ -513,7 +572,7 @@ it('creates an HTML artifact from the AI code block', function () {
         'https://api.openai.com/*' => Http::response([
             'choices' => [['message' => ['content' => "Updated page:\n```html\n<h1>Updated</h1>\n```"]]],
             'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 3],
-            'model' => 'gpt-5.6-luna',
+            'model' => 'gpt-6-luna',
         ]),
     ]);
 
@@ -1125,16 +1184,83 @@ it('includes text extracted from a direct document attachment in the chat reques
     $response->assertStatus(200)
         ->assertJson(['blocked' => false, 'reply' => 'Phản hồi từ AI']);
 
-    expect(Message::where('role', 'user')->latest('id')->value('content'))
+    $storedMessage = Message::where('role', 'user')->latest('id')->firstOrFail();
+    expect($storedMessage->content)
         ->toContain('lesson-plan.txt')
+        ->not->toContain('Nội dung kế hoạch bài học')
+        ->and($storedMessage->internal_context)
+        ->toContain('không yêu cầu user tải lại tệp gốc')
         ->toContain('Nội dung kế hoạch bài học');
 
     Http::assertSent(function (Request $request) {
         return str_contains(
-            (string) data_get($request->data(), 'messages.0.content'),
+            json_encode($request->data(), JSON_UNESCAPED_UNICODE),
             'Nội dung kế hoạch bài học',
         );
     });
+});
+
+it('keeps the latest uploaded document available beyond the normal chat-history limit', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Training document',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create([
+        'conversation_id' => $conversation->id,
+        'role' => 'user',
+        'content' => "Dịch tài liệu\n\n📎 Tệp đính kèm: training.docx",
+        'internal_context' => '📎 Tài liệu đính kèm đã nhận: training.docx' . "\n" . str_repeat('Nội dung trước. ', 280) . "\nGoal &amp; Use Case\nCác mục quan trọng nằm sau tiêu đề này.",
+    ]);
+    Message::create([
+        'conversation_id' => $conversation->id,
+        'role' => 'assistant',
+        'content' => 'Đã dịch tài liệu.',
+    ]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id,
+        'message' => 'Bạn xem lại nội dung tài liệu vừa gửi',
+    ])->assertOk();
+
+    Http::assertSent(function (Request $request): bool {
+        $messages = $request->data()['messages'] ?? [];
+
+        return collect($messages)->contains(fn (array $message): bool => is_string($message['content'] ?? null)
+            && str_contains($message['content'], 'Goal & Use Case')
+            && str_contains($message['content'], 'Các mục quan trọng nằm sau tiêu đề này.'));
+    });
+});
+
+it('exports an attached document translation as Word without putting source or translation text in the reply bubble', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::fake([
+        'https://api.openai.com/*' => Http::response([
+            'choices' => [['message' => ['content' => '# Translated lesson\n\nGoal & objectives']]],
+            'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 8],
+            'model' => 'gpt-6-luna',
+        ]),
+    ]);
+
+    $response = $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Dịch file này sang tiếng Anh',
+        'documents' => [[
+            'name' => 'lesson-plan.txt',
+            'data_url' => 'data:text/plain;base64,'.base64_encode('Nội dung bài học tiếng Việt'),
+        ]],
+    ]);
+
+    $response->assertOk()
+        ->assertJsonPath('artifacts.0.name', fn (string $name) => str_ends_with($name, '.docx'))
+        ->assertJsonPath('reply', fn (string $reply) => str_starts_with($reply, 'Đã dịch tài liệu'))
+        ->assertJsonPath('reply', fn (string $reply) => ! str_contains($reply, 'Translated lesson'));
+
+    $userMessage = Message::where('role', 'user')->sole();
+    expect($userMessage->content)->toContain('lesson-plan.txt')
+        ->not->toContain('Nội dung bài học tiếng Việt')
+        ->and($userMessage->internal_context)->toContain('Nội dung bài học tiếng Việt');
 });
 
 it('uses RAG to select relevant text from a direct chat attachment', function () {
@@ -1156,7 +1282,7 @@ it('uses RAG to select relevant text from a direct chat attachment', function ()
     ])->assertOk();
 
     Http::assertSent(fn (Request $request): bool => str_contains(
-        (string) data_get($request->data(), 'messages.0.content'),
+        json_encode($request->data(), JSON_UNESCAPED_UNICODE),
         'QUYTRINHDACBIET xử lý',
     ));
 });
@@ -1176,17 +1302,12 @@ it('includes every direct document attachment, including when an image is attach
     ])->assertOk();
 
     Http::assertSent(function (Request $request) {
-        $messages = $request->data()['messages'] ?? [];
-        $lastMessage = end($messages);
-        $content = $lastMessage['content'] ?? [];
-        $text = is_array($content) ? (string) data_get($content, '0.text') : (string) $content;
+        $payload = json_encode($request->data(), JSON_UNESCAPED_UNICODE);
 
-        return is_array($content)
-            && data_get($content, '1.type') === 'image_url'
-            && str_contains($text, 'Đính kèm 1 hình ảnh')
-            && str_contains($text, 'word content')
-            && str_contains($text, 'excel content')
-            && str_contains($text, 'pdf content');
+        return str_contains($payload, 'Đính kèm 1 hình ảnh')
+            && str_contains($payload, 'word content')
+            && str_contains($payload, 'excel content')
+            && str_contains($payload, 'pdf content');
     });
 });
 

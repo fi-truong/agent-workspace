@@ -72,8 +72,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const filterSelects = document.querySelectorAll('.filter-select[data-filter]');
   let searchTimer = null;
 
-  function buildUrl() {
+  function buildUrl(clearColumnSort = false) {
     const params = new URLSearchParams(window.location.search);
+    params.delete('page');
+    if (clearColumnSort) {
+      params.delete('sort_by');
+      params.delete('sort_dir');
+    }
     if (searchInput) params.set('search', searchInput.value);
     filterSelects.forEach(sel => {
       const key = sel.dataset.filter;
@@ -84,8 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return window.location.pathname + '?' + params.toString();
   }
 
-  function reload() {
-    window.location.href = buildUrl();
+  function reload(clearColumnSort = false) {
+    window.location.href = buildUrl(clearColumnSort);
   }
 
   if (searchInput) {
@@ -103,11 +108,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   filterSelects.forEach(sel => {
-    sel.addEventListener('change', reload);
+    sel.addEventListener('change', () => reload());
   });
 
   if (sortSelect) {
-    sortSelect.addEventListener('change', reload);
+    sortSelect.addEventListener('change', () => reload(true));
   }
 });
 </script>

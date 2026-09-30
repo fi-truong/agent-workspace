@@ -139,7 +139,7 @@
       </div> -->
       <div class="topbar-left">
         <div class="model-selector">
-          GPT-5.6 Luna
+          GPT-6 Luna
           <span class="badge">School AI</span>
         </div>
         @if($activeConversationTitle)
@@ -168,12 +168,16 @@
     <!-- Empty State for new chat -->
     <div class="empty-state">
       <div class="empty-icon">Agent Workspace</div>
-      <h3>What would you like to create?</h3>
-      <p>Start a conversation, build a custom agent, or set up an automated workflow to streamline your work.</p>
+      <h3>Start a conversation</h3>
+      <p>Type a message below for a regular chat, choose an existing Agent, or create one for recurring work with its own instructions and Knowledge.</p>
 
       <div class="quick-actions">
+        <a class="quick-btn" href="{{ route('ai-plus.agent-workspace.agents.index') }}">
+          <span class="icon">🤖</span>
+          <span class="label">Use an Agent</span>
+          <span class="desc">Choose from your saved Agents</span>
+        </a>
         @foreach($quickActions as $action)
-        @if($action['label'] === 'New Workflow') @continue @endif
         <button class="quick-btn" type="button" data-behavior="quick-{{ \Illuminate\Support\Str::slug($action['label']) }}">
           <span class="icon">{{ $action['icon'] }}</span>
           <span class="label">{{ $action['label'] }}</span>
@@ -255,7 +259,7 @@
 
   /* Workspace Tabs */
   .workspace-tabs{padding:16px 12px 12px;display:flex;gap:8px;}
-  .ws-tab{flex:1;padding:10px 12px;background: var(--chip-bg);border:1px solid var(--chip-border);border-radius:8px;color: var(--chip-text);font-size:12px;font-weight:500;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition: all 0.15s;}
+  .ws-tab{flex:1;padding:10px 12px;background: var(--chip-bg);border:1px solid var(--chip-border);border-radius:8px;color: var(--chip-text);font-size:12px;font-weight:500;cursor:pointer;text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:4px;transition: all 0.15s;}
   .ws-tab:hover{background: var(--surface);color: var(--text-main);}
   .ws-tab.active{background: var(--chip-active-bg);color: var(--chip-active-text);border-color: var(--chip-active-bg);}
   .ws-tab .icon{font-size:18px;}
@@ -267,7 +271,7 @@
   .section-link:hover{color: var(--topbar-link, var(--gold-light));}
   .add-btn{background:none;border:none;color: var(--text-soft);cursor:pointer;font-size:16px;padding:0;}
   .add-btn:hover{color: var(--gold-light);}
-  .chat-item{padding:10px 12px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:10px;transition: background 0.15s;}
+  .chat-item{padding:10px 12px;border-radius:8px;cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:10px;transition: background 0.15s;}
   .chat-item:hover{background: var(--input-bg);}
   .chat-item.active{background: var(--surface);}
   .chat-item-wrap{position:relative;}
@@ -328,8 +332,8 @@
   .empty-icon{width:auto;min-width:80px;height:auto;padding:16px 28px;border-radius:20px;background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);display:flex;align-items:center;justify-content:center;color: var(--gold-light);font-family:'Fraunces', serif;font-size:32px;font-weight:600;margin-bottom:24px;white-space:nowrap;}
   .empty-state h3{font-family:'Fraunces', serif;font-size:28px;font-weight:600;color: var(--section-title);margin-bottom:12px;}
   .empty-state p{color: var(--text-soft);font-size:15px;max-width:480px;margin-bottom:32px;}
-  .quick-actions{display:grid;grid-template-columns: repeat(2, 1fr);gap:12px;max-width:420px;margin:0 auto;}
-  .quick-btn{padding:16px 20px;background: var(--surface);border:1px solid var(--surface-border);border-radius:12px;font-size:14px;color: var(--text-main);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;transition: border-color 0.15s, background 0.15s;}
+  .quick-actions{display:flex;justify-content:center;gap:12px;margin:0 auto;}
+  .quick-btn{padding:16px 20px;background: var(--surface);border:1px solid var(--surface-border);border-radius:12px;font-size:14px;color: var(--text-main);cursor:pointer;text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:8px;transition: border-color 0.15s, background 0.15s;}
   .quick-btn:hover{border-color: var(--navy);background: var(--input-bg);}
   .quick-btn .icon{font-size:24px;}
   .quick-btn .label{font-weight:500;}

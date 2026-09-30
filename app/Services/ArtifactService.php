@@ -143,14 +143,55 @@ class ArtifactService
         // AI replies are Markdown in the chat UI. Convert the same Markdown to
         // safe HTML first so Word preserves headings, paragraphs, lists, bold
         // text and tables instead of showing raw #, ** and | characters.
-        WordHtml::addHtml($section, $this->markdownHtml($content), false, false);
+        WordHtml::addHtml($section, $this->wordCompatibleHtml($content), false, false);
 
         $tmp = tempnam(sys_get_temp_dir(), 'docx');
         WordWriter::createWriter($w, 'Word2007')->save($tmp);
+        $this->repairOfficeXmlEntities($tmp);
         $b = file_get_contents($tmp);
         @unlink($tmp);
 
         return [$base.'.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', $b];
+    }
+
+    /**
+     * PhpWord's HTML bridge can place a literal ampersand from Markdown text
+     * into a Word XML text node. The .docx archive remains a valid ZIP, but
+     * Microsoft Word rejects its malformed XML. Repair bare entities in every
+     * XML part after PhpWord writes the package.
+     */
+    private function repairOfficeXmlEntities(string $path): void
+    {
+        $archive = new \ZipArchive;
+
+        if ($archive->open($path) !== true) {
+            return;
+        }
+
+        for ($index = 0; $index < $archive->numFiles; $index++) {
+            $name = $archive->getNameIndex($index);
+
+            if ($name === false || ! str_ends_with($name, '.xml')) {
+                continue;
+            }
+
+            $xml = $archive->getFromIndex($index);
+            if ($xml === false) {
+                continue;
+            }
+
+            $repaired = preg_replace(
+                '/&(?!#(?:[0-9]+|x[0-9a-fA-F]+);|[a-zA-Z][a-zA-Z0-9]+;)/',
+                '&amp;',
+                $xml,
+            );
+
+            if ($repaired !== null && $repaired !== $xml) {
+                $archive->addFromString($name, $repaired);
+            }
+        }
+
+        $archive->close();
     }
 
     private function pdf(string $base, string $content): array
@@ -192,6 +233,39 @@ class ArtifactService
         // Generated documents never need remote images; excluding them avoids
         // network access while the PDF/Word renderer processes AI output.
         return preg_replace('#<img\\b[^>]*>#i', '', $html) ?? $html;
+    }
+
+    /**
+     * CommonMark emits valid HTML5, where list items may omit closing tags.
+     * PhpWord parses with loadXML instead of an HTML parser, so normalize the
+     * fragment to balanced XML before passing it to PhpWord.
+     */
+    private function wordCompatibleHtml(string $content): string
+    {
+        $html = $this->markdownHtml($content);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $previous = libxml_use_internal_errors(true);
+
+        try {
+            if (! $dom->loadHTML('<?xml encoding="UTF-8"><body>'.$html.'</body>', LIBXML_NONET)) {
+                throw new \RuntimeException('Không thể chuyển nội dung tài liệu thành Word.');
+            }
+
+            $body = $dom->getElementsByTagName('body')->item(0);
+            if (! $body) {
+                throw new \RuntimeException('Không thể đọc nội dung tài liệu để tạo Word.');
+            }
+
+            $normalized = '';
+            foreach ($body->childNodes as $node) {
+                $normalized .= $dom->saveXML($node);
+            }
+
+            return $normalized;
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
     }
 
     /** @param array<int, string> $lines */

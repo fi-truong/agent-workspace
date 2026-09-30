@@ -132,6 +132,7 @@ class AgentWorkspaceController extends Controller
                             'content' => $this->displayMessageContent($m->role, $m->content),
                             'editable' => $m->role === 'user'
                                 && $m->id === $latestUserMessageId
+                                && $m->internal_context === null
                                 && ! str_contains($m->content, '![Ảnh đính kèm]('),
                         ])
                         ->toArray();
@@ -163,7 +164,6 @@ class AgentWorkspaceController extends Controller
         }
 
         $quickActions = [
-            ['icon' => '💬', 'label' => 'Quick Chat', 'desc' => 'Ask anything, get help'],
             ['icon' => '🤖', 'label' => 'Create Agent', 'desc' => 'Build a custom AI assistant'],
         ];
 
@@ -207,6 +207,16 @@ class AgentWorkspaceController extends Controller
     private function displayMessageContent(string $role, string $content): string
     {
         $content = $this->secureAttachmentUrls($content);
+        if ($role === 'user') {
+            // Older turns stored extracted document text in `content`. Keep the
+            // attachment name visible but never render that internal reference
+            // material as if the user had typed it.
+            $content = preg_replace_callback(
+                '/(?:\n\n)?📎 Tài liệu đính kèm(?: đã nhận)?: ([^\n]+).*?(?=(?:\n\n📎 Tài liệu đính kèm)|\z)/su',
+                fn (array $matches): string => "\n\n📎 Tệp đính kèm: ".trim($matches[1]),
+                $content,
+            ) ?? $content;
+        }
         if ($role !== 'assistant' || ! str_contains($content, '/ai-plus/artifacts/')) {
             return $content;
         }

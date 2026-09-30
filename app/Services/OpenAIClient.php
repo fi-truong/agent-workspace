@@ -17,7 +17,7 @@ class OpenAIClient
      *
      * @throws \Throwable
      */
-    public function chat(array $messages, ?string $safetyIdentifier = null): array
+    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null): array
     {
         $apiKey = config('openai.api_key');
 
@@ -30,7 +30,7 @@ class OpenAIClient
         $payload = [
             'model' => config('openai.model'),
             'messages' => $messages,
-            'max_completion_tokens' => config('openai.max_tokens'),
+            'max_completion_tokens' => $maxCompletionTokens ?? config('openai.max_tokens'),
             'reasoning_effort' => config('openai.reasoning_effort'),
         ];
         if ($safetyIdentifier !== null) {
@@ -38,8 +38,8 @@ class OpenAIClient
         }
 
         $response = Http::retry(
-            config('openai.retry_times'),
-            config('openai.retry_delay_ms'),
+            $this->retryAttempts(),
+            $this->retryDelayMilliseconds(),
             function (\Throwable $exception): bool {
                 return $this->shouldRetry($exception);
             },
@@ -90,7 +90,7 @@ class OpenAIClient
      *
      * @throws \Throwable
      */
-    public function streamChat(array $messages, callable $onDelta, ?string $safetyIdentifier = null): array
+    public function streamChat(array $messages, callable $onDelta, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null): array
     {
         $apiKey = config('openai.api_key');
 
@@ -103,7 +103,7 @@ class OpenAIClient
         $payload = [
             'model' => config('openai.model'),
             'messages' => $messages,
-            'max_completion_tokens' => config('openai.max_tokens'),
+            'max_completion_tokens' => $maxCompletionTokens ?? config('openai.max_tokens'),
             'reasoning_effort' => config('openai.reasoning_effort'),
             'stream' => true,
             'stream_options' => ['include_usage' => true],
@@ -112,7 +112,14 @@ class OpenAIClient
             $payload['safety_identifier'] = $safetyIdentifier;
         }
 
-        $response = Http::withOptions(['stream' => true])
+        $response = Http::retry(
+            $this->retryAttempts(),
+            $this->retryDelayMilliseconds(),
+            function (\Throwable $exception): bool {
+                return $this->shouldRetry($exception);
+            },
+        )
+            ->withOptions(['stream' => true])
             ->baseUrl(config('openai.base_url'))
             ->timeout(config('openai.timeout'))
             ->connectTimeout(5)
@@ -186,6 +193,9 @@ class OpenAIClient
         Log::info('OpenAI stream completion decoded', [
             'content_len' => mb_strlen($fullContent),
             'finish_reason' => $finishReason,
+            // This value is supplied by OpenAI in the stream itself, so it is
+            // authoritative metadata rather than the model's self-description.
+            'model' => $model,
         ]);
 
         if ($fullContent === '' && $finishReason === 'length') {
@@ -210,10 +220,34 @@ class OpenAIClient
         }
 
         if ($exception instanceof RequestException && $exception->response !== null) {
-            return $exception->response->serverError();
+            $response = $exception->response;
+
+            if ($response->serverError()) {
+                return true;
+            }
+
+            return $response->status() === 403
+                && $response->json('error.code') === 'model_not_found'
+                && str_contains((string) $response->json('error.message'), 'does not have access to model');
         }
 
         return false;
+    }
+
+    private function retryAttempts(): int
+    {
+        return max(
+            (int) config('openai.retry_times'),
+            (int) config('openai.model_access_retry_times'),
+        );
+    }
+
+    private function retryDelayMilliseconds(): int
+    {
+        return max(
+            (int) config('openai.retry_delay_ms'),
+            (int) config('openai.model_access_retry_delay_ms'),
+        );
     }
 
     /**

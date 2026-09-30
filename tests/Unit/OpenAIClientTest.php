@@ -8,13 +8,13 @@ use Illuminate\Support\Facades\Http;
 uses()->group('openai', 'unit');
 
 it('sends correct payload to chat completions', function () {
-    config(['openai.api_key' => 'sk-test', 'openai.model' => 'gpt-5.6-luna']);
+    config(['openai.api_key' => 'sk-test', 'openai.model' => 'gpt-6-luna']);
 
     Http::fake([
         'https://api.openai.com/*' => Http::response([
             'choices' => [['message' => ['content' => 'Hello']]],
             'usage' => ['prompt_tokens' => 2, 'completion_tokens' => 3],
-            'model' => 'gpt-5.6-luna',
+            'model' => 'gpt-6-luna',
         ]),
     ]);
     Http::preventStrayRequests();
@@ -33,7 +33,7 @@ it('sends correct payload to chat completions', function () {
         return $request->url() === 'https://api.openai.com/v1/chat/completions'
             && $request->hasHeader('Authorization', 'Bearer sk-test')
             && $request->hasHeader('Content-Type', 'application/json')
-            && ($payload['model'] ?? null) === 'gpt-5.6-luna'
+            && ($payload['model'] ?? null) === 'gpt-6-luna'
             && ($payload['messages'][0]['content'] ?? null) === 'Hi'
             && isset($payload['max_completion_tokens'])
             && ! isset($payload['temperature']);
@@ -69,6 +69,53 @@ it('retries only on server errors', function () {
     expect($result['content'])->toBe('retried');
 
     Http::assertSentCount(2);
+});
+
+it('retries only the transient GPT model-access response among 403 errors', function () {
+    config([
+        'openai.api_key' => 'sk-test',
+        'openai.model_access_retry_times' => 2,
+        'openai.model_access_retry_delay_ms' => 0,
+    ]);
+
+    Http::fake([
+        'https://api.openai.com/*' => Http::sequence()
+            ->push([
+                'error' => [
+                    'code' => 'model_not_found',
+                    'message' => 'Project does not have access to model gpt-6-luna',
+                ],
+            ], 403)
+            ->push([
+                'choices' => [['message' => ['content' => 'retried']]],
+                'usage' => ['prompt_tokens' => 1, 'completion_tokens' => 1],
+            ], 200),
+    ]);
+    Http::preventStrayRequests();
+
+    $result = (new OpenAIClient)->chat([['role' => 'user', 'content' => 'Hi']]);
+
+    expect($result['content'])->toBe('retried');
+    Http::assertSentCount(2);
+});
+
+it('does not retry an unrelated 403 response', function () {
+    config([
+        'openai.api_key' => 'sk-test',
+        'openai.model_access_retry_times' => 6,
+        'openai.model_access_retry_delay_ms' => 0,
+    ]);
+
+    Http::fake([
+        'https://api.openai.com/*' => Http::response([
+            'error' => ['code' => 'insufficient_permissions', 'message' => 'Restricted API key.'],
+        ], 403),
+    ]);
+    Http::preventStrayRequests();
+
+    expect(fn () => (new OpenAIClient)->chat([['role' => 'user', 'content' => 'Hi']]))
+        ->toThrow(RequestException::class);
+    Http::assertSentCount(1);
 });
 
 it('throws a request exception on upstream API error', function () {

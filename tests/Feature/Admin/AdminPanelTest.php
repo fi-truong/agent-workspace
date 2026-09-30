@@ -197,6 +197,82 @@ test('the user list selects token quota recipients with checkboxes', function ()
         ->assertSee('Checkbox Recipient');
 });
 
+test('user table column sorting applies to every page and preserves filters', function () {
+    $admin = User::factory()->create(['name' => 'Zulu Administrator', 'role' => 'admin', 'is_active' => true]);
+    foreach (range(17, 1) as $number) {
+        User::factory()->create([
+            'name' => sprintf('Staff %02d', $number),
+            'role' => 'staff',
+        ]);
+    }
+
+    $this->actingAs($admin)
+        ->get(route('admin.users.index', ['role' => 'staff', 'sort_by' => 'name', 'sort_dir' => 'asc']))
+        ->assertOk()
+        ->assertViewHas('users', fn ($users) => $users->pluck('name')->all() === array_map(
+            fn ($number) => sprintf('Staff %02d', $number),
+            range(1, 15),
+        ))
+        ->assertSee('sort_by=name', false)
+        ->assertSee('aria-sort="ascending"', false);
+
+    $this->get(route('admin.users.index', ['role' => 'staff', 'sort_by' => 'name', 'sort_dir' => 'asc', 'page' => 2]))
+        ->assertOk()
+        ->assertViewHas('users', fn ($users) => $users->pluck('name')->all() === ['Staff 16', 'Staff 17']);
+
+    $this->get(route('admin.users.index', ['role' => 'staff', 'sort_by' => 'name', 'sort_dir' => 'desc']))
+        ->assertOk()
+        ->assertViewHas('users', fn ($users) => $users->first()->name === 'Staff 17');
+});
+
+test('user table sorts token quota by the displayed effective limit', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    config(['usage.phase' => 'testing', 'usage.token_limits.testing' => 20_000_000]);
+    User::factory()->create(['name' => 'Default Quota', 'role' => 'staff', 'token_quota_limit' => null]);
+    User::factory()->create(['name' => 'Low Quota', 'role' => 'staff', 'token_quota_limit' => 5_000_000]);
+    User::factory()->create(['name' => 'High Quota', 'role' => 'staff', 'token_quota_limit' => 30_000_000]);
+
+    $this->actingAs($admin)
+        ->get(route('admin.users.index', ['role' => 'staff', 'sort_by' => 'token_quota_limit', 'sort_dir' => 'asc']))
+        ->assertOk()
+        ->assertViewHas('users', fn ($users) => $users->pluck('name')->all() === ['Low Quota', 'Default Quota', 'High Quota']);
+});
+
+test('every sortable user column supports ascending and descending order', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    User::factory()->create([
+        'name' => 'Sort Marker Alpha',
+        'email' => 'sort-alpha@example.com',
+        'role' => 'staff',
+        'department' => 'A Department',
+        'last_login_at' => '2025-01-01 09:00:00',
+        'token_quota_limit' => 10_000_000,
+        'is_active' => false,
+        'created_at' => '2025-01-01 09:00:00',
+    ]);
+    User::factory()->create([
+        'name' => 'Sort Marker Beta',
+        'email' => 'sort-beta@example.com',
+        'role' => 'teacher',
+        'department' => 'B Department',
+        'last_login_at' => '2026-01-01 09:00:00',
+        'token_quota_limit' => 30_000_000,
+        'is_active' => true,
+        'created_at' => '2026-01-01 09:00:00',
+    ]);
+
+    $this->actingAs($admin);
+    foreach (['name', 'email', 'role', 'last_login_at', 'department', 'token_quota_limit', 'is_active', 'created_at'] as $column) {
+        $this->get(route('admin.users.index', ['search' => 'Sort Marker', 'sort_by' => $column, 'sort_dir' => 'asc']))
+            ->assertOk()
+            ->assertViewHas('users', fn ($users) => $users->pluck('name')->all() === ['Sort Marker Alpha', 'Sort Marker Beta']);
+
+        $this->get(route('admin.users.index', ['search' => 'Sort Marker', 'sort_by' => $column, 'sort_dir' => 'desc']))
+            ->assertOk()
+            ->assertViewHas('users', fn ($users) => $users->pluck('name')->all() === ['Sort Marker Beta', 'Sort Marker Alpha']);
+    }
+});
+
 test('administrators can open the user create and edit forms with department choices', function () {
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
     $user = User::factory()->create(['department' => 'CIEC']);

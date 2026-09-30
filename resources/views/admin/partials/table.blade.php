@@ -16,6 +16,7 @@
   $renderRow = $renderRow ?? function($row) { return []; };
   $emptyMessage = $emptyMessage ?? 'No items found';
   $sortable = $sortable ?? false;
+  $sortColumns = $sortColumns ?? [];
   $tableId = $tableId ?? 'dataTable';
 @endphp
 
@@ -24,13 +25,26 @@
     <thead>
       <tr>
         @foreach($headers as $index => $header)
+          @php
+            $sortColumn = $sortColumns[$index] ?? null;
+            $isSorted = $sortColumn !== null && request('sort_by') === $sortColumn;
+            $nextDirection = $isSorted && request('sort_dir') === 'asc' ? 'desc' : 'asc';
+            $sortUrl = $sortColumn !== null
+              ? url()->current().'?'.http_build_query(array_merge(request()->except('page'), ['sort_by' => $sortColumn, 'sort_dir' => $nextDirection]))
+              : null;
+          @endphp
           <th
-            {{ $sortable ? 'data-sort="'.$index.'"' : '' }}
+            @if($sortable && $sortColumns === []) data-sort="{{ $index }}" @endif
+            @if($sortColumn !== null) aria-sort="{{ $isSorted ? (request('sort_dir') === 'desc' ? 'descending' : 'ascending') : 'none' }}" @endif
             style="width: {{ isset($colWidths[$index]) ? $colWidths[$index] : 'auto' }}"
           >
-            {{ $header }}
-            @if($sortable)
-            <span class="sort-indicator">▼</span>
+            @if($sortUrl)
+              <a class="table-sort-link" href="{{ $sortUrl }}">{{ $header }} <span class="sort-indicator" aria-hidden="true">{{ $isSorted ? (request('sort_dir') === 'desc' ? '▼' : '▲') : '↕' }}</span></a>
+            @else
+              {{ $header }}
+            @endif
+            @if($sortable && $sortColumns === [])
+              <span class="sort-indicator">▼</span>
             @endif
           </th>
         @endforeach
@@ -72,11 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const tbody = table.querySelector('tbody');
       const rows = Array.from(tbody.querySelectorAll('tr[data-id]'));
 
-      // Toggle direction
-      const isAsc = th.classList.toggle('sort-asc');
-      th.classList.toggle('sort-desc', !isAsc);
-
-      // Update indicators
+      // Determine the next direction before clearing the previous state.
+      const isAsc = !th.classList.contains('sort-asc');
       table.querySelectorAll('th[data-sort]').forEach(h => {
         h.classList.remove('sort-asc', 'sort-desc');
       });

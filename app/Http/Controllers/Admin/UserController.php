@@ -12,6 +12,7 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
+        $defaultTokenQuota = max((int) (config('usage.token_limits.'.config('usage.phase', 'testing')) ?? config('usage.token_limits.testing', 20_000_000)), 1);
         $query = User::query()->withCount([
             'agents',
             'conversations',
@@ -44,20 +45,29 @@ class UserController extends Controller
             $query->where('is_active', $request->boolean('active'));
         }
 
-        $sort = $request->get('sort', 'newest');
-        match ($sort) {
-            'oldest' => $query->oldest(),
-            'alpha' => $query->orderBy('name'),
-            default => $query->latest(),
-        };
+        $sortableColumns = ['name', 'email', 'role', 'last_login_at', 'department', 'token_quota_limit', 'is_active', 'created_at'];
+        $sortBy = $request->query('sort_by');
+        $sortDirection = $request->query('sort_dir') === 'desc' ? 'desc' : 'asc';
+        if (in_array($sortBy, $sortableColumns, true)) {
+            if ($sortBy === 'token_quota_limit') {
+                $query->orderByRaw('COALESCE(token_quota_limit, ?) '.$sortDirection, [$defaultTokenQuota]);
+            } else {
+                $query->orderBy($sortBy, $sortDirection);
+            }
+            $query->orderBy('id');
+        } else {
+            match ($request->get('sort', 'newest')) {
+                'oldest' => $query->oldest(),
+                'alpha' => $query->orderBy('name')->orderBy('id'),
+                default => $query->latest(),
+            };
+        }
 
         $users = $query->paginate(15)->withQueryString();
         $roles = ['admin', 'staff', 'teacher', 'student'];
         $departments = User::distinct()->pluck('department')->filter()->all();
 
         $activeStatuses = ['1' => 'Active', '0' => 'Inactive'];
-        $defaultTokenQuota = max((int) (config('usage.token_limits.'.config('usage.phase', 'testing')) ?? config('usage.token_limits.testing', 20_000_000)), 1);
-
         return view('admin.users.index', compact('users', 'roles', 'departments', 'activeStatuses', 'defaultTokenQuota'));
     }
 

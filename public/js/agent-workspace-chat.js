@@ -83,10 +83,11 @@ document.addEventListener('DOMContentLoaded', function () {
     sessionStorage.removeItem('selectedAgentId');
   }
 
-  // Drafts are intentionally kept in sessionStorage, not the database or
-  // localStorage: they survive moving between chats in this browser tab but
-  // disappear when the tab/session closes. They are also scoped to the user.
+  // Drafts stay only on the user's browser, never in the database. Local
+  // storage lets a draft survive a tab/browser restart or a brief LAN outage.
   const draftStoragePrefix = 'ai-plus.workspace-draft.v1';
+  const pendingSendStoragePrefix = 'ai-plus.workspace-pending-send.v1';
+  const draftMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
   let draftSaveTimer = null;
 
   function currentDraftKey() {
@@ -96,6 +97,15 @@ document.addEventListener('DOMContentLoaded', function () {
       : `new:${selectedAgentId || 'quick-chat'}`;
 
     return `${draftStoragePrefix}:${userId}:${context}`;
+  }
+
+  function currentPendingSendKey() {
+    const userId = window.__WORKSPACE_USER_ID__ || 'anonymous';
+    const context = conversationId
+      ? `conversation:${conversationId}`
+      : `new:${selectedAgentId || 'quick-chat'}`;
+
+    return `${pendingSendStoragePrefix}:${userId}:${context}`;
   }
 
   function resizeComposer() {
@@ -113,11 +123,11 @@ document.addEventListener('DOMContentLoaded', function () {
       const value = textarea.value;
       const key = currentDraftKey();
       if (value === '') {
-        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
         return;
       }
 
-      sessionStorage.setItem(key, JSON.stringify({ text: value, savedAt: Date.now() }));
+      localStorage.setItem(key, JSON.stringify({ text: value, savedAt: Date.now() }));
     } catch (_) {
       // Storage can be unavailable in a strict privacy mode. Chat remains usable.
     }
@@ -130,10 +140,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function restoreDraft() {
     try {
-      const raw = sessionStorage.getItem(currentDraftKey());
+      const key = currentDraftKey();
+      const raw = localStorage.getItem(key);
       if (!raw) return;
       const draft = JSON.parse(raw);
       if (typeof draft?.text !== 'string' || draft.text === '') return;
+      if (typeof draft.savedAt === 'number' && Date.now() - draft.savedAt > draftMaxAgeMs) {
+        localStorage.removeItem(key);
+        return;
+      }
 
       textarea.value = draft.text;
       resizeComposer();
@@ -146,18 +161,45 @@ document.addEventListener('DOMContentLoaded', function () {
   function resolveSentDraft(draft) {
     if (!draft) return;
     try {
-      const saved = sessionStorage.getItem(draft.key);
+      localStorage.removeItem(draft.pendingKey);
+      const saved = localStorage.getItem(draft.key);
       const parsed = saved ? JSON.parse(saved) : null;
       // The user may have started typing the next prompt while AI was working.
       // Only remove the stored draft if it is still the message just sent. A
       // new chat receives its conversation ID after the first reply, so move a
       // newer draft to that permanent conversation key instead of losing it.
       if (parsed?.text === draft.text) {
-        sessionStorage.removeItem(draft.key);
+        localStorage.removeItem(draft.key);
       } else if (saved && draft.key !== currentDraftKey()) {
-        sessionStorage.setItem(currentDraftKey(), saved);
-        sessionStorage.removeItem(draft.key);
+        localStorage.setItem(currentDraftKey(), saved);
+        localStorage.removeItem(draft.key);
       }
+    } catch (_) {}
+  }
+
+  function storePendingSend(draft) {
+    if (!draft?.text?.trim()) return;
+    try {
+      localStorage.setItem(draft.pendingKey, JSON.stringify({
+        text: draft.text,
+        draftKey: draft.key,
+        savedAt: Date.now(),
+      }));
+    } catch (_) {}
+  }
+
+  function restoreInterruptedDraft(draft) {
+    if (!draft?.text?.trim()) return;
+    try {
+      // Do not overwrite a new message the user began typing while the
+      // connection was being retried.
+      if (textarea.value.trim() === '') {
+        textarea.value = draft.text;
+        resizeComposer();
+      }
+      localStorage.setItem(draft.key, JSON.stringify({ text: draft.text, savedAt: Date.now() }));
+      localStorage.removeItem(draft.pendingKey);
+      showMiniToast('✏️ Prompt restored — the server did not confirm receiving it');
     } catch (_) {}
   }
 
@@ -934,8 +976,13 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
-    const sentDraft = { key: currentDraftKey(), text: textarea.value };
+    const sentDraft = {
+      key: currentDraftKey(),
+      pendingKey: currentPendingSendKey(),
+      text: textarea.value,
+    };
     saveDraft();
+    storePendingSend(sentDraft);
 
     sending = true;
     if (sendBtn) {
@@ -1068,15 +1115,18 @@ document.addEventListener('DOMContentLoaded', function () {
           } else if (data.blocked) {
             assistantBubble.remove();
             restoreUncommittedEdit();
+            if (committedUserMessageId === null) restoreInterruptedDraft(sentDraft);
             appendWarning(data.warning || 'Nội dung của bạn chứa thông tin nhạy cảm.');
           } else if (data.error) {
             assistantBubble.remove();
             restoreUncommittedEdit();
+            if (committedUserMessageId === null) restoreInterruptedDraft(sentDraft);
             if (data.agent_unavailable || data.agent_copy_required) clearUnavailableSharedAgent();
             appendWarning(data.error);
           } else {
             assistantBubble.remove();
             restoreUncommittedEdit();
+            if (committedUserMessageId === null) restoreInterruptedDraft(sentDraft);
             appendWarning(data.message || `Yêu cầu không thành công (HTTP ${response.status}).`);
           }
           return;
@@ -1086,6 +1136,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!response.ok || !response.body) {
         assistantBubble.remove();
         restoreUncommittedEdit();
+        restoreInterruptedDraft(sentDraft);
         appendWarning(`Yêu cầu không thành công (HTTP ${response.status}).`);
         return;
       }
@@ -1099,6 +1150,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (parsed.event === 'turn_started') {
           committedUserMessageId = parsed.data.user_message_id || null;
           if (committedUserMessageId) userWrap.dataset.messageId = String(committedUserMessageId);
+          if (committedUserMessageId) resolveSentDraft(sentDraft);
         } else if (parsed.event === 'delta') {
           if (!firstDeltaReceived) {
             firstDeltaReceived = true;
@@ -1114,6 +1166,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (parsed.event === 'error') {
           sawDoneOrError = true;
           assistantBubble.remove();
+          if (committedUserMessageId === null) restoreInterruptedDraft(sentDraft);
           appendWarning(parsed.data.message || 'Có lỗi xảy ra, vui lòng thử lại.');
         } else if (parsed.event === 'done') {
           sawDoneOrError = true;
@@ -1163,12 +1216,21 @@ document.addEventListener('DOMContentLoaded', function () {
           enableCopyForAssistantBubble(assistantBubble);
         } else {
           assistantBubble.remove();
+          restoreUncommittedEdit();
+          if (committedUserMessageId === null) {
+            if (!activeEdit) userWrap?.remove();
+            restoreInterruptedDraft(sentDraft);
+          }
           appendWarning('Kết nối bị gián đoạn trước khi có phản hồi. Vui lòng thử lại.');
         }
       }
     } catch (err) {
       assistantBubble.remove();
       restoreUncommittedEdit();
+      if (committedUserMessageId === null) {
+        if (!activeEdit) userWrap?.remove();
+        restoreInterruptedDraft(sentDraft);
+      }
       appendWarning('Có lỗi xảy ra, vui lòng thử lại.');
     } finally {
       sending = false;
@@ -1560,9 +1622,6 @@ document.addEventListener('DOMContentLoaded', function () {
   if (window.__AGENT_ACCESS_MESSAGE__) showMiniToast(window.__AGENT_ACCESS_MESSAGE__);
 
   const quickBtnBehaviors = {
-    'quick-chat': function () {
-      textarea.focus();
-    },
     'quick-create-agent': function () {
       if (window.openAgentModal) window.openAgentModal();
     },

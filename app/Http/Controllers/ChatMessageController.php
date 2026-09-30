@@ -39,6 +39,8 @@ class ChatMessageController extends Controller
 
     public const MAX_DOCUMENT_CONTEXT_CHARS = 6000;
 
+    public const MAX_TRANSLATION_DOCUMENT_CONTEXT_CHARS = 40000;
+
     public const MAX_ATTACHMENTS = 5;
 
     public const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
@@ -87,8 +89,10 @@ class ChatMessageController extends Controller
             ], 502);
         }
 
-        $actions = $this->createRequestedOutputs($request->message, $completion['content'], $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService);
-        $completion['content'] = $this->normalizeGeneratedFileReply($completion['content'], $actions);
+        $actions = $this->createRequestedOutputs($request->message, $completion['content'], $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService, $ctx['autoDocumentTranslation']);
+        $completion['content'] = $ctx['autoDocumentTranslation']
+            ? $this->automaticTranslationFileReply($actions)
+            : $this->normalizeGeneratedFileReply($completion['content'], $actions);
         $completion['content'] = $this->appendOutputLinks($completion['content'], $actions);
         $completion['content'] = $this->prependAgentKnowledgeScopeNotice($completion['content'], $ctx['agentKnowledgeOutOfScope']);
         $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
@@ -258,15 +262,21 @@ class ChatMessageController extends Controller
                 $completion = $chatService->streamComplete(
                     $ctx['history'],
                     $ctx['systemPrompt'],
-                    function (string $delta) use ($send) {
-                        $send('delta', ['text' => $delta]);
+                    function (string $delta) use ($send, $ctx) {
+                        // A document translation is delivered as a Word file.
+                        // Do not stream its full contents into the chat bubble.
+                        if (! $ctx['autoDocumentTranslation']) {
+                            $send('delta', ['text' => $delta]);
+                        }
                     },
                     $ctx['safetyIdentifier'],
                 );
 
                 $send('progress', ['message' => 'Đang tạo file hoặc email nháp…']);
-                $actions = $this->createRequestedOutputs($request->message, $completion['content'], $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService);
-                $completion['content'] = $this->normalizeGeneratedFileReply($completion['content'], $actions);
+                $actions = $this->createRequestedOutputs($request->message, $completion['content'], $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService, $ctx['autoDocumentTranslation']);
+                $completion['content'] = $ctx['autoDocumentTranslation']
+                    ? $this->automaticTranslationFileReply($actions)
+                    : $this->normalizeGeneratedFileReply($completion['content'], $actions);
                 $completion['content'] = $this->appendOutputLinks($completion['content'], $actions);
                 $completion['content'] = $this->prependAgentKnowledgeScopeNotice($completion['content'], $ctx['agentKnowledgeOutOfScope']);
                 $this->persistAssistantReply($ctx['conversation'], $ctx['user'], $request, $completion, $ctx['createdNew']);
@@ -624,9 +634,16 @@ class ChatMessageController extends Controller
         // Lưu ảnh kèm thành file (để hiện lại trong lịch sử chat) + nối path vào content.
         $attachedPaths = $this->persistChatImages($images, $conversation->id);
 
-        // Tai lieu (khong phai anh) dinh kem trong chat: trich text, KHONG luu file goc lai
-        // (khac Knowledge cua Agent) - chi dua noi dung trich duoc vao ngu canh cua luot chat nay.
-        [$documentBlocks, $scannedPdfImages] = $this->extractChatDocuments($documents, $knowledgeService, $request->message);
+        // Tài liệu không phải ảnh chỉ được trích xuất làm ngữ cảnh nội bộ. Tên
+        // tệp vẫn hiển thị trong bubble, còn nội dung trích xuất không bao giờ
+        // bị lẫn vào prompt hiển thị của người dùng.
+        $autoDocumentTranslation = $documents !== [] && $this->requestsAttachedDocumentTranslation($request->message);
+        [$documentBlocks, $scannedPdfImages] = $this->extractChatDocuments(
+            $documents,
+            $knowledgeService,
+            $request->message,
+            $autoDocumentTranslation,
+        );
         // PDF scan được render thành ảnh ở server và đi qua cùng luồng vision với ảnh người dùng gửi.
         $images = array_slice(array_merge($images, $scannedPdfImages), 0, self::MAX_VISION_IMAGES);
 
@@ -637,8 +654,11 @@ class ChatMessageController extends Controller
                 $userContent .= "\n\n![Ảnh đính kèm]({$p})";
             }
         }
-        foreach ($documentBlocks as $block) {
-            $userContent .= "\n\n".$block;
+        foreach ($documents as $document) {
+            $name = is_array($document) ? trim((string) ($document['name'] ?? '')) : '';
+            if ($name !== '') {
+                $userContent .= "\n\n📎 Tệp đính kèm: {$name}";
+            }
         }
         // Explicitly supplied public links are read server-side, then added as
         // untrusted reference text for this turn. A follow-up such as “read the
@@ -660,38 +680,54 @@ class ChatMessageController extends Controller
                 }
             }
         }
-        foreach ($webPageBlocks as $webPageBlock) {
-            $userContent .= "\n\n".$webPageBlock;
-        }
+        $internalContext = implode("\n\n", array_merge($documentBlocks, $webPageBlocks));
 
         $userMessage = Message::create([
             'conversation_id' => $conversation->id,
             'role' => 'user',
-            'content' => $userContent,
+            'content' => $userContent !== '' ? $userContent : '[Gửi tệp đính kèm]',
+            'internal_context' => $internalContext !== '' ? $internalContext : null,
         ]);
 
         // Sidebar sắp xếp theo updated_at, nên mỗi lượt nhắn phải cập nhật conversation.
         $conversation->touch();
 
-        $history = $conversation->messages()
+        $historyMessages = $conversation->messages()
             ->latest('id')
             ->limit(self::CHAT_HISTORY_LIMIT)
             ->get()
             ->reverse()
-            ->values()
-            ->map(function (Message $m) use ($userMessage): array {
+            ->values();
+        // Keep the latest uploaded document available on follow-up turns. The
+        // ordinary 4,000-character history cap previously cut this document
+        // mid-sentence, making the model think the file ended there.
+        $latestDocumentMessageId = $historyMessages
+            ->filter(fn (Message $message): bool => $message->id !== $userMessage->id
+                && $message->role === 'user'
+                && $message->internal_context !== null
+                && str_contains($message->content, '📎 Tệp đính kèm:'))
+            ->last()?->id;
+        $history = $historyMessages
+            ->map(function (Message $m) use ($userMessage, $latestDocumentMessageId): array {
+                $limit = in_array($m->id, [$userMessage->id, $latestDocumentMessageId], true)
+                    ? self::MAX_CURRENT_TURN_CHARS
+                    : self::MAX_MESSAGE_CHARS;
+                $internalContext = $m->internal_context
+                    ? html_entity_decode($m->internal_context, ENT_QUOTES | ENT_HTML5, 'UTF-8')
+                    : null;
+
                 return [
                     'role' => $m->role,
                     'content' => Str::limit(
-                        $m->content,
-                        $m->id === $userMessage->id ? self::MAX_CURRENT_TURN_CHARS : self::MAX_MESSAGE_CHARS,
+                        $m->content.($internalContext ? "\n\n{$internalContext}" : ''),
+                        $limit,
                     ),
                 ];
             })
             ->toArray();
 
         if (! empty($images)) {
-            $multimodalText = trim($userContent)
+            $multimodalText = trim($userContent.($internalContext !== '' ? "\n\n{$internalContext}" : ''))
                 ."\n\n[Đính kèm ".count($images).' hình ảnh. Hãy phân tích các hình này cùng toàn bộ tài liệu đính kèm.]';
 
             $history[count($history) - 1]['content'] = [
@@ -704,6 +740,9 @@ class ChatMessageController extends Controller
         }
 
         [$systemPrompt, $agentKnowledgeOutOfScope] = $this->buildSystemPrompt($conversation, $knowledgeService, $schoolKnowledgeService, $request->message, $workUsePolicy);
+        if ($autoDocumentTranslation) {
+            $systemPrompt .= "\n\nThe user is asking to translate an attached document. Translate all supplied document text into the requested language, preserving headings, lists, and tables where possible. Return only the complete translated document in Markdown. The application will create a downloadable Word file, so do not add an explanation, preview, or download link.";
+        }
 
         return [
             'conversation' => $conversation,
@@ -714,6 +753,7 @@ class ChatMessageController extends Controller
             'userMessageId' => $userMessage->id,
             'safetyIdentifier' => $workUsePolicy->safetyIdentifier($user),
             'agentKnowledgeOutOfScope' => $agentKnowledgeOutOfScope,
+            'autoDocumentTranslation' => $autoDocumentTranslation,
         ];
     }
 
@@ -739,6 +779,7 @@ class ChatMessageController extends Controller
             ->max('id');
 
         abort_unless($message->id === $latestUserMessageId, 422);
+        abort_unless($message->internal_context === null, 422);
 
         // Artifacts already downloaded/generated stay in Recent files. They
         // are separate user files and must not be silently deleted by an edit.
@@ -799,6 +840,8 @@ class ChatMessageController extends Controller
             : $policyPrompt;
 
         $systemPrompt .= "\n\nAI+ can generate downloadable DOCX (Word), XLSX (Excel), PDF, and HTML files when a user asks to create or export one. Provide the requested content normally; the application creates the file after your response. Never claim that you cannot create, attach, or export those files, that a generated download is invalid, or that the user must manually copy the content. Do not invent a download URL.";
+        $systemPrompt .= "\n\nAI+ is powered by GPT-6 Luna. If a user asks which model is being used, answer clearly that this AI+ workspace currently uses GPT-6 Luna; do not say that the model name is unavailable.";
+        $systemPrompt .= "\n\nWhen an attachment block says a document was received, the user has already uploaded that original file. You have its safely extracted text (or scan pages) as the reference material for this conversation. Never ask the user to upload the original file again merely to translate, summarize, revise, or create a new document from it. Complete the requested work from the supplied material. You cannot directly edit the source binary or promise pixel-perfect preservation of complex source layouts, embedded objects, or damaged images; mention that limitation only if the user explicitly requires exact preservation.";
         $systemPrompt .= "\n\nFor mathematics, calculations, and budgets: verify that every substituted value matches the values stated earlier in the answer and never silently change a variable or denominator. Before giving a final result, check units, arithmetic, and consistency. Use valid LaTex only: write fractions as \\frac{numerator}{denominator}, and delimit inline/display equations with \\(...\\) or \\[...\\].";
 
         $schoolContext = $schoolKnowledgeService->retrieveContext($query);
@@ -971,7 +1014,7 @@ class ChatMessageController extends Controller
      * @param  array<int, array{name?: string, data_url?: string}>  $documents
      * @return array{0: array<int, string>, 1: array<int, string>} [text blocks, scanned-PDF page images]
      */
-    private function extractChatDocuments(array $documents, KnowledgeService $knowledgeService, string $query): array
+    private function extractChatDocuments(array $documents, KnowledgeService $knowledgeService, string $query, bool $forTranslation = false): array
     {
         $blocks = [];
         $scannedPdfImages = [];
@@ -1010,10 +1053,13 @@ class ChatMessageController extends Controller
                 ? $knowledgeService->htmlSourceForCode($binary)
                 : $knowledgeService->extractTextFromBinary($binary, $extension);
             $text = $text !== '' && ! $isHtmlCodeTask
-                ? $knowledgeService->filterAndTruncate($text, self::MAX_DOCUMENT_CONTEXT_CHARS)
+                ? $knowledgeService->filterAndTruncate(
+                    $text,
+                    $forTranslation ? self::MAX_TRANSLATION_DOCUMENT_CONTEXT_CHARS : self::MAX_DOCUMENT_CONTEXT_CHARS,
+                )
                 : $text;
             $context = $text !== '' && ! $isHtmlCodeTask
-                ? $knowledgeService->retrieveInlineContext($text, $query, $name)
+                ? ($forTranslation ? $text : $knowledgeService->retrieveInlineContext($text, $query, $name))
                 : '';
 
             if ($isHtmlCodeTask && $text !== '') {
@@ -1043,8 +1089,9 @@ class ChatMessageController extends Controller
             }
 
             $blocks[] = $context !== ''
-                ? "📎 Tài liệu đính kèm: {$name}\n{$context}"
-                : "📎 Tài liệu đính kèm: {$name}\n(Không trích được nội dung văn bản từ file này.)";
+                ? "📎 Tài liệu đính kèm đã nhận: {$name}\n"
+                    ."[Đây là phần nội dung được trích xuất từ tệp gốc mà user đã tải lên. Dùng nội dung này để thực hiện yêu cầu; không yêu cầu user tải lại tệp gốc.]\n{$context}"
+                : "📎 Tài liệu đính kèm: {$name}\n(".$knowledgeService->unreadableDocumentHint($extension).')';
         }
 
         return [$blocks, $scannedPdfImages];
@@ -1213,12 +1260,13 @@ class ChatMessageController extends Controller
         ], 429);
     }
 
-    private function createRequestedOutputs(string $requestText, string $content, Conversation $conversation, User $user, ArtifactService $artifacts, EmailDraftService $drafts): array
+    private function createRequestedOutputs(string $requestText, string $content, Conversation $conversation, User $user, ArtifactService $artifacts, EmailDraftService $drafts, bool $autoDocumentTranslation = false): array
     {
         $text = mb_strtolower($requestText);
-        $type = str_contains($text, 'excel') || str_contains($text, 'xlsx') ? 'excel' : (str_contains($text, 'word') || str_contains($text, 'docx') ? 'word' : (str_contains($text, 'pdf') ? 'pdf' : (str_contains($text, 'html') ? 'html' : null)));
         $result = ['artifacts' => [], 'email_draft' => null];
-        if ($type && (str_contains($text, 'tạo') || str_contains($text, 'xuất') || str_contains($text, 'file'))) {
+        $type = $this->requestedArtifactType($text) ?? ($autoDocumentTranslation ? 'word' : null);
+
+        if ($type !== null) {
             $artifact = $artifacts->generate($user, $conversation, $type, $this->artifactContent($requestText, $content, $conversation));
             // Keep this URL relative to the current host. Local users may open
             // AI+ through the machine name while APP_URL uses a LAN address.
@@ -1229,6 +1277,37 @@ class ChatMessageController extends Controller
         }
 
         return $result;
+    }
+
+    private function requestsAttachedDocumentTranslation(string $query): bool
+    {
+        return preg_match('/\b(?:dịch|chuyển\s*ngữ|translate|translation)\b/iu', $query) === 1;
+    }
+
+    /**
+     * A generic request to “create a file” is normally a request for a Word
+     * document. Default to DOCX only when the user clearly asked to create or
+     * export an output, never merely because they mentioned an attached file.
+     */
+    private function requestedArtifactType(string $text): ?string
+    {
+        $type = str_contains($text, 'excel') || str_contains($text, 'xlsx') ? 'excel'
+            : (str_contains($text, 'word') || str_contains($text, 'docx') ? 'word'
+                : (str_contains($text, 'pdf') ? 'pdf'
+                    : (str_contains($text, 'html') ? 'html' : null)));
+
+        $requestsCreation = preg_match(
+            '/(?:^|\\s)(?:tạo|xuất|soạn|làm|create|generate|export|make)(?:\\s|$)/iu',
+            $text,
+        ) === 1;
+
+        if ($type !== null) {
+            return $requestsCreation ? $type : null;
+        }
+
+        $mentionsGenericDocument = preg_match('/\\b(?:file|tệp|tập\\s*tin|tài\\s*liệu|document)\\b/iu', $text) === 1;
+
+        return $requestsCreation && $mentionsGenericDocument ? 'word' : null;
     }
 
     /**
@@ -1302,6 +1381,14 @@ class ChatMessageController extends Controller
         return $incorrectRefusal
             ? 'Đã tạo file từ nội dung liên quan trong cuộc chat này.'
             : $content;
+    }
+
+    /** @param array{artifacts: array<int, array{name: string, url: string}>} $actions */
+    private function automaticTranslationFileReply(array $actions): string
+    {
+        return ($actions['artifacts'] ?? []) !== []
+            ? 'Đã dịch tài liệu và tạo file Word để tải xuống.'
+            : 'Đã hoàn tất bản dịch tài liệu.';
     }
 
     /**

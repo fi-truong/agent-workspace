@@ -17,7 +17,7 @@ it('calls OpenAI chat completions with messages when no PII', function () {
         'https://api.openai.com/*' => Http::response([
             'choices' => [['message' => ['content' => 'Xin chào!']]],
             'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
-            'model' => 'gpt-5.6-luna',
+            'model' => 'gpt-6-luna',
         ]),
     ]);
     Http::preventStrayRequests();
@@ -42,7 +42,7 @@ it('sends system prompt when provided', function () {
         'https://api.openai.com/*' => Http::response([
             'choices' => [['message' => ['content' => 'OK']]],
             'usage' => ['prompt_tokens' => 1, 'completion_tokens' => 1],
-            'model' => 'gpt-5.6-luna',
+            'model' => 'gpt-6-luna',
         ]),
     ]);
     Http::preventStrayRequests();
@@ -62,6 +62,29 @@ it('sends system prompt when provided', function () {
     });
 });
 
+it('raises the output budget for a long prompt', function () {
+    config([
+        'openai.api_key' => 'sk-test',
+        'openai.max_tokens' => 8192,
+        'openai.long_max_tokens' => 16384,
+        'openai.long_output_input_chars' => 100,
+    ]);
+
+    Http::fake([
+        'https://api.openai.com/*' => Http::response([
+            'choices' => [['message' => ['content' => 'OK']]],
+            'usage' => [],
+            'model' => 'gpt-6-luna',
+        ]),
+    ]);
+    Http::preventStrayRequests();
+
+    (new ChatCompletionService(new OpenAIClient, new RegexPiiFilter))
+        ->complete([['role' => 'user', 'content' => str_repeat('a', 101)]]);
+
+    Http::assertSent(fn (Request $request): bool => $request->data()['max_completion_tokens'] === 16384);
+});
+
 it('filters PII before sending to OpenAI', function () {
     config(['openai.api_key' => 'sk-test']);
 
@@ -69,7 +92,7 @@ it('filters PII before sending to OpenAI', function () {
         'https://api.openai.com/*' => Http::response([
             'choices' => [['message' => ['content' => 'OK']]],
             'usage' => ['prompt_tokens' => 1, 'completion_tokens' => 1],
-            'model' => 'gpt-5.6-luna',
+            'model' => 'gpt-6-luna',
         ]),
     ]);
     Http::preventStrayRequests();

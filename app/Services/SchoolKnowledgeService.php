@@ -263,11 +263,12 @@ class SchoolKnowledgeService
         );
 
         if (trim($text) === '') {
+            $hint = $this->knowledgeService->unreadableDocumentHint($extension);
             $source->update([
                 'status' => 'failed',
-                'failure_reason' => 'No readable text could be extracted from this file.',
+                'failure_reason' => $hint,
             ]);
-            throw new RuntimeException('No readable text could be extracted from this file. For scanned PDFs, upload a text-readable version.');
+            throw new RuntimeException($hint);
         }
 
         $this->indexText($source, $text);

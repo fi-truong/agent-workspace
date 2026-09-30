@@ -6,7 +6,8 @@ use Illuminate\Support\Facades\Hash;
 
 test('the local login screen is available', function () {
     $this->get(route('login.local.form'))
-        ->assertOk();
+        ->assertOk()
+        ->assertHeader('Cache-Control', 'max-age=0, must-revalidate, no-cache, no-store, private');
 });
 
 test('an active user must accept the current AI policy after their first local sign-in', function () {

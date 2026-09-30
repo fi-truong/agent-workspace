@@ -18,8 +18,8 @@
         ['key' => 'department', 'label' => 'Department', 'options' => collect($departments)->mapWithKeys(fn($d) => [$d => $d])->all(), 'selected' => request('department')],
         ['key' => 'active', 'label' => 'Account status', 'options' => $activeStatuses, 'selected' => request('active')],
     ],
-    'sortOptions' => ['newest' => 'Newest', 'oldest' => 'Oldest', 'alpha' => 'A–Z'],
-    'sortValue' => request('sort', 'newest'),
+    'sortOptions' => ['newest' => 'Newest', 'oldest' => 'Oldest', 'alpha' => 'A–Z'] + (request()->filled('sort_by') ? ['column' => 'Column sort'] : []),
+    'sortValue' => request()->filled('sort_by') ? 'column' : request('sort', 'newest'),
     'createUrl' => route('admin.users.create'),
     'createLabel' => 'Add User',
 ])
@@ -83,7 +83,7 @@
         ];
     },
     'emptyMessage' => 'No users found',
-    'sortable' => true,
+    'sortColumns' => [1 => 'name', 2 => 'email', 3 => 'role', 4 => 'last_login_at', 5 => 'department', 6 => 'token_quota_limit', 7 => 'is_active', 8 => 'created_at'],
 ])
 
 {{ $users->links('pagination::admin-simple') }}

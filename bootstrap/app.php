@@ -41,15 +41,24 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->redirectGuestsTo(fn () => route('login.local.form'));
 
-        // Trust proxies for external access (needed when accessing via LAN IP)
+        // ngrok forwards requests to this local PHP server over loopback HTTP.
+        // Trust its forwarding headers so Laravel retains the original public
+        // HTTPS scheme when generating asset and route URLs. This keeps both
+        // the local URL and the ngrok URL usable without a fixed ASSET_URL.
+        $middleware->trustProxies(at: ['127.0.0.1', '::1']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (TokenMismatchException $exception, Request $request) {
-            if ($request->is('logout')) {
-                return redirect()
-                    ->route('login.local.form')
-                    ->with('status', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Your session has expired. Please sign in again.',
+                    'session_expired' => true,
+                ], 419);
             }
+
+            return redirect()
+                ->route('login.local.form')
+                ->with('status', 'Your session has expired. Please sign in again.');
         });
 
         $exceptions->shouldRenderJsonWhen(

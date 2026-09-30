@@ -8,7 +8,7 @@ return [
 
     'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
 
-    'model' => env('OPENAI_MODEL', 'gpt-5.6-luna'),
+    'model' => env('OPENAI_MODEL', 'gpt-6-luna'),
 
     // Kept separate from chat: image generation uses an image model and has its
     // own usage/cost profile.
@@ -16,17 +16,26 @@ return [
     'image_size' => env('OPENAI_IMAGE_SIZE', '1024x1024'),
     'image_quality' => env('OPENAI_IMAGE_QUALITY', 'low'),
 
-    // GPT-5+ dùng max_completion_tokens (đúng 8192 như đang chạy).
+    // Standard output budget. AI+ raises this automatically for long source
+    // material so translations and document exports are less likely to stop.
     'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 8192),
+    'long_max_tokens' => (int) env('OPENAI_LONG_MAX_TOKENS', 16384),
+    'long_output_input_chars' => (int) env('OPENAI_LONG_OUTPUT_INPUT_CHARS', 12000),
 
     // Tuỳ chọn — chưa nối vào OpenAIClient (để sau nếu cần điều chỉnh mức suy luận).
     'reasoning_effort' => env('OPENAI_REASONING_EFFORT', 'low'),
 
-    // KHÔNG dùng temperature cho GPT-5.6 Luna (client không gửi) — bỏ hẳn khỏi config.
+    // KHÔNG dùng temperature cho GPT-6 Luna (client không gửi) — bỏ hẳn khỏi config.
     'timeout' => (int) env('OPENAI_TIMEOUT', 120),
 
     'retry_times' => (int) env('OPENAI_RETRY_TIMES', 2),
     'retry_delay_ms' => (int) env('OPENAI_RETRY_DELAY_MS', 300),
+
+    // GPT-6 Luna access may be briefly inconsistent while an OpenAI Project's
+    // newly granted model entitlement propagates. These retries apply only to
+    // that exact transient 403 response, never to other authorization errors.
+    'model_access_retry_times' => (int) env('OPENAI_MODEL_ACCESS_RETRY_TIMES', 6),
+    'model_access_retry_delay_ms' => (int) env('OPENAI_MODEL_ACCESS_RETRY_DELAY_MS', 500),
 
     /*
     |--------------------------------------------------------------------------

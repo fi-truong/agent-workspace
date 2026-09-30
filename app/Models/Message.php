@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
  * @property int $conversation_id
  * @property string $role
  * @property string $content
+ * @property string|null $internal_context
  * @property int $prompt_tokens
  * @property int $completion_tokens
  * @property-read Conversation|null $conversation
@@ -20,7 +21,7 @@ class Message extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['conversation_id', 'role', 'content', 'prompt_tokens', 'completion_tokens'];
+    protected $fillable = ['conversation_id', 'role', 'content', 'internal_context', 'prompt_tokens', 'completion_tokens'];
 
     /**
      * @return BelongsTo<Conversation, $this>

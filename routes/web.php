@@ -201,7 +201,15 @@ Route::middleware('auth')->group(function () {
         ->name('account.password.update');
 });
 
-Route::get('/login-local', fn () => view('auth.login'))->name('login.local.form');
+Route::get('/login-local', function () {
+    // A login form includes a CSRF token. Do not let the browser reuse an old
+    // copy after its session has expired, or the next login POST will be 419.
+    return response()
+        ->view('auth.login')
+        ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private')
+        ->header('Pragma', 'no-cache')
+        ->header('Expires', '0');
+})->name('login.local.form');
 Route::post('/login-local', function () {
     $credentials = request()->validate(['email' => 'required|email', 'password' => 'required']);
     $credentials['is_active'] = true;

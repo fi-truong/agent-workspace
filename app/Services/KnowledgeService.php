@@ -50,6 +50,8 @@ class KnowledgeService
     /** @var array<int, string> */
     private const OCR_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
+    private const MAX_EMBEDDED_OFFICE_IMAGES_FOR_OCR = 5;
+
     private ?string $ocrBinary = null;
 
     private bool $ocrBinaryResolved = false;
@@ -634,6 +636,7 @@ class KnowledgeService
                 'html' => $this->htmlSourceForCode($disk->get($path) ?: ''),
                 'pdf' => $this->readPdf($disk, $path),
                 'doc', 'docx' => $this->readWord($disk, $path),
+                'ppt', 'pptx' => $this->readPresentation($disk, $path),
                 'xls', 'xlsx' => $this->readExcel($disk, $path),
                 'png', 'jpg', 'jpeg', 'gif', 'webp' => $this->ocrImage($disk->get($path) ?: '', $extension, $path),
                 default => '',
@@ -687,9 +690,9 @@ class KnowledgeService
         try {
             return match ($extension) {
                 'pdf' => trim((new PdfParser)->parseContent($binary)->getText()),
-                'doc', 'docx' => trim($this->renderWordText(WordIOFactory::load($tmp))),
+                'doc', 'docx' => $this->readWordFile($tmp, $extension),
                 'xls', 'xlsx' => $this->renderSpreadsheetText(SpreadsheetIOFactory::load($tmp)),
-                // ppt/pptx: cho phep dinh kem nhung chua co lib trich text (thieu PhpPresentation).
+                'ppt', 'pptx' => $this->readPresentationFile($tmp, $extension),
                 default => '',
             };
         } catch (Throwable $e) {
@@ -703,6 +706,22 @@ class KnowledgeService
         } finally {
             @unlink($tmp);
         }
+    }
+
+    /**
+     * A useful, format-specific explanation for a file that produced no
+     * extractable content. This is intentionally not an exception detail: it
+     * is safe to show to end users.
+     */
+    public function unreadableDocumentHint(string $extension): string
+    {
+        return match (strtolower($extension)) {
+            'pdf' => 'PDF này không có văn bản có thể chọn. Có thể là bản scan, bị bảo vệ bằng mật khẩu hoặc file bị hỏng.',
+            'doc', 'docx' => 'Tài liệu Word này không có văn bản có thể trích xuất. Có thể chỉ chứa ảnh scan, bị bảo vệ hoặc file bị hỏng.',
+            'ppt', 'pptx' => 'Bản trình chiếu này không có văn bản có thể trích xuất. Có thể chỉ chứa ảnh scan, bị bảo vệ hoặc file bị hỏng.',
+            'xls', 'xlsx' => 'Bảng tính này không có ô dữ liệu có thể đọc, hoặc file bị bảo vệ/hỏng.',
+            default => 'Không tìm thấy nội dung văn bản có thể đọc trong tệp này.',
+        };
     }
 
     /**
@@ -929,10 +948,40 @@ class KnowledgeService
             return '';
         }
 
-        $parser = new PdfParser;
-        $pdf = $parser->parseContent($content);
+        try {
+            $text = trim((new PdfParser)->parseContent($content)->getText());
+        } catch (Throwable $exception) {
+            Log::info('PDF text parser could not read Knowledge file; trying scan OCR', [
+                'message' => $exception->getMessage(),
+            ]);
+            $text = '';
+        }
 
-        return trim($pdf->getText());
+        return $text !== '' ? $text : $this->extractScannedPdfText($content);
+    }
+
+    /**
+     * Knowledge files cannot use the chat's vision request, so image-only PDFs
+     * are OCR'd locally after ordinary PDF text extraction has failed.
+     */
+    private function extractScannedPdfText(string $binary): string
+    {
+        $parts = [];
+
+        foreach ($this->renderScannedPdfPages($binary) as $index => $dataUrl) {
+            $encoded = preg_replace('#^data:image/jpeg;base64,#', '', $dataUrl) ?? '';
+            $image = base64_decode($encoded, true);
+            if ($image === false) {
+                continue;
+            }
+
+            $text = $this->ocrImage($image, 'jpg', 'scanned PDF page '.($index + 1));
+            if ($text !== '') {
+                $parts[] = '[Page '.($index + 1)."]\n".$text;
+            }
+        }
+
+        return trim(implode("\n\n", $parts));
     }
 
     private function readWord(Filesystem $disk, string $path): string
@@ -944,10 +993,7 @@ class KnowledgeService
         }
 
         try {
-            $phpWord = WordIOFactory::load($tmp);
-            $tmpText = $this->renderWordText($phpWord);
-
-            return trim($tmpText);
+            return $this->readWordFile($tmp, strtolower(pathinfo($path, PATHINFO_EXTENSION)));
         } finally {
             @unlink($tmp);
         }
@@ -966,6 +1012,268 @@ class KnowledgeService
         } finally {
             @unlink($tmp);
         }
+    }
+
+    private function readPresentation(Filesystem $disk, string $path): string
+    {
+        $tmp = $this->tempCopy($disk, $path);
+
+        if (! $tmp) {
+            return '';
+        }
+
+        try {
+            return $this->readPresentationFile($tmp, strtolower(pathinfo($path, PATHINFO_EXTENSION)));
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    /** Read DOCX text directly so unsupported Word containers are not skipped. */
+    private function readWordFile(string $path, string $extension): string
+    {
+        if ($extension === 'docx') {
+            $text = $this->extractDocxPackageText($path);
+            if ($text !== '') {
+                return $this->decodeWordEntities($text);
+            }
+        }
+
+        try {
+            $text = trim($this->renderWordText(WordIOFactory::load($path)));
+
+            if ($text !== '') {
+                // Some Word exports store HTML entities as literal text.
+                // Normalize these so "Goal &amp; Use Case" is read as one phrase.
+                return $this->decodeWordEntities($text);
+            }
+        } catch (Throwable $exception) {
+            Log::info('PhpWord could not parse document; using DOCX text fallback', [
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        if ($extension === 'doc') {
+            return $this->extractLegacyWordText($path);
+        }
+
+        if ($extension !== 'docx') {
+            return '';
+        }
+
+        return $this->extractEmbeddedOfficeImagesText($path, 'word/media/', 'Word document');
+    }
+
+    private function decodeWordEntities(string $text): string
+    {
+        // Word XML may encode an already-escaped HTML fragment, so one decode
+        // pass can leave literal &amp; and &quot; in the extracted text.
+        for ($pass = 0; $pass < 3; $pass++) {
+            $decoded = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($decoded === $text) {
+                break;
+            }
+            $text = $decoded;
+        }
+
+        return $text;
+    }
+
+    /**
+     * macOS includes textutil, which provides a safe best-effort reader for
+     * legacy binary .doc files that PhpWord cannot open. Other environments
+     * simply return an empty result and retain the normal user-facing notice.
+     */
+    private function extractLegacyWordText(string $path): string
+    {
+        $textutil = '/usr/bin/textutil';
+        if (! is_executable($textutil)) {
+            return '';
+        }
+
+        try {
+            $process = new Process([$textutil, '-convert', 'txt', '-stdout', $path]);
+            $process->setTimeout(20);
+            $process->run();
+
+            return $process->isSuccessful() ? trim($process->getOutput()) : '';
+        } catch (Throwable $exception) {
+            Log::info('Legacy Word fallback could not read document', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return '';
+        }
+    }
+
+    /**
+     * Read the textual XML directly rather than loading it as a strict DOM.
+     * This is intentionally a recovery path for imperfect, but user-readable,
+     * DOCX files. It never executes document content.
+     */
+    private function extractDocxPackageText(string $path): string
+    {
+        $archive = new \ZipArchive;
+
+        if ($archive->open($path) !== true) {
+            return '';
+        }
+
+        try {
+            $parts = [];
+
+            for ($index = 0; $index < $archive->numFiles; $index++) {
+                $name = $archive->getNameIndex($index);
+
+                if (! is_string($name) || ! preg_match('~^word/(?:document|header[0-9]+|footer[0-9]+)\\.xml$~', $name)) {
+                    continue;
+                }
+
+                $xml = $archive->getFromIndex($index);
+
+                if (! is_string($xml) || $xml === '') {
+                    continue;
+                }
+
+                $text = $this->extractTextFromWordXml($xml);
+
+                if ($text !== '') {
+                    $parts[] = $text;
+                }
+            }
+
+            return trim(implode("\n", $parts));
+        } finally {
+            $archive->close();
+        }
+    }
+
+    /**
+     * PPTX files are ZIP packages. Reading their text nodes directly avoids
+     * adding a large PowerPoint dependency solely for extraction.
+     */
+    private function readPresentationFile(string $path, string $extension): string
+    {
+        if ($extension !== 'pptx') {
+            return '';
+        }
+
+        $archive = new \ZipArchive;
+        if ($archive->open($path) !== true) {
+            return '';
+        }
+
+        try {
+            $slides = [];
+
+            for ($index = 0; $index < $archive->numFiles; $index++) {
+                $name = $archive->getNameIndex($index);
+                if (! is_string($name) || preg_match('~^ppt/slides/slide(\\d+)\\.xml$~', $name, $match) !== 1) {
+                    continue;
+                }
+
+                $xml = $archive->getFromIndex($index);
+                if (! is_string($xml)) {
+                    continue;
+                }
+
+                preg_match_all('~<a:t\\b[^>]*>(.*?)</a:t>~si', $xml, $textMatches);
+                $text = html_entity_decode(implode('', $textMatches[1] ?? []), ENT_QUOTES | ENT_XML1, 'UTF-8');
+                $text = trim(preg_replace('/[\\t ]+/u', ' ', $text) ?? $text);
+
+                if ($text !== '') {
+                    $slides[(int) $match[1]] = '[Slide '.(int) $match[1]."]\n".$text;
+                }
+            }
+
+            ksort($slides);
+            $text = trim(implode("\n\n", $slides));
+
+            return $text !== '' ? $text : $this->extractEmbeddedOfficeImagesText($path, 'ppt/media/', 'PowerPoint presentation');
+        } finally {
+            $archive->close();
+        }
+    }
+
+    /**
+     * If a modern Office document has no selectable text, it is commonly a
+     * scan stored as images. OCR a bounded number of embedded images locally.
+     */
+    private function extractEmbeddedOfficeImagesText(string $path, string $mediaPrefix, string $source): string
+    {
+        $archive = new \ZipArchive;
+        if ($archive->open($path) !== true) {
+            return '';
+        }
+
+        try {
+            $parts = [];
+            $processed = 0;
+
+            for ($index = 0; $index < $archive->numFiles && $processed < self::MAX_EMBEDDED_OFFICE_IMAGES_FOR_OCR; $index++) {
+                $name = $archive->getNameIndex($index);
+                if (! is_string($name) || ! str_starts_with($name, $mediaPrefix)) {
+                    continue;
+                }
+
+                $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                if (! in_array($extension, self::OCR_IMAGE_EXTENSIONS, true)) {
+                    continue;
+                }
+
+                $image = $archive->getFromIndex($index);
+                if (! is_string($image) || $image === '') {
+                    continue;
+                }
+
+                $processed++;
+                $text = $this->ocrImage($image, $extension, $source.' embedded image');
+                if ($text !== '') {
+                    $parts[] = $text;
+                }
+            }
+
+            return $parts === []
+                ? ''
+                : "[Text read from scanned images in {$source}]\n".implode("\n\n", $parts);
+        } finally {
+            $archive->close();
+        }
+    }
+
+    private function extractTextFromWordXml(string $xml): string
+    {
+        // Read text in document order, including text boxes and tables. XML
+        // separators (paragraphs, breaks, tabs and hyphens) are not stop signs.
+        preg_match_all(
+            '~<w:(p|br|cr|tab|noBreakHyphen|softHyphen)\b[^>]*\/?>|</w:p>|<((?:w|m):(?:t|instrText))\b[^>]*>(.*?)</\2>~si',
+            $xml,
+            $matches,
+            PREG_SET_ORDER,
+        );
+
+        $text = '';
+        foreach ($matches as $match) {
+            if (($match[2] ?? '') !== '') {
+                $text .= $match[3] ?? '';
+            } elseif (in_array(strtolower($match[1] ?? ''), ['nobreakhyphen', 'softhyphen'], true)) {
+                $text .= '-';
+            } elseif (($match[1] ?? '') === 'tab') {
+                $text .= ' ';
+            } else {
+                $text .= "\n";
+            }
+        }
+
+        if ($text === '') {
+            $text = strip_tags($xml);
+        }
+
+        $text = $this->decodeWordEntities($text);
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        $text = preg_replace('/[\\t ]+/u', ' ', $text) ?? $text;
+
+        return trim(preg_replace('/\n{3,}/', "\n\n", $text) ?? $text);
     }
 
     /**
