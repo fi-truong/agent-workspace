@@ -58,6 +58,43 @@ it('creates conversation and stores both messages', function () {
         ->and(UsageLog::count())->toBe(1);
 });
 
+it('recovers the complete saved reply for a streamed turn without exposing other turns', function () {
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Translation',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+    $prompt = Message::create(['conversation_id' => $conversation->id, 'role' => 'user', 'content' => 'Translate UGC']);
+
+    $this->getJson(route('ai-plus.agent-workspace.messages.reply', $prompt))
+        ->assertStatus(202)
+        ->assertJson(['status' => 'pending']);
+
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => 'Receive UGC services.']);
+    $nextPrompt = Message::create(['conversation_id' => $conversation->id, 'role' => 'user', 'content' => 'Next question']);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => 'Next answer']);
+
+    $this->getJson(route('ai-plus.agent-workspace.messages.reply', $prompt))
+        ->assertOk()
+        ->assertJsonPath('reply', 'Receive UGC services.')
+        ->assertJsonPath('user_message_id', $prompt->id);
+    $this->getJson(route('ai-plus.agent-workspace.messages.reply', $nextPrompt))
+        ->assertOk()
+        ->assertJsonPath('reply', 'Next answer');
+});
+
+it('keeps saved reply recovery private to the conversation owner', function () {
+    $conversation = Conversation::create([
+        'user_id' => User::factory()->create()->id,
+        'title' => 'Private',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+    $prompt = Message::create(['conversation_id' => $conversation->id, 'role' => 'user', 'content' => 'Private prompt']);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => 'Private answer']);
+
+    $this->getJson(route('ai-plus.agent-workspace.messages.reply', $prompt))->assertNotFound();
+});
+
 it('replaces only the newest user prompt and regenerates its reply', function () {
     config(['openai.api_key' => 'sk-test']);
 
@@ -1148,7 +1185,7 @@ it('returns friendly error on upstream 429', function () {
 it('sends multimodal content when image data URL is provided', function () {
     config(['openai.api_key' => 'sk-test']);
 
-    $dataUrl = 'data:image/png;base64,'.base64_encode('fake-png-bytes');
+    $dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9t8AAAAASUVORK5CYII=';
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
         'message' => 'Mô tả hình',
@@ -1199,6 +1236,227 @@ it('includes text extracted from a direct document attachment in the chat reques
         );
     });
 });
+
+it('reads a document whose browser only provides a generic MIME type', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Read this note',
+        'documents' => [[
+            'name' => 'school-note.txt',
+            'data_url' => 'data:application/octet-stream;base64,'.base64_encode('School schedule details'),
+        ]],
+    ])->assertOk();
+
+    expect(Message::where('role', 'user')->sole()->internal_context)
+        ->toContain('School schedule details');
+});
+
+it('rejects a damaged Word attachment before creating a chat or opening a stream', function () {
+    $payload = [
+        'message' => 'Check this document',
+        'documents' => [[
+            'name' => 'exam.docx',
+            'data_url' => 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,'.base64_encode('not a DOCX package'),
+        ]],
+    ];
+
+    foreach (['/ai-plus/agent-workspace/send', '/ai-plus/agent-workspace/send-stream'] as $url) {
+        $this->postJson($url, $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('error', fn (string $error) => str_contains($error, 'could not be read'));
+    }
+
+    expect(Conversation::count())->toBe(0);
+});
+
+it('reads a valid Word attachment in the same request path', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $path = tempnam(sys_get_temp_dir(), 'valid-chat-docx-');
+    $archive = new ZipArchive;
+    $archive->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $archive->addFromString('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Exam content after the file title.</w:t></w:r></w:p></w:body></w:document>');
+    $archive->close();
+
+    try {
+        $this->postJson('/ai-plus/agent-workspace/send', [
+            'message' => 'Check this exam',
+            'documents' => [[
+                'name' => 'exam.docx',
+                'data_url' => 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,'.base64_encode(file_get_contents($path)),
+            ]],
+        ])->assertOk();
+
+        expect(Message::where('role', 'user')->sole()->internal_context)
+            ->toContain('Exam content after the file title.');
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('reads a real PDF attachment before sending the chat request', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $pdf = new \Dompdf\Dompdf;
+    $pdf->loadHtml('<html><body><p>Exam instructions for teachers.</p></body></html>');
+    $pdf->render();
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Check this PDF',
+        'documents' => [[
+            'name' => 'exam.pdf',
+            'data_url' => 'data:application/pdf;base64,'.base64_encode($pdf->output()),
+        ]],
+    ])->assertOk();
+
+    expect(Message::where('role', 'user')->sole()->internal_context)
+        ->toContain('Exam instructions for teachers.');
+});
+
+it('reads a real Excel attachment before sending the chat request', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $spreadsheet->getActiveSheet()->setCellValue('A1', 'Exam schedule for teachers');
+    $path = tempnam(sys_get_temp_dir(), 'valid-chat-xlsx-');
+    (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($path);
+
+    try {
+        $this->postJson('/ai-plus/agent-workspace/send', [
+            'message' => 'Check this spreadsheet',
+            'documents' => [[
+                'name' => 'exam.xlsx',
+                'data_url' => 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'.base64_encode(file_get_contents($path)),
+            ]],
+        ])->assertOk();
+
+        expect(Message::where('role', 'user')->sole()->internal_context)
+            ->toContain('Exam schedule for teachers');
+    } finally {
+        @unlink($path);
+        $spreadsheet->disconnectWorksheets();
+    }
+});
+
+it('keeps Word, Excel, PDF, and an image together in one chat turn', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $wordPath = tempnam(sys_get_temp_dir(), 'mixed-chat-docx-');
+    $word = new ZipArchive;
+    $word->open($wordPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $word->addFromString('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Word lesson content</w:t></w:r></w:p></w:body></w:document>');
+    $word->close();
+
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $spreadsheet->getActiveSheet()->setCellValue('A1', 'Excel scores content');
+    $excelPath = tempnam(sys_get_temp_dir(), 'mixed-chat-xlsx-');
+    (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($excelPath);
+
+    $pdf = new \Dompdf\Dompdf;
+    $pdf->loadHtml('<html><body><p>PDF exam content</p></body></html>');
+    $pdf->render();
+
+    try {
+        $response = $this->postJson('/ai-plus/agent-workspace/send', [
+            'message' => 'Compare every attachment',
+            'images' => ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9t8AAAAASUVORK5CYII='],
+            'documents' => [
+                ['name' => 'lesson.docx', 'data_url' => 'data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,'.base64_encode(file_get_contents($wordPath))],
+                ['name' => 'scores.xlsx', 'data_url' => 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'.base64_encode(file_get_contents($excelPath))],
+                ['name' => 'exam.pdf', 'data_url' => 'data:application/pdf;base64,'.base64_encode($pdf->output())],
+            ],
+        ]);
+
+        $response->assertOk();
+        $context = Message::where('role', 'user')->sole()->internal_context;
+        expect($context)
+            ->toContain('Word lesson content')
+            ->toContain('Excel scores content')
+            ->toContain('PDF exam content');
+
+        Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request->data()), 'image_url'));
+    } finally {
+        @unlink($wordPath);
+        @unlink($excelPath);
+        $spreadsheet->disconnectWorksheets();
+    }
+});
+
+it('keeps a code-only HTML attachment available for an editing request', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Edit the HTML code in this file',
+        'documents' => [[
+            'name' => 'app.html',
+            'data_url' => 'data:text/html;base64,'.base64_encode('<script>console.log("school app")</script>'),
+        ]],
+    ])->assertOk();
+
+    expect(Message::where('role', 'user')->sole()->internal_context)
+        ->toContain('console.log');
+});
+
+it('rejects a file named PDF that is not actually a PDF', function () {
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Check this PDF',
+        'documents' => [[
+            'name' => 'exam.pdf',
+            'data_url' => 'data:application/pdf;base64,'.base64_encode('not a PDF'),
+        ]],
+    ])->assertStatus(422)->assertJsonPath('error', fn (string $error) => str_contains($error, 'exam.pdf'));
+
+    expect(Conversation::count())->toBe(0);
+});
+
+it('rejects empty and malformed attachment data before creating a chat', function () {
+    foreach (['', '===='] as $badBase64) {
+        $this->postJson('/ai-plus/agent-workspace/send', [
+            'message' => 'Read this file',
+            'documents' => [[
+                'name' => 'notes.txt',
+                'data_url' => 'data:text/plain;base64,'.$badBase64,
+            ]],
+        ])->assertStatus(422);
+    }
+
+    expect(Conversation::count())->toBe(0);
+});
+
+it('rejects a corrupt image or an image with a mismatched declared type', function () {
+    foreach ([
+        'data:image/png;base64,'.base64_encode('not an image'),
+        'data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9t8AAAAASUVORK5CYII=',
+    ] as $dataUrl) {
+        $this->postJson('/ai-plus/agent-workspace/send', [
+            'message' => 'Describe the image',
+            'images' => [$dataUrl],
+        ])->assertStatus(422)->assertJsonPath('error', fn (string $error) => str_contains($error, 'image is invalid'));
+    }
+
+    expect(Conversation::count())->toBe(0);
+});
+
+it('accepts a real image in each supported chat format', function (string $mime, string $encoder) {
+    config(['openai.api_key' => 'sk-test']);
+
+    $image = imagecreatetruecolor(2, 2);
+    ob_start();
+    $encoder($image);
+    $bytes = ob_get_clean();
+    imagedestroy($image);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Describe this image',
+        'images' => ['data:'.$mime.';base64,'.base64_encode($bytes)],
+    ])->assertOk();
+})->with([
+    ['image/png', 'imagepng'],
+    ['image/jpeg', 'imagejpeg'],
+    ['image/gif', 'imagegif'],
+    ['image/webp', 'imagewebp'],
+]);
 
 it('keeps the latest uploaded document available beyond the normal chat-history limit', function () {
     config(['openai.api_key' => 'sk-test']);
@@ -1297,7 +1555,7 @@ it('includes every direct document attachment, including when an image is attach
 
     $this->postJson('/ai-plus/agent-workspace/send', [
         'message' => 'So sánh các tệp đính kèm',
-        'images' => ['data:image/png;base64,'.base64_encode('fake-png-bytes')],
+        'images' => ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9t8AAAAASUVORK5CYII='],
         'documents' => $documents,
     ])->assertOk();
 

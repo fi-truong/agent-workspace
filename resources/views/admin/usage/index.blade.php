@@ -9,9 +9,10 @@
   <div>
     <p class="eyebrow">MONTHLY OVERVIEW</p>
     <h2>{{ $monthName }} token usage</h2>
-    <p>Each user has a {{ number_format($limit) }}-token {{ $phase }} allowance. Review the users approaching their limit first.</p>
+    <p>The default {{ $phase }} allowance is {{ number_format($limit) }} tokens per user. Individual overrides appear in the table below.</p>
+    @unless($isCurrentMonth)<p class="usage-history-note">Historical usage is shown for this month. Quotas and remaining balances use current user settings.</p>@endunless
   </div>
-  <div class="quota-pill"><span>Per-user allowance</span><strong>{{ number_format($limit) }}</strong><small>tokens</small></div>
+  <div class="quota-pill"><span>Default allowance</span><strong>{{ number_format($limit) }}</strong><small>tokens</small></div>
 </section>
 
 <section class="image-usage-card" aria-label="Image Studio usage">
@@ -20,20 +21,25 @@
     @foreach($imageUsage as $model)
     <article><span class="image-usage-label">{{ $model['label'] }}</span><strong>{{ number_format($model['images']) }}</strong><small>images · {{ number_format($model['tokens']) }} tokens</small></article>
     @endforeach
-    <article class="image-top-users"><span class="image-usage-label">Most active users</span>@forelse($topImageUsers as $row)<div><span>{{ $row->user?->name ?? 'Deleted user' }}</span><b>{{ number_format($row->images) }} images</b></div>@empty<p>No image activity this month.</p>@endforelse</article>
+    <article class="image-top-users"><span class="image-usage-label">Most active users</span>@forelse($topImageUsers as $row)<div><span>{{ $row->user?->name ?? 'Deleted user' }}</span><b>{{ number_format($row->images) }} images</b></div>@empty<p>No image activity in {{ $monthName }}.</p>@endforelse</article>
   </div>
 </section>
 
 <section class="usage-stats" aria-label="Usage summary">
   <article><span class="stat-icon mint">👥</span><div><span class="stat-label">Users tracked</span><strong>{{ number_format($summary['users']) }}</strong><small>{{ number_format($summary['active_users']) }} active accounts</small></div></article>
-  <article><span class="stat-icon blue">◒</span><div><span class="stat-label">Tokens used</span><strong>{{ number_format($summary['total_tokens']) }}</strong><small>Across all users this month</small></div></article>
+  <article><span class="stat-icon blue">◒</span><div><span class="stat-label">Tokens used</span><strong>{{ number_format($summary['total_tokens']) }}</strong><small>Across all users in {{ $monthName }}</small></div></article>
   <article><span class="stat-icon {{ $summary['near_limit'] ? 'amber' : 'mint' }}">⚠</span><div><span class="stat-label">Need attention</span><strong>{{ number_format($summary['near_limit']) }}</strong><small>At or above 85% of quota</small></div></article>
 </section>
 
 <form method="GET" class="admin-filters" style="margin-bottom:20px;">
-  <input class="filter-search" type="search" name="search" value="{{ request('search') }}" placeholder="Search users…">
-  <button class="filter-btn" type="submit">Search</button>
-  @if(request()->filled('search'))<a class="filter-clear" href="{{ route('admin.usage.index') }}">Clear</a>@endif
+  <label class="usage-month-filter" for="usage-month">Month
+    <input id="usage-month" type="month" name="month" value="{{ $selectedMonth }}" max="{{ $maxMonth }}">
+  </label>
+  <label class="usage-search-filter" for="usage-search">User
+    <input id="usage-search" class="filter-search" type="search" name="search" value="{{ request('search') }}" placeholder="Search users…">
+  </label>
+  <button class="filter-btn" type="submit">Apply filters</button>
+  @if(request()->filled('search') || ! $isCurrentMonth)<a class="filter-clear" href="{{ route('admin.usage.index') }}">Reset</a>@endif
 </form>
 
 <div class="usage-table-card">
@@ -71,6 +77,7 @@
 
 @push('styles')
 <style>
+  .usage-history-note{margin-top:8px!important;font-size:12px;color:#f7e8c9!important}.usage-page .admin-filters{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.usage-month-filter,.usage-search-filter{display:grid;gap:6px;color:var(--ink-soft);font-size:12px;font-weight:600}.usage-month-filter input,.usage-search-filter input{height:40px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface,#fff);color:var(--ink);font:inherit;font-size:13px}.usage-search-filter{flex:1;min-width:180px;max-width:360px}.usage-search-filter input{width:100%}.usage-page .filter-btn,.usage-page .filter-clear{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none}.usage-page .filter-btn{border:1px solid #1f5147;background:#1f5147;color:#fff;cursor:pointer}.usage-page .filter-clear{border:1px solid var(--line);background:var(--surface,#fff);color:var(--ink)}
   .admin-wrap:has(.usage-page){max-width:1540px}.usage-hero{display:flex;justify-content:space-between;gap:28px;align-items:center;margin-bottom:20px;padding:28px 30px;border-radius:16px;background:linear-gradient(125deg,#183a57,#20605b);color:#fff}.usage-hero h2{margin:4px 0 8px;font:600 28px 'Fraunces',serif}.usage-hero p{max-width:610px;margin:0;color:#d6e8e4;line-height:1.55}.eyebrow{font-size:11px!important;font-weight:700;letter-spacing:.11em}.quota-pill{min-width:166px;padding:16px 18px;border:1px solid rgba(255,255,255,.25);border-radius:12px;background:rgba(255,255,255,.11);text-align:center}.quota-pill span,.quota-pill small{display:block;color:#d6e8e4;font-size:12px}.quota-pill strong{display:block;margin:4px 0;font-size:21px}.usage-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}.usage-stats article{display:flex;align-items:center;gap:13px;padding:18px;background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px}.stat-icon{display:flex;width:42px;height:42px;align-items:center;justify-content:center;border-radius:11px;font-size:18px}.stat-icon.mint{background:#dff5e8}.stat-icon.blue{background:#dceeff}.stat-icon.amber{background:#fff1d6}.stat-label,.usage-stats small{display:block;color:var(--ink-soft);font-size:12px}.usage-stats strong{display:block;margin:2px 0;font-size:21px}.image-usage-card{margin:0 0 24px;padding:24px 28px;border:1px solid var(--line);border-radius:14px;background:var(--surface,#fff)}.image-usage-heading h2{margin:3px 0 5px;font:600 20px 'Fraunces',serif}.image-usage-heading p:not(.eyebrow){margin:0;color:var(--ink-soft);font-size:13px}.image-usage-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}.image-usage-grid article{padding:16px;border-radius:10px;background:var(--paper);border:1px solid var(--line)}.image-usage-label{display:block;color:var(--ink-soft);font-size:12px}.image-usage-grid strong{display:block;margin:5px 0 2px;font-size:24px}.image-usage-grid small{color:var(--ink-soft);font-size:12px}.image-top-users div{display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:12px}.image-top-users b{font-weight:600;white-space:nowrap}.image-top-users p{color:var(--ink-soft);font-size:12px;margin:9px 0 0}.usage-table-card{padding:24px 28px;border:1px solid var(--line);border-radius:14px;background:var(--surface,#fff)}.usage-table-card .table-section{border:0;border-radius:0}.usage-table-card .admin-table th,.usage-table-card .admin-table td{padding:17px 18px}.usage-table-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:18px}.usage-table-heading h2{margin:0 0 4px;font:600 20px 'Fraunces',serif}.usage-table-heading p{margin:0;color:var(--ink-soft);font-size:13px}.usage-legend{color:var(--ink-soft);font-size:12px;white-space:nowrap}.usage-legend i{display:inline-block;width:8px;height:8px;margin:0 4px 0 10px;border-radius:50%;background:#2d8a69}.usage-legend i.warning{background:#d98921}.usage-legend i.danger{background:#c0392b}.usage-cell{min-width:210px}.usage-cell span{font-size:12px;color:var(--ink-soft)}.usage-bar{width:200px;height:8px;border-radius:99px;background:#e6ece9;margin-top:7px;overflow:hidden}.usage-bar span{display:block;height:100%;background:#2d8a69;border-radius:99px}.usage-bar.warning span{background:#d98921}.usage-bar.danger span{background:#c0392b}.token-caption{display:block;margin-top:3px;color:var(--ink-soft);font-size:11px}@media(max-width:820px){.admin-wrap:has(.usage-page){max-width:1280px}.usage-hero{align-items:flex-start;flex-direction:column}.usage-stats,.image-usage-grid{grid-template-columns:1fr}.usage-table-heading{align-items:flex-start;flex-direction:column}.usage-legend{white-space:normal}} 
 </style>
 @endpush

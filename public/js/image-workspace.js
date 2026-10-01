@@ -19,6 +19,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (!form || !promptInput || !submit || !results) return;
 
+  function resizePromptInput() {
+    promptInput.style.height = 'auto';
+    promptInput.style.height = `${Math.min(promptInput.scrollHeight, 400)}px`;
+  }
+
+  promptInput.addEventListener('input', resizePromptInput);
+  window.addEventListener('resize', resizePromptInput);
+  resizePromptInput();
+
   function scrollResultsToLatest() {
     results.scrollTop = results.scrollHeight;
   }
@@ -155,6 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.image-prompt-examples button').forEach((button) => {
     button.addEventListener('click', () => {
       promptInput.value = button.textContent.trim();
+      resizePromptInput();
       promptInput.focus();
     });
   });
@@ -165,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
     referenceImages = [];
     renderReferencePreviews();
     promptInput.value = '';
+    promptInput.style.height = '';
     window.history.replaceState({}, '', '/ai-plus/agent-workspace/images');
     promptInput.focus();
   });
@@ -295,6 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
       conversationId = data.conversation_id;
       appendImage({url: data.image_url, prompt: data.prompt, messageId: data.image_message_id, downloadUrl: data.download_url, isLatest: true});
       promptInput.value = '';
+      promptInput.style.height = '';
       referenceImages = [];
       renderReferencePreviews();
       window.history.replaceState({}, '', `/ai-plus/agent-workspace/images?conversation_id=${conversationId}`);

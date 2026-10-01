@@ -49,6 +49,41 @@ class ChatMessageController extends Controller
 
     public const MAX_VISION_IMAGES = 10;
 
+    /** Fetch the persisted answer for a turn whose browser stream ended early. */
+    public function savedReply(Request $request, Message $message): JsonResponse
+    {
+        $conversation = $message->conversation;
+        abort_unless(
+            $message->role === 'user'
+            && $conversation?->user_id === $request->user()->id
+            && $conversation->type === Conversation::TYPE_CHAT,
+            404,
+        );
+
+        $nextUserId = $conversation->messages()
+            ->where('role', 'user')
+            ->where('id', '>', $message->id)
+            ->min('id');
+        $reply = $conversation->messages()
+            ->where('role', 'assistant')
+            ->where('id', '>', $message->id)
+            ->when($nextUserId, fn ($query) => $query->where('id', '<', $nextUserId))
+            ->orderBy('id')
+            ->first();
+
+        if (! $reply) {
+            return response()->json(['status' => 'pending'], 202);
+        }
+
+        return response()->json([
+            'status' => 'complete',
+            'conversation_id' => $conversation->id,
+            'user_message_id' => $message->id,
+            'title' => $conversation->title,
+            'reply' => $reply->content,
+        ]);
+    }
+
     /**
      * Bản KHÔNG streaming — giữ nguyên hành vi cũ, dùng cho nơi nào chưa chuyển sang stream().
      *
@@ -298,7 +333,7 @@ class ChatMessageController extends Controller
                 $send('error', [
                     'message' => $e instanceof \RuntimeException
                         ? $e->getMessage()
-                        : 'Không thể hoàn tất phản hồi. Vui lòng thử lại.',
+                        : 'Could not complete the response. Please try again.',
                 ]);
             }
         }, 200, [
@@ -464,7 +499,16 @@ class ChatMessageController extends Controller
             ], 422);
         }
 
-        if ($documentRisks = $this->scanAttachedStudentIdentifiers($request, $piiFilter, $knowledgeService)) {
+        $documentScan = $this->scanAttachedStudentIdentifiers($request, $piiFilter, $knowledgeService);
+        if ($documentScan['unreadable'] !== null) {
+            $filename = Str::limit(preg_replace('/[\r\n\t]+/', ' ', $documentScan['unreadable']) ?: 'document', 100);
+            return response()->json([
+                'blocked' => false,
+                'error' => 'The attached file "'.$filename.'" could not be read. It may be empty, damaged, or have the wrong file extension. Please open and re-save it, then upload it again.',
+            ], 422);
+        }
+
+        if ($documentRisks = $documentScan['risks']) {
             return response()->json([
                 'blocked' => true,
                 'warning' => 'Tài liệu đính kèm có thể chứa thông tin học sinh nhạy cảm ('
@@ -476,10 +520,11 @@ class ChatMessageController extends Controller
         return null;
     }
 
-    /** @return array<int, string> */
+    /** @return array{risks: array<int, string>, unreadable: ?string} */
     private function scanAttachedStudentIdentifiers(Request $request, PiiFilterService $piiFilter, KnowledgeService $knowledgeService): array
     {
         $riskTypes = [];
+        $unreadable = null;
         foreach ($request->input('documents', []) as $document) {
             $name = is_array($document) ? (string) ($document['name'] ?? '') : '';
             $dataUrl = is_array($document) ? (string) ($document['data_url'] ?? '') : '';
@@ -493,7 +538,18 @@ class ChatMessageController extends Controller
                 continue;
             }
 
-            $text = $knowledgeService->extractTextFromBinary($binary, $extension);
+            if ($extension === 'pdf' && strpos(substr($binary, 0, 1024), '%PDF-') === false) {
+                $unreadable ??= $name;
+                continue;
+            }
+
+            $text = $extension === 'html' && $this->requestsHtmlCodeEdit((string) $request->input('message', ''))
+                ? $knowledgeService->htmlSourceForCode($binary)
+                : $knowledgeService->extractTextFromBinary($binary, $extension);
+            if ($text === '' && $extension !== 'pdf') {
+                $unreadable ??= $name;
+                continue;
+            }
             $matches = array_keys($piiFilter->scan($text)['matches']);
             foreach (['student_id_batch', 'student_record_context'] as $type) {
                 if (in_array($type, $matches, true)) {
@@ -502,7 +558,7 @@ class ChatMessageController extends Controller
             }
         }
 
-        return array_values(array_unique($riskTypes));
+        return ['risks' => array_values(array_unique($riskTypes)), 'unreadable' => $unreadable];
     }
 
     /** @param array<int, string> $types @return array<int, string> */
@@ -530,9 +586,17 @@ class ChatMessageController extends Controller
                 return 'Một ảnh đính kèm không hợp lệ. Vui lòng chọn lại ảnh.';
             }
 
-            $bytes = $this->base64Size($matches[2]);
+            $binary = base64_decode($matches[2], true);
+            if ($binary === false || $binary === '') {
+                return 'An attached image is invalid. Please choose it again.';
+            }
+            $bytes = strlen($binary);
             if ($bytes > self::MAX_IMAGE_BYTES) {
                 return 'Mỗi ảnh chỉ được tối đa 4 MB.';
+            }
+            $imageInfo = @getimagesizefromstring($binary);
+            if ($imageInfo === false || ($imageInfo['mime'] ?? null) !== 'image/'.$matches[1]) {
+                return 'An attached image is invalid or its format does not match the file. Please choose it again.';
             }
             $totalBytes += $bytes;
         }
@@ -544,7 +608,11 @@ class ChatMessageController extends Controller
                 return 'Một tài liệu đính kèm không hợp lệ. Vui lòng chọn lại tệp.';
             }
 
-            $bytes = $this->base64Size($matches[1]);
+            $binary = base64_decode($matches[1], true);
+            if ($binary === false || $binary === '') {
+                return 'An attached document is invalid. Please choose it again.';
+            }
+            $bytes = strlen($binary);
             if ($bytes > $maxDocumentBytes) {
                 return 'Mỗi tài liệu chỉ được tối đa '.KnowledgeService::MAX_CHAT_DOCUMENT_SIZE_KB.' KB.';
             }
@@ -556,11 +624,6 @@ class ChatMessageController extends Controller
         }
 
         return null;
-    }
-
-    private function base64Size(string $base64): int
-    {
-        return (int) floor(strlen($base64) * 3 / 4) - substr_count(substr($base64, -2), '=');
     }
 
     /**

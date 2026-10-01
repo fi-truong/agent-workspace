@@ -819,15 +819,28 @@ document.addEventListener('DOMContentLoaded', function () {
   let pendingDocuments = [];
   let pendingAttachmentBytes = 0;
   let pendingReads = 0;
+  let pendingImageReads = 0;
   let imagePreviewBox = null;
 
   // Cac dinh dang tai lieu (ngoai anh) duoc phep dinh kem trong o chat - khop voi
   // KnowledgeService::CHAT_DOCUMENT_EXTENSIONS phia backend.
   const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'html', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
   const MAX_ATTACHMENTS = 5;
+  const MAX_IMAGES = 4;
   const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
   const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
   const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+  const IMAGE_MIME_BY_EXTENSION = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', webp: 'image/webp',
+  };
+
+  function updateAttachmentReadState() {
+    if (!sendBtn || sending) return;
+    sendBtn.disabled = pendingReads > 0;
+    sendBtn.textContent = pendingReads > 0 ? 'Preparing files…' : 'Send →';
+    sendBtn.setAttribute('aria-label', pendingReads > 0 ? 'Preparing attachments' : 'Send message');
+  }
 
   function getFileExt(filename) {
     const m = /\.([a-zA-Z0-9]+)$/.exec(filename || '');
@@ -840,9 +853,27 @@ document.addEventListener('DOMContentLoaded', function () {
   function handleIncomingFile(file) {
     if (!file) return;
 
-    const isImage = file.type && file.type.startsWith('image/');
+    if (file.size === 0) {
+      appendWarning('The file "' + file.name + '" is empty. Please choose another file.');
+      return;
+    }
+
+    const ext = getFileExt(file.name);
+    const imageMime = !file.type || file.type === 'application/octet-stream'
+      ? (IMAGE_MIME_BY_EXTENSION[ext] || null)
+      : (Object.values(IMAGE_MIME_BY_EXTENSION).includes(file.type) ? file.type : null);
+    const isImageCandidate = (file.type || '').startsWith('image/') || Boolean(IMAGE_MIME_BY_EXTENSION[ext]);
+    if (isImageCandidate && !imageMime) {
+      appendWarning('Unsupported image format. Use PNG, JPG, GIF, or WebP.');
+      return;
+    }
+    const isImage = Boolean(imageMime);
     if (pendingImages.length + pendingDocuments.length + pendingReads >= MAX_ATTACHMENTS) {
       appendWarning('Mỗi lượt chat chỉ hỗ trợ tối đa ' + MAX_ATTACHMENTS + ' tệp đính kèm.');
+      return;
+    }
+    if (isImage && pendingImages.length + pendingImageReads >= MAX_IMAGES) {
+      appendWarning('You can attach up to 4 images per message.');
       return;
     }
     if (file.size > (isImage ? MAX_IMAGE_BYTES : MAX_DOCUMENT_BYTES)) {
@@ -856,24 +887,42 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (isImage) {
       pendingReads++;
+      pendingImageReads++;
       pendingAttachmentBytes += file.size;
+      updateAttachmentReadState();
       const reader = new FileReader();
       reader.onload = function (ev) {
+        pendingReads--;
+        pendingImageReads--;
+        updateAttachmentReadState();
+        if (typeof ev.target?.result !== 'string' || !ev.target.result.startsWith('data:image/')) {
+          pendingAttachmentBytes -= file.size;
+          appendWarning('Could not read image "' + file.name + '". Please choose it again.');
+          return;
+        }
         pendingImages.push(ev.target.result);
         pendingImageBytes.push(file.size);
-        pendingReads--;
         renderImagePreviews();
       };
-      reader.onerror = function () {
+      reader.onerror = reader.onabort = function () {
         pendingReads--;
+        pendingImageReads--;
         pendingAttachmentBytes -= file.size;
-        appendWarning('Không thể đọc ảnh "' + file.name + '". Vui lòng thử lại.');
+        updateAttachmentReadState();
+        appendWarning('Could not read image "' + file.name + '". Please choose it again.');
       };
-      reader.readAsDataURL(file);
+      try {
+        reader.readAsDataURL(file.type === imageMime ? file : new File([file], file.name, { type: imageMime }));
+      } catch (error) {
+        pendingReads--;
+        pendingImageReads--;
+        pendingAttachmentBytes -= file.size;
+        updateAttachmentReadState();
+        appendWarning('Could not read image "' + file.name + '". Please choose it again.');
+      }
       return;
     }
 
-    const ext = getFileExt(file.name);
     if (!CHAT_DOCUMENT_EXTENSIONS.includes(ext)) {
       appendWarning('Khong ho tro dinh dang "' + (ext ? '.' + ext : (file.type || 'khong ro')) + '". Ho tro: anh, ' + CHAT_DOCUMENT_EXTENSIONS.join(', ') + '.');
       return;
@@ -881,18 +930,33 @@ document.addEventListener('DOMContentLoaded', function () {
 
     pendingReads++;
     pendingAttachmentBytes += file.size;
+    updateAttachmentReadState();
     const reader = new FileReader();
     reader.onload = function (ev) {
-      pendingDocuments.push({ name: file.name, dataUrl: ev.target.result, size: file.size });
       pendingReads--;
+      updateAttachmentReadState();
+      if (typeof ev.target?.result !== 'string' || !ev.target.result.includes(';base64,')) {
+        pendingAttachmentBytes -= file.size;
+        appendWarning('Could not read file "' + file.name + '". Please choose it again.');
+        return;
+      }
+      pendingDocuments.push({ name: file.name, dataUrl: ev.target.result, size: file.size });
       renderImagePreviews();
     };
-    reader.onerror = function () {
+    reader.onerror = reader.onabort = function () {
       pendingReads--;
       pendingAttachmentBytes -= file.size;
-      appendWarning('Không thể đọc tệp "' + file.name + '". Vui lòng thử lại.');
+      updateAttachmentReadState();
+      appendWarning('Could not read file "' + file.name + '". Please choose it again.');
     };
-    reader.readAsDataURL(file);
+    try {
+      reader.readAsDataURL(file.type ? file : new File([file], file.name, { type: 'application/octet-stream' }));
+    } catch (error) {
+      pendingReads--;
+      pendingAttachmentBytes -= file.size;
+      updateAttachmentReadState();
+      appendWarning('Could not read file "' + file.name + '". Please choose it again.');
+    }
   }
 
   function ensureImagePreviewBox() {
@@ -970,7 +1034,12 @@ document.addEventListener('DOMContentLoaded', function () {
   async function sendMessage() {
     const message = textarea.value.trim();
     const activeEdit = editingPrompt;
-    if ((!message && pendingImages.length === 0 && pendingDocuments.length === 0) || sending) return;
+    if (sending) return;
+    if (pendingReads > 0) {
+      appendWarning('Please wait until all attachments finish loading before sending.');
+      return;
+    }
+    if (!message && pendingImages.length === 0 && pendingDocuments.length === 0) return;
     if (activeEdit && (pendingImages.length > 0 || pendingDocuments.length > 0)) {
       await WebUI.notice('Editing a prompt cannot include new attachments. Send attachments as a new message instead.', { title: 'Attachments unavailable while editing' });
       return;
@@ -1079,6 +1148,37 @@ document.addEventListener('DOMContentLoaded', function () {
       if (data.email_draft) appendMessage('assistant', `✉️ Đã tạo email nháp: **${data.email_draft.subject}**`);
     };
 
+    const recoverSavedReply = async () => {
+      if (!committedUserMessageId) return false;
+
+      // A disconnected browser may finish reading before the server finishes
+      // saving the answer. Never present the incomplete delta text as final.
+      for (const delay of [0, 1000, 2000, 4000]) {
+        if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+        try {
+          const response = await fetch(`/ai-plus/agent-workspace/messages/${committedUserMessageId}/reply`, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            cache: 'no-store',
+          });
+          if (response.status === 202) continue;
+          if (!response.ok) return false;
+
+          const data = await response.json();
+          if (data.status !== 'complete' || typeof data.reply !== 'string') return false;
+          conversationId = data.conversation_id;
+          syncConversationTitle(data.title);
+          assistantBubble.style.whiteSpace = 'normal';
+          renderAssistantMarkdown(assistantBubble, data.reply);
+          enableCopyForAssistantBubble(assistantBubble);
+          ensureMessagesContainer().scrollTop = ensureMessagesContainer().scrollHeight;
+          return true;
+        } catch (_) {
+          // A transient network failure may clear on the next bounded retry.
+        }
+      }
+      return false;
+    };
+
     try {
       let response = await sendChatRequest(conversationId);
 
@@ -1169,6 +1269,9 @@ document.addEventListener('DOMContentLoaded', function () {
           if (committedUserMessageId === null) restoreInterruptedDraft(sentDraft);
           appendWarning(parsed.data.message || 'Something went wrong. Please try again.');
         } else if (parsed.event === 'done') {
+          // Only the server's complete reply may replace the streamed preview.
+          // An incomplete/malformed done event falls through to saved-reply recovery.
+          if (typeof parsed.data.reply !== 'string') return;
           sawDoneOrError = true;
           conversationId = parsed.data.conversation_id;
           committedUserMessageId = parsed.data.user_message_id || committedUserMessageId;
@@ -1176,7 +1279,7 @@ document.addEventListener('DOMContentLoaded', function () {
           syncConversationTitle(parsed.data.title);
           updateTokenQuota(parsed.data.token_quota);
           assistantBubble.style.whiteSpace = 'normal';
-          renderAssistantMarkdown(assistantBubble, parsed.data.reply || rawText);
+          renderAssistantMarkdown(assistantBubble, parsed.data.reply);
           enableCopyForAssistantBubble(assistantBubble);
           showOutputs(parsed.data);
           container.scrollTop = container.scrollHeight;
@@ -1207,31 +1310,29 @@ document.addEventListener('DOMContentLoaded', function () {
       const finalEvent = parseSseBlock(buffer);
       if (finalEvent) handleStreamEvent(finalEvent);
 
-      // Phòng trường hợp stream đóng đột ngột mà chưa nhận được "done"/"error"
-      // (vd mất mạng giữa chừng) — vẫn hiển thị phần đã nhận được thay vì để bubble "..." treo mãi.
+      // Missing "done" means the displayed deltas are not an authoritative
+      // answer, even if they look like a complete sentence.
       if (!sawDoneOrError) {
-        if (rawText !== '') {
-          assistantBubble.style.whiteSpace = 'normal';
-          renderAssistantMarkdown(assistantBubble, rawText);
-          enableCopyForAssistantBubble(assistantBubble);
-        } else {
+        if (!await recoverSavedReply()) {
           assistantBubble.remove();
           restoreUncommittedEdit();
           if (committedUserMessageId === null) {
             if (!activeEdit) userWrap?.remove();
             restoreInterruptedDraft(sentDraft);
           }
-          appendWarning('Kết nối bị gián đoạn trước khi có phản hồi. Vui lòng thử lại.');
+          appendWarning('Connection interrupted. The incomplete response was hidden; reopen this conversation to check for the saved answer.');
         }
       }
     } catch (err) {
-      assistantBubble.remove();
-      restoreUncommittedEdit();
-      if (committedUserMessageId === null) {
-        if (!activeEdit) userWrap?.remove();
-        restoreInterruptedDraft(sentDraft);
+      if (!await recoverSavedReply()) {
+        assistantBubble.remove();
+        restoreUncommittedEdit();
+        if (committedUserMessageId === null) {
+          if (!activeEdit) userWrap?.remove();
+          restoreInterruptedDraft(sentDraft);
+        }
+        appendWarning('Connection interrupted. The incomplete response was hidden; reopen this conversation to check for the saved answer.');
       }
-      appendWarning('Something went wrong. Please try again.');
     } finally {
       sending = false;
       if (committedUserMessageId && userWrap?.isConnected) {
@@ -1243,10 +1344,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (userBubble) addEditButton(userWrap, userBubble, activeEdit.messageId);
       }
       if (sendBtn) {
-        sendBtn.disabled = false;
         sendBtn.removeAttribute('aria-busy');
         sendBtn.setAttribute('aria-label', 'Send message');
-        sendBtn.textContent = 'Send →';
+        updateAttachmentReadState();
       }
     }
   }

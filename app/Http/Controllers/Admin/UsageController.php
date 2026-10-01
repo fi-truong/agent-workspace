@@ -8,19 +8,28 @@ use App\Models\User;
 use App\Services\ImageGenerationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class UsageController extends Controller
 {
     public function index(Request $request)
     {
+        $data = $request->validate(['month' => ['nullable', 'date_format:Y-m']]);
+        $month = $data['month'] ?? now()->format('Y-m');
+        $monthStart = Carbon::createFromFormat('!Y-m', $month);
+        if ($monthStart->greaterThan(now()->startOfMonth())) {
+            throw ValidationException::withMessages(['month' => 'Select the current month or an earlier month.']);
+        }
+        $monthEnd = $monthStart->copy()->addMonth();
+
         $phase = (string) config('usage.phase', 'testing');
         $limits = config('usage.token_limits', []);
         $limit = max((int) ($limits[$phase] ?? $limits['testing'] ?? 20_000_000), 1);
-        $cycleStartedAt = now()->startOfMonth();
+        $cycleStartedAt = $monthStart->copy();
 
         if ($phaseStartedAt = config('usage.phase_started_at')) {
             $phaseStartedAt = Carbon::parse($phaseStartedAt);
-            if ($phaseStartedAt->greaterThan($cycleStartedAt)) {
+            if ($month === now()->format('Y-m') && $phaseStartedAt->greaterThan($cycleStartedAt) && $phaseStartedAt->lessThan($monthEnd)) {
                 $cycleStartedAt = $phaseStartedAt;
             }
         }
@@ -28,7 +37,8 @@ class UsageController extends Controller
         $usageTotal = UsageLog::query()
             ->selectRaw('COALESCE(SUM(prompt_tokens + completion_tokens), 0)')
             ->whereColumn('usage_logs.user_id', 'users.id')
-            ->where('created_at', '>=', $cycleStartedAt);
+            ->where('created_at', '>=', $cycleStartedAt)
+            ->where('created_at', '<', $monthEnd);
 
         $baseQuery = User::query()
             ->select('users.*')
@@ -55,6 +65,7 @@ class UsageController extends Controller
         $imageModels = ImageGenerationService::modelOptions();
         $imageRows = UsageLog::query()
             ->where('created_at', '>=', $cycleStartedAt)
+            ->where('created_at', '<', $monthEnd)
             ->whereIn('model', array_keys($imageModels))
             ->selectRaw('model, COUNT(*) as images, COALESCE(SUM(prompt_tokens + completion_tokens), 0) as tokens')
             ->groupBy('model')
@@ -67,6 +78,7 @@ class UsageController extends Controller
         ]);
         $topImageUsers = UsageLog::query()
             ->where('created_at', '>=', $cycleStartedAt)
+            ->where('created_at', '<', $monthEnd)
             ->whereIn('model', array_keys($imageModels))
             ->selectRaw('user_id, COUNT(*) as images, COALESCE(SUM(prompt_tokens + completion_tokens), 0) as tokens')
             ->groupBy('user_id')
@@ -79,7 +91,10 @@ class UsageController extends Controller
             'users' => $users,
             'limit' => $limit,
             'phase' => $phase,
-            'monthName' => now()->format('F'),
+            'monthName' => $monthStart->format('F Y'),
+            'selectedMonth' => $month,
+            'maxMonth' => now()->format('Y-m'),
+            'isCurrentMonth' => $month === now()->format('Y-m'),
             'summary' => $summary,
             'imageUsage' => $imageUsage,
             'topImageUsers' => $topImageUsers,

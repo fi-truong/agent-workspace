@@ -1048,7 +1048,7 @@ class KnowledgeService
                 return $this->decodeWordEntities($text);
             }
         } catch (Throwable $exception) {
-            Log::info('PhpWord could not parse document; using DOCX text fallback', [
+            Log::info('PhpWord could not parse document; checking remaining fallbacks', [
                 'message' => $exception->getMessage(),
             ]);
         }

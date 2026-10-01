@@ -9,6 +9,7 @@ use App\Models\SupportTicketReply;
 use App\Models\UsageLog;
 use App\Models\User;
 use App\Services\TokenQuotaService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
 
 test('guests are redirected away from the admin panel', function () {
@@ -58,6 +59,54 @@ test('administrators can review current-month token usage by user', function () 
         ->assertOk()
         ->assertSee('High Usage User')
         ->assertSee('1,000');
+});
+
+test('administrators can filter token and image usage by a previous month', function () {
+    $this->travelTo(Carbon::parse('2026-10-01 10:00:00'));
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $teacher = User::factory()->create(['name' => 'September Teacher']);
+
+    foreach ([
+        ['2026-08-31 23:59:59', 300, 0, null],
+        ['2026-09-30 23:59:59', 900, 100, null],
+        ['2026-09-15 12:00:00', 6, 4, 'gpt-image-2.5-flare'],
+        ['2026-10-01 00:00:00', 20, 5, null],
+    ] as [$createdAt, $promptTokens, $completionTokens, $model]) {
+        $log = UsageLog::create([
+            'user_id' => $teacher->id,
+            'activity_title' => $model ? 'Image: Poster' : 'Chat',
+            'source' => 'agent_workspace',
+            'model' => $model,
+            'prompt_tokens' => $promptTokens,
+            'completion_tokens' => $completionTokens,
+        ]);
+        $log->forceFill(['created_at' => $createdAt])->save();
+    }
+
+    $this->actingAs($admin)
+        ->get(route('admin.usage.index', ['month' => '2026-09', 'search' => 'September']))
+        ->assertOk()
+        ->assertSee('September 2026 token usage')
+        ->assertSee('value="2026-09"', false)
+        ->assertViewHas('summary', fn (array $summary) => $summary['total_tokens'] === 1010)
+        ->assertViewHas('users', fn ($users) => (int) $users->first()->used_tokens === 1010)
+        ->assertViewHas('imageUsage', fn ($usage) => $usage['gpt-image-2.5-flare']['images'] === 1 && $usage['gpt-image-2.5-flare']['tokens'] === 10);
+
+    $this->get(route('admin.usage.index'))
+        ->assertOk()
+        ->assertViewHas('summary', fn (array $summary) => $summary['total_tokens'] === 25);
+});
+
+test('the admin token usage filter rejects invalid and future months', function () {
+    $this->travelTo(Carbon::parse('2026-10-01 10:00:00'));
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+
+    foreach (['2026-13', '2026-11'] as $month) {
+        $this->actingAs($admin)
+            ->getJson(route('admin.usage.index', ['month' => $month]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('month');
+    }
 });
 
 test('administrators can enable image generation in Agent Workspace', function () {

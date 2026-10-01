@@ -197,7 +197,7 @@
             <button class="send-btn">Send →</button>
           </div>
         </div>
-        <input type="file" id="chat-image-input" accept="image/*,.html,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple style="display:none;">
+        <input type="file" id="chat-image-input" accept="image/png,image/jpeg,image/gif,image/webp,.html,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple style="display:none;">
         <div class="input-hint">
           AI+ is for LSTS-related work • <a href="{{ route('ai-plus.ai-policy.index') }}">Read the AI policy</a> • Scanned PDFs: up to {{ config('openai.pdf_scan_max_pages') }} pages; for longer files, specify pages to read (for example, “pages 12–15”) to reduce token use • Press Enter to send, Shift+Enter for new line • Public links are read automatically • Your data is protected by PII filtering • Upload up to 5 files (15 MB total) for analysis
         </div>

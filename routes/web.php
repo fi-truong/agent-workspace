@@ -69,6 +69,8 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware(['auth', 'ai.policy'])->g
     Route::get('/agent-workspace/attachments/{conversation}/{filename}', [ChatMessageController::class, 'attachment'])
         ->where('filename', '[A-Za-z0-9_.-]+')
         ->name('agent-workspace.attachments.show');
+    Route::get('/agent-workspace/messages/{message}/reply', [ChatMessageController::class, 'savedReply'])
+        ->name('agent-workspace.messages.reply');
     Route::patch('/agent-workspace/conversations/{conversation}', [ChatMessageController::class, 'rename'])
         ->name('conversations.rename');
     Route::patch('/agent-workspace/conversations/{conversation}/move', [ChatMessageController::class, 'move'])
