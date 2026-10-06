@@ -814,6 +814,23 @@ it('records work-use scope metadata without retaining prompt content', function 
         ->and(json_encode($event->metadata))->not->toContain('vacation');
 });
 
+it('asks the model to help with professional profiles instead of refusing on work-use scope alone', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Rewrite my LinkedIn work experience to appeal to recruiters.',
+    ])->assertOk();
+
+    Http::assertSent(function (Request $request): bool {
+        $system = (string) ($request->data()['messages'][0]['content'] ?? '');
+
+        return str_contains($system, "Writing a staff member's CV, LinkedIn profile")
+            && str_contains($system, 'begin with one brief, visible reminder')
+            && str_contains($system, "then complete the user's request normally")
+            && ! str_contains($system, 'ask the user to provide a legitimate school-work context');
+    });
+});
+
 it('does not retain routine school-work requests in the work-use review queue', function () {
     config(['openai.api_key' => 'sk-test']);
 

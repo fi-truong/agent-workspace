@@ -374,13 +374,14 @@ document.addEventListener('DOMContentLoaded', function () {
       ? 'background:var(--navy);color:#fff;padding:12px 16px;border-radius:14px;white-space:pre-wrap;'
       : 'background:var(--card-bg);border:1px solid var(--line);padding:12px 16px;border-radius:14px;white-space:normal;';
 
-    // Render markdown cho assistant + user (nếu có ảnh kèm) — để ảnh hiện trong lịch sử.
-    const displayText = role === 'assistant' ? prioritizeArtifactLinks(text) : text;
-    const hasImageMd = typeof displayText === 'string' && displayText.includes('![');
-    if (typeof marked !== 'undefined' && (role === 'assistant' || hasImageMd)) {
-      bubble.innerHTML = renderSafeMarkdown(displayText);
+    // User attachments must render even when the external Markdown library is
+    // unavailable. Otherwise the entire multi-megabyte data URL appears as text.
+    if (role === 'user') {
+      renderUserMessage(bubble, text);
+    } else if (typeof marked !== 'undefined') {
+      bubble.innerHTML = renderSafeMarkdown(prioritizeArtifactLinks(text));
     } else {
-      bubble.textContent = displayText;
+      bubble.textContent = prioritizeArtifactLinks(text);
     }
 
     wrap.appendChild(bubble);
@@ -391,6 +392,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
     container.scrollTop = container.scrollHeight;
     return wrap;
+  }
+
+  function renderUserMessage(bubble, text) {
+    const content = typeof text === 'string' ? text : '';
+    const attachmentPattern = /!\[[^\]\n]*\]\((data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+|\/ai-plus\/agent-workspace\/attachments\/\d+\/[A-Za-z0-9_.-]+)\)/g;
+    let previousEnd = 0;
+    let match;
+
+    bubble.replaceChildren();
+    while ((match = attachmentPattern.exec(content)) !== null) {
+      bubble.append(document.createTextNode(content.slice(previousEnd, match.index)));
+
+      const image = document.createElement('img');
+      image.alt = 'Attached image';
+      image.loading = 'lazy';
+      image.style.cssText = 'display:block;max-width:min(320px, 100%);max-height:260px;width:auto;height:auto;object-fit:contain;border-radius:8px;';
+      image.addEventListener('error', () => image.replaceWith(document.createTextNode('[Image attachment unavailable]')), { once: true });
+      image.src = match[1];
+      bubble.append(image);
+
+      previousEnd = attachmentPattern.lastIndex;
+    }
+    bubble.append(document.createTextNode(content.slice(previousEnd)));
   }
 
   function disableAllPromptEditing() {
