@@ -61,6 +61,14 @@
         <a href="{{ route('admin.tickets.index') }}" class="nav-item {{ request()->routeIs('admin.tickets.*') ? 'active' : '' }}">
           <span class="nav-icon">🎫</span>
           <span>Support Tickets</span>
+          <span
+            class="support-new-badge"
+            id="supportNewRequestsBadge"
+            data-count-url="{{ route('admin.tickets.new-count') }}"
+            aria-live="polite"
+            aria-label="{{ $newSupportRequestsCount }} new support requests"
+            @if ($newSupportRequestsCount === 0) hidden @endif
+          >New</span>
         </a>
       </div>
 
@@ -163,6 +171,27 @@ document.addEventListener('DOMContentLoaded', () => {
       sidebar.classList.remove('open');
       overlay.classList.remove('open');
     });
+  }
+
+  const supportBadge = document.getElementById('supportNewRequestsBadge');
+  if (supportBadge) {
+    const refreshSupportBadge = async () => {
+      try {
+        const response = await fetch(supportBadge.dataset.countUrl, {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        });
+        if (!response.ok) return;
+
+        const { count } = await response.json();
+        supportBadge.hidden = count < 1;
+        supportBadge.setAttribute('aria-label', `${count} new support request${count === 1 ? '' : 's'}`);
+      } catch (_) {
+        // Keep the server-rendered badge if the background refresh fails.
+      }
+    };
+
+    window.setInterval(refreshSupportBadge, 20000);
   }
 });
 </script>

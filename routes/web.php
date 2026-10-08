@@ -107,6 +107,10 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware(['auth', 'ai.policy'])->g
     Route::post('/support', [SupportController::class, 'store'])->middleware('throttle:support')->name('support.store');
     Route::get('/support/requests', [SupportController::class, 'myRequests'])->name('support.requests.index');
     Route::get('/support/requests/{ticket}', [SupportController::class, 'showRequest'])->name('support.requests.show');
+    Route::get('/support/requests/{ticket}/attachments/{attachment}', [SupportController::class, 'downloadAttachment'])
+        ->name('support.requests.attachments.download');
+    Route::get('/support/requests/{ticket}/replies/{reply}/attachments/{attachment}', [SupportController::class, 'showReplyAttachment'])
+        ->name('support.requests.reply-attachments.show');
     Route::post('/support/requests/{ticket}/replies', [SupportController::class, 'storeFollowUp'])
         ->middleware('throttle:support')
         ->name('support.requests.replies.store');
@@ -129,7 +133,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'ai.policy', 'admin'
     Route::resource('faqs', FaqController::class)->except('show');
 
     // Support Tickets
+    Route::get('tickets/new-count', [TicketController::class, 'newCount'])->name('tickets.new-count');
     Route::resource('tickets', TicketController::class)->only(['index', 'show', 'destroy']);
+    Route::get('tickets/{ticket}/attachments/{attachment}', [TicketController::class, 'downloadAttachment'])->name('tickets.attachments.download');
+    Route::get('tickets/{ticket}/replies/{reply}/attachments/{attachment}', [TicketController::class, 'showReplyAttachment'])->name('tickets.reply-attachments.show');
     Route::patch('tickets/{ticket}/assign', [TicketController::class, 'assign'])->name('tickets.assign');
     Route::patch('tickets/{ticket}/status', [TicketController::class, 'updateStatus'])->name('tickets.status');
     Route::patch('tickets/{ticket}/notes', [TicketController::class, 'storeNote'])->name('tickets.notes');

@@ -67,6 +67,12 @@ return [
             'visibility' => 'private',
             'throw' => false,
         ],
+        'support-attachments' => [
+            'driver' => 'local',
+            'root' => storage_path('app/support-attachments'),
+            'visibility' => 'private',
+            'throw' => true,
+        ],
 
         'public' => [
             'driver' => 'local',

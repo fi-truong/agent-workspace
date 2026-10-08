@@ -5,6 +5,9 @@
 <p><strong>Priority:</strong> {{ ucfirst($ticket->priority ?? 'medium') }}</p>
 <p><strong>From:</strong> {{ $ticket->name }} ({{ $ticket->email }})</p>
 <p><strong>Subject:</strong> {{ $ticket->subject }}</p>
+@if($attachmentCount > 0)
+<p><strong>Attachments:</strong> {{ $attachmentCount }} file(s) are available securely in AI+ Admin. Files are not attached to this email.</p>
+@endif
 
 <hr>
 

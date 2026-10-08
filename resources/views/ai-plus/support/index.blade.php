@@ -67,6 +67,16 @@
             <label class="form-label">Details</label>
             <textarea name="details" class="form-textarea" placeholder="Please describe your issue or request in detail." required minlength="10"></textarea>
           </div>
+          <div class="form-group full">
+            <label class="form-label" for="support-attachments">Attachments <span style="font-weight:400;color:var(--text-soft);">(optional)</span></label>
+            <input id="support-attachments" name="attachments[]" class="form-input" type="file" multiple
+              accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.log">
+            <span class="attachment-help">Up to 5 files · 10 MB per file · 15 MB total. Images, PDF, Office documents, CSV, TXT, or LOG.</span>
+            <span class="attachment-help">Please hide passwords, API keys, and student or parent personal information before uploading. Attachments are private and are not sent by email.</span>
+            <span id="supportAttachmentNames" class="attachment-help" aria-live="polite"></span>
+            @error('attachments')<span class="field-error">{{ $message }}</span>@enderror
+            @error('attachments.*')<span class="field-error">{{ $message }}</span>@enderror
+          </div>
         </div>
         <div class="form-row">
           <button type="submit" class="submit-btn">Submit Request</button>
@@ -124,6 +134,7 @@
   .form-input, .form-select, .form-textarea{padding:12px 14px;border:1px solid var(--input-border);border-radius:8px;font-size:14px;font-family:inherit;background: var(--input-bg);color: var(--input-text);transition: border-color 0.15s, background 0.3s, color 0.3s;}
   .form-input:focus, .form-select:focus, .form-textarea:focus{outline:none;border-color: var(--navy);}
   .form-textarea{min-height:120px;resize:vertical;}
+  .attachment-help{font-size:12px;line-height:1.5;color:var(--text-soft);}
   .form-row{display:flex;gap:12px;align-items:center;margin-top:8px;}
   .submit-btn{padding:12px 24px;background: var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition: background 0.15s;}
   .submit-btn:hover{background: var(--navy-deep);}
@@ -161,6 +172,13 @@
   const supportForm = document.getElementById('supportForm');
   const formMessage = document.getElementById('formMessage');
   const submitBtn = supportForm?.querySelector('.submit-btn');
+  const attachmentInput = document.getElementById('support-attachments');
+  const attachmentNames = document.getElementById('supportAttachmentNames');
+
+  attachmentInput?.addEventListener('change', () => {
+    const files = Array.from(attachmentInput.files || []);
+    attachmentNames.textContent = files.map(file => file.name).join(' · ');
+  });
 
   supportForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -194,6 +212,7 @@
         formMessage.className = 'form-message success';
         formMessage.style.display = 'block';
         supportForm.reset();
+        if (attachmentNames) attachmentNames.textContent = '';
       } else {
         const msg = data.errors ? Object.values(data.errors).flat()[0] : (data.message || 'Something went wrong. Please try again.');
         formMessage.textContent = msg;

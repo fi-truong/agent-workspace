@@ -115,6 +115,26 @@ body.admin-body{
   width:20px;
   text-align:center;
 }
+.support-new-badge{
+  margin-left:auto;
+  padding:3px 7px;
+  border-radius:999px;
+  background:#B42318;
+  color:#fff;
+  font-size:10px;
+  font-weight:700;
+  line-height:1.2;
+  letter-spacing:.03em;
+  animation:supportNewPulse 1.15s ease-in-out infinite;
+}
+.support-new-badge[hidden]{display:none;}
+@keyframes supportNewPulse{
+  0%,100%{opacity:1;transform:scale(1);}
+  50%{opacity:.55;transform:scale(.96);}
+}
+@media (prefers-reduced-motion:reduce){
+  .support-new-badge{animation:none;}
+}
 .sidebar-footer{
   padding:12px;
   border-top:1px solid rgba(255,255,255,0.08);

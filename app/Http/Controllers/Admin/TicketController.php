@@ -3,16 +3,21 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Mail\SupportTicketReplyMail;
 use App\Models\AdminAuditLog;
 use App\Models\SupportTicket;
+use App\Models\SupportTicketAttachment;
 use App\Models\SupportTicketReply;
+use App\Models\SupportTicketReplyAttachment;
 use App\Models\User;
 use App\Services\PiiFilterService;
+use Illuminate\Database\DatabaseManager;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TicketController extends Controller
 {
@@ -61,16 +66,45 @@ class TicketController extends Controller
         return view('admin.tickets.index', compact('tickets', 'statuses', 'assignees'));
     }
 
+    public function newCount(): JsonResponse
+    {
+        return response()->json([
+            'count' => SupportTicket::query()->where('status', 'pending')->count(),
+        ]);
+    }
+
     public function show(SupportTicket $ticket)
     {
+        $ticket->update(['admin_read_at' => now()]);
         $ticket->replies()
             ->whereNull('admin_read_at')
             ->where('author_id', $ticket->user_id)
             ->update(['admin_read_at' => now()]);
-        $ticket->load(['user', 'assignee', 'replies.author']);
+        $ticket->load(['user', 'assignee', 'replies.author', 'replies.attachments', 'attachments']);
         $assignees = User::whereIn('role', ['admin', 'staff'])->get(['id', 'name', 'email']);
 
         return view('admin.tickets.show', compact('ticket', 'assignees'));
+    }
+
+    public function downloadAttachment(SupportTicket $ticket, SupportTicketAttachment $attachment): StreamedResponse
+    {
+        $attachment = $ticket->attachments()->findOrFail($attachment->id);
+
+        return Storage::disk('support-attachments')->download($attachment->path, $attachment->original_name, [
+            'Content-Type' => $attachment->mime_type,
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function showReplyAttachment(SupportTicket $ticket, SupportTicketReply $reply, SupportTicketReplyAttachment $attachment): StreamedResponse
+    {
+        $reply = $ticket->replies()->findOrFail($reply->id);
+        $attachment = $reply->attachments()->findOrFail($attachment->id);
+
+        return Storage::disk('support-attachments')->response($attachment->path, null, [
+            'Content-Type' => $attachment->mime_type,
+            'X-Content-Type-Options' => 'nosniff',
+        ], 'inline');
     }
 
     public function updateStatus(Request $request, SupportTicket $ticket)
@@ -124,35 +158,64 @@ class TicketController extends Controller
         return back()->with('success', 'Admin note saved.');
     }
 
-    public function reply(Request $request, SupportTicket $ticket, PiiFilterService $piiFilter)
+    public function reply(Request $request, SupportTicket $ticket, PiiFilterService $piiFilter, DatabaseManager $database): RedirectResponse
     {
         $validated = $request->validate([
-            'body' => 'required|string|min:3|max:5000',
+            'body' => 'nullable|string|min:3|max:5000',
+            'images' => 'nullable|array|max:4',
+            'images.*' => 'required|image|mimes:jpg,jpeg,png,webp|max:4096',
             'resolve' => 'nullable|boolean',
         ]);
-        if ($piiFilter->scan($validated['body'])['flagged']) {
+        $body = trim((string) ($validated['body'] ?? ''));
+        $uploadedImages = $request->file('images', []);
+        if ($body === '' && $uploadedImages === []) {
+            throw ValidationException::withMessages([
+                'body' => 'Write a message or attach at least one image.',
+            ]);
+        }
+        if ($body !== '' && $piiFilter->scan($body)['flagged']) {
             throw ValidationException::withMessages([
                 'body' => 'Support messages cannot contain sensitive personal information. Please remove it and try again.',
             ]);
         }
 
-        $reply = SupportTicketReply::create([
-            'support_ticket_id' => $ticket->id,
-            'author_id' => $request->user()->id,
-            'body' => trim($validated['body']),
-        ]);
-
-        $sent = false;
-        try {
-            Mail::to($ticket->email)->send(new SupportTicketReplyMail($ticket, $reply));
-            $reply->update(['sent_at' => now()]);
-            $sent = true;
-        } catch (\Throwable $exception) {
-            Log::error('Failed to send support ticket reply email', [
-                'ticket_id' => $ticket->id,
-                'reply_id' => $reply->id,
-                'exception' => $exception::class,
+        if (array_sum(array_map(fn ($file): int => $file->getSize(), $uploadedImages)) > 16 * 1024 * 1024) {
+            throw ValidationException::withMessages([
+                'images' => 'Images must not exceed 16 MB in total.',
             ]);
+        }
+
+        $storedPaths = [];
+        try {
+            $reply = $database->transaction(function () use ($ticket, $request, $body, $uploadedImages, &$storedPaths): SupportTicketReply {
+                $reply = SupportTicketReply::create([
+                    'support_ticket_id' => $ticket->id,
+                    'author_id' => $request->user()->id,
+                    'body' => $body,
+                    'sent_at' => now(),
+                ]);
+
+                foreach ($uploadedImages as $image) {
+                    $extension = strtolower($image->guessExtension() ?: $image->extension() ?: 'png');
+                    $path = $image->storeAs('replies/'.$reply->id, Str::uuid().'.'.$extension, 'support-attachments');
+                    $storedPaths[] = $path;
+                    $originalName = basename(str_replace('\\', '/', $image->getClientOriginalName()));
+
+                    SupportTicketReplyAttachment::create([
+                        'support_ticket_reply_id' => $reply->id,
+                        'original_name' => Str::limit($originalName, 255, ''),
+                        'path' => $path,
+                        'mime_type' => $image->getMimeType() ?: 'application/octet-stream',
+                        'size' => $image->getSize(),
+                    ]);
+                }
+
+                return $reply;
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('support-attachments')->delete($storedPaths);
+
+            throw $exception;
         }
 
         if ($request->boolean('resolve')) {
@@ -161,20 +224,20 @@ class TicketController extends Controller
             $ticket->update(['status' => 'in_progress']);
         }
 
-        AdminAuditLog::record('ticket.reply_sent', $ticket, [
+        AdminAuditLog::record('ticket.public_reply_posted', $ticket, [
             'reply_id' => $reply->id,
-            'email_sent' => $sent,
             'resolved' => $request->boolean('resolve'),
+            'image_count' => count($uploadedImages),
         ]);
 
-        return back()->with($sent ? 'success' : 'warning', $sent
-            ? 'Reply sent to the requester.'
-            : 'Reply saved, but the email could not be sent. Check the mail configuration and try again.');
+        return back()->with('success', 'Public reply posted to the request history.');
     }
 
     public function destroy(SupportTicket $ticket)
     {
         AdminAuditLog::record('ticket.deleted', $ticket, ['subject' => $ticket->subject]);
+        $ticket->replies()->with('attachments')->get()->each->delete();
+        $ticket->attachments()->get()->each->delete();
         $ticket->delete();
 
         return redirect()->route('admin.tickets.index')->with('success', 'Ticket deleted.');

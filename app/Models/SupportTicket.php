@@ -9,11 +9,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SupportTicket extends Model
 {
     protected $fillable = [
-        'user_id', 'name', 'email', 'type', 'priority', 'subject', 'details', 'status', 'assigned_to', 'admin_notes', 'resolved_at',
+        'user_id', 'name', 'email', 'type', 'priority', 'subject', 'details', 'status', 'assigned_to', 'admin_notes', 'resolved_at', 'admin_read_at',
     ];
 
     protected $casts = [
         'resolved_at' => 'datetime',
+        'admin_read_at' => 'datetime',
     ];
 
     /** @return BelongsTo<User, $this> */
@@ -32,5 +33,11 @@ class SupportTicket extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(SupportTicketReply::class)->latest();
+    }
+
+    /** @return HasMany<SupportTicketAttachment, $this> */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(SupportTicketAttachment::class);
     }
 }

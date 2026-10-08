@@ -4,9 +4,12 @@ use App\Mail\SupportTicketFollowUpNotification;
 use App\Mail\SupportTicketNotification;
 use App\Mail\SupportTicketReceipt;
 use App\Models\SupportTicket;
+use App\Models\SupportTicketAttachment;
 use App\Models\SupportTicketReply;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 test('submitting support creates a ticket and sends formatted notification emails', function () {
     Mail::fake();
@@ -27,6 +30,7 @@ test('submitting support creates a ticket and sends formatted notification email
 
     $ticket = SupportTicket::firstOrFail();
     expect($ticket->user_id)->toBe($user->id);
+    expect($ticket->attachments)->toHaveCount(0);
     expect($ticket->name)->toBe('Support User')
         ->and($ticket->email)->toBe('support.user@example.test');
 
@@ -35,18 +39,101 @@ test('submitting support creates a ticket and sends formatted notification email
             && $mail->hasTo('support@example.test')
             && str_contains($mail->envelope()->subject, "#{$ticket->id}");
     });
-    Mail::assertSent(SupportTicketReceipt::class, function (SupportTicketReceipt $mail) use ($ticket) {
-        return $mail->ticket->is($ticket)
-            && $mail->hasTo('support.user@example.test');
-    });
+    Mail::assertNotSent(SupportTicketReceipt::class);
 
     expect((new SupportTicketNotification($ticket))->render())
         ->toContain('New AI+ Support Ticket')
         ->toContain('Unable to upload a PDF')
         ->toContain(route('admin.tickets.show', $ticket));
-    expect((new SupportTicketReceipt($ticket))->render())
-        ->toContain('Thank you for contacting AI+ Support')
-        ->toContain('Support User');
+});
+
+test('support requests accept private attachments and restrict downloads to the requester and admins', function () {
+    Mail::fake();
+    Storage::fake('support-attachments');
+    config(['support.notification_recipient' => 'support@example.test']);
+    $user = User::factory()->create();
+    $otherUser = User::factory()->create();
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+
+    $this->actingAs($user)
+        ->postJson(route('ai-plus.support.store'), [
+            'type' => 'Technical Issue / Bug Report',
+            'subject' => 'The page shows an upload error',
+            'details' => 'The page shows an upload error after selecting a document.',
+            'attachments' => [
+                UploadedFile::fake()->image('screenshot.png', 120, 80),
+                UploadedFile::fake()->createWithContent('browser.log', 'A sanitized diagnostic line.'),
+            ],
+        ])
+        ->assertOk()
+        ->assertJsonPath('attachments_count', 2);
+
+    $ticket = SupportTicket::with('attachments')->firstOrFail();
+    $attachment = $ticket->attachments->firstWhere('original_name', 'screenshot.png');
+    expect($ticket->attachments)->toHaveCount(2)
+        ->and($attachment)->not->toBeNull();
+    Storage::disk('support-attachments')->assertExists($attachment->path);
+    $notification = new SupportTicketNotification($ticket);
+    expect($notification->render())->toContain('2 file(s) are available securely in AI+ Admin')
+        ->not->toContain('screenshot.png');
+
+    $this->get(route('ai-plus.support.requests.show', $ticket))
+        ->assertOk()
+        ->assertSee('screenshot.png');
+
+    $this->get(route('ai-plus.support.requests.attachments.download', [$ticket, $attachment]))
+        ->assertOk()
+        ->assertDownload('screenshot.png')
+        ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+    $this->actingAs($otherUser)
+        ->get(route('ai-plus.support.requests.attachments.download', [$ticket, $attachment]))
+        ->assertForbidden();
+
+    $this->actingAs($admin)
+        ->get(route('admin.tickets.show', $ticket))
+        ->assertOk()
+        ->assertSee('screenshot.png');
+
+    $this->actingAs($admin)
+        ->get(route('admin.tickets.attachments.download', [$ticket, $attachment]))
+        ->assertOk()
+        ->assertDownload('screenshot.png')
+        ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+    $this->delete(route('admin.tickets.destroy', $ticket))->assertRedirect(route('admin.tickets.index'));
+    expect(SupportTicketAttachment::count())->toBe(0);
+    Storage::disk('support-attachments')->assertMissing($attachment->path);
+});
+
+test('the support request form marks attachments as optional and explains upload limits', function () {
+    $this->actingAs(User::factory()->create())
+        ->get(route('ai-plus.support.index'))
+        ->assertOk()
+        ->assertSee('Attachments')
+        ->assertSee('optional')
+        ->assertSee('15 MB total');
+});
+
+test('support attachments enforce the combined upload size limit', function () {
+    Storage::fake('support-attachments');
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('ai-plus.support.store'), [
+            'type' => 'Technical Issue / Bug Report',
+            'subject' => 'The page shows an upload error',
+            'details' => 'The page shows an upload error after selecting a document.',
+            'attachments' => [
+                UploadedFile::fake()->create('first.txt', 8192, 'text/plain'),
+                UploadedFile::fake()->create('second.txt', 8192, 'text/plain'),
+            ],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('attachments');
+
+    expect(SupportTicket::count())->toBe(0)
+        ->and(SupportTicketAttachment::count())->toBe(0);
 });
 
 test('support messages containing sensitive personal information are not stored or emailed', function () {

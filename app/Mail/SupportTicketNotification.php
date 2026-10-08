@@ -31,6 +31,7 @@ class SupportTicketNotification extends Mailable
             with: [
                 'ticket' => $this->ticket,
                 'adminUrl' => route('admin.tickets.show', $this->ticket),
+                'attachmentCount' => $this->ticket->attachments()->count(),
             ],
         );
     }

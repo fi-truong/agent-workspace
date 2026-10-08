@@ -16,14 +16,31 @@
   <section class="message request-message">
     <div class="message-meta">You · {{ $ticket->created_at->format('d/m/Y H:i') }} · {{ $ticket->type }}</div>
     <div class="message-body">{{ $ticket->details }}</div>
+    @if($ticket->attachments->isNotEmpty())
+      <div class="ticket-attachments">
+        <strong>Attachments</strong>
+        @foreach($ticket->attachments as $attachment)
+          <a href="{{ route('ai-plus.support.requests.attachments.download', [$ticket, $attachment]) }}">📎 {{ $attachment->original_name }}</a>
+        @endforeach
+      </div>
+    @endif
   </section>
   @forelse($ticket->replies as $reply)
     <section class="message reply-message">
       <div class="message-meta">{{ $reply->author_id === $ticket->user_id ? 'You' : 'AI+ Support' }} · {{ $reply->created_at->format('d/m/Y H:i') }}</div>
       <div class="message-body">{{ $reply->body }}</div>
+      @if($reply->attachments->isNotEmpty())
+        <div class="reply-images">
+          @foreach($reply->attachments as $attachment)
+            <a href="{{ route('ai-plus.support.requests.reply-attachments.show', [$ticket, $reply, $attachment]) }}" target="_blank" rel="noopener" aria-label="View {{ $attachment->original_name }}">
+              <img src="{{ route('ai-plus.support.requests.reply-attachments.show', [$ticket, $reply, $attachment]) }}" alt="{{ $attachment->original_name }}">
+            </a>
+          @endforeach
+        </div>
+      @endif
     </section>
   @empty
-    <div class="waiting">No reply yet. The support team will respond by email and update this page.</div>
+    <div class="waiting">No reply yet. The support team will reply here. Check this page for updates.</div>
   @endforelse
   <section class="follow-up">
     <h2>Send a follow-up</h2>
@@ -40,6 +57,6 @@
 
 @push('styles')
 <style>
-  .page-header{background:var(--page-header-bg);color:var(--page-header-text);padding:40px 0 48px}.back-requests{color:var(--page-header-muted);font-size:14px;text-decoration:none}.page-header h1{font-family:'Fraunces',serif;font-size:clamp(28px,4vw,40px);margin:14px 0 10px}.page-header p{color:var(--page-header-muted);font-size:15px;margin:0}.content{padding:38px 0 60px}.message{padding:20px;border-radius:12px;border:1px solid var(--surface-border);margin-bottom:14px}.request-message{background:var(--surface)}.reply-message{background:#f1faf6;border-color:#b9decf}.message-meta{font-size:13px;color:var(--text-soft);margin-bottom:10px}.message-body{white-space:pre-wrap;line-height:1.65;color:var(--text-main)}.waiting{padding:20px;background:var(--surface);border:1px dashed var(--surface-border);border-radius:12px;color:var(--text-soft)}.follow-up{margin-top:24px;padding:20px;background:var(--surface);border:1px solid var(--surface-border);border-radius:12px}.follow-up h2{font-family:'Fraunces',serif;font-size:19px;margin:0 0 6px}.follow-up p{color:var(--text-soft);font-size:14px;margin:0 0 14px}.follow-up textarea{box-sizing:border-box;width:100%;padding:12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:inherit;resize:vertical}.follow-up button{margin-top:10px;padding:9px 15px;border:0;border-radius:8px;background:var(--navy);color:#fff;font-weight:600;cursor:pointer}.status{padding:4px 9px;border-radius:999px;font-size:12px;font-weight:600;text-transform:capitalize}.status-pending{background:#fff3cd;color:#856404}.status-in_progress{background:#dceeff;color:#1d5d93}.status-resolved{background:#dff5e8;color:#17623a}.status-closed{background:#e9ecef;color:#495057}
+  .page-header{background:var(--page-header-bg);color:var(--page-header-text);padding:40px 0 48px}.back-requests{color:var(--page-header-muted);font-size:14px;text-decoration:none}.page-header h1{font-family:'Fraunces',serif;font-size:clamp(28px,4vw,40px);margin:14px 0 10px}.page-header p{color:var(--page-header-muted);font-size:15px;margin:0}.content{padding:38px 0 60px}.message{padding:20px;border-radius:12px;border:1px solid var(--surface-border);margin-bottom:14px}.request-message{background:var(--surface)}.reply-message{background:#f1faf6;border-color:#b9decf}.message-meta{font-size:13px;color:var(--text-soft);margin-bottom:10px}.message-body{white-space:pre-wrap;line-height:1.65;color:var(--text-main)}.reply-images{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.reply-images img{display:block;max-width:min(100%,520px);max-height:420px;object-fit:contain;border:1px solid var(--surface-border);border-radius:8px;background:#fff}.ticket-attachments{display:grid;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--surface-border);font-size:13px}.ticket-attachments a{color:var(--navy);text-decoration:none}.ticket-attachments a:hover{text-decoration:underline}.waiting{padding:20px;background:var(--surface);border:1px dashed var(--surface-border);border-radius:12px;color:var(--text-soft)}.follow-up{margin-top:24px;padding:20px;background:var(--surface);border:1px solid var(--surface-border);border-radius:12px}.follow-up h2{font-family:'Fraunces',serif;font-size:19px;margin:0 0 6px}.follow-up p{color:var(--text-soft);font-size:14px;margin:0 0 14px}.follow-up textarea{box-sizing:border-box;width:100%;padding:12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--input-text);font:inherit;resize:vertical}.follow-up button{margin-top:10px;padding:9px 15px;border:0;border-radius:8px;background:var(--navy);color:#fff;font-weight:600;cursor:pointer}.status{padding:4px 9px;border-radius:999px;font-size:12px;font-weight:600;text-transform:capitalize}.status-pending{background:#fff3cd;color:#856404}.status-in_progress{background:#dceeff;color:#1d5d93}.status-resolved{background:#dff5e8;color:#17623a}.status-closed{background:#e9ecef;color:#495057}
 </style>
 @endpush

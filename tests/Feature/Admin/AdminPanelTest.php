@@ -1,16 +1,18 @@
 <?php
 
-use App\Mail\SupportTicketReplyMail;
-use App\Models\AppSetting;
 use App\Models\AiSafetyEvent;
+use App\Models\AppSetting;
 use App\Models\ShowcasePost;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketReply;
+use App\Models\SupportTicketReplyAttachment;
 use App\Models\UsageLog;
 use App\Models\User;
 use App\Services\TokenQuotaService;
 use Carbon\Carbon;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 test('guests are redirected away from the admin panel', function () {
     $this->get(route('admin.dashboard'))->assertRedirect(route('login.local.form'));
@@ -494,12 +496,15 @@ test('ticket search uses the details field and notes have a dedicated route', fu
     $this->assertDatabaseHas('support_tickets', ['id' => $ticket->id, 'admin_notes' => 'Investigating the issue.']);
 });
 
-test('administrators can reply to a support ticket and mark it resolved', function () {
+test('administrators can post an in-app public reply without sending email', function () {
     Mail::fake();
+    Storage::fake('support-attachments');
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $requester = User::factory()->create();
     $ticket = SupportTicket::create([
-        'name' => 'Reporter',
-        'email' => 'reporter@example.test',
+        'user_id' => $requester->id,
+        'name' => $requester->name,
+        'email' => $requester->email,
         'type' => 'Technical Issue / Bug Report',
         'priority' => 'medium',
         'subject' => 'Upload failure',
@@ -509,16 +514,84 @@ test('administrators can reply to a support ticket and mark it resolved', functi
     $this->actingAs($admin)
         ->post(route('admin.tickets.replies.store', $ticket), [
             'body' => 'We have fixed the issue. Please try again.',
+            'images' => [UploadedFile::fake()->image('steps.png', 320, 200)],
             'resolve' => '1',
         ])
-        ->assertRedirect();
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Public reply posted to the request history.');
 
     $reply = SupportTicketReply::firstOrFail();
     expect($reply->author_id)->toBe($admin->id)
-        ->and($reply->sent_at)->not->toBeNull();
+        ->and($reply->sent_at)->not->toBeNull()
+        ->and($reply->attachments)->toHaveCount(1);
+    $attachment = $reply->attachments->first();
+    Storage::disk('support-attachments')->assertExists($attachment->path);
     $this->assertDatabaseHas('support_tickets', ['id' => $ticket->id, 'status' => 'resolved']);
-    Mail::assertSent(SupportTicketReplyMail::class, fn (SupportTicketReplyMail $mail) => $mail->reply->is($reply)
-        && $mail->hasTo('reporter@example.test'));
+    Mail::assertNothingSent();
+
+    $this->actingAs($requester)
+        ->get(route('ai-plus.support.requests.show', $ticket))
+        ->assertOk()
+        ->assertSee('We have fixed the issue. Please try again.')
+        ->assertSee(route('ai-plus.support.requests.reply-attachments.show', [$ticket, $reply, $attachment]), false)
+        ->assertSee('Send a follow-up');
+
+    $imageResponse = $this->get(route('ai-plus.support.requests.reply-attachments.show', [$ticket, $reply, $attachment]));
+    $imageResponse
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/png')
+        ->assertHeader('X-Content-Type-Options', 'nosniff');
+    expect($imageResponse->headers->get('Content-Disposition'))->toStartWith('inline;');
+
+    $otherRequester = User::factory()->create();
+    $this->actingAs($otherRequester)
+        ->get(route('ai-plus.support.requests.reply-attachments.show', [$ticket, $reply, $attachment]))
+        ->assertForbidden();
+
+    $this->actingAs($admin)
+        ->get(route('admin.tickets.show', $ticket))
+        ->assertOk()
+        ->assertSee('Public reply')
+        ->assertSee(route('admin.tickets.reply-attachments.show', [$ticket, $reply, $attachment]), false)
+        ->assertSee('No email will be sent.')
+        ->assertSee('Post Reply')
+        ->assertDontSee('Email sent');
+
+    $this->get(route('admin.tickets.reply-attachments.show', [$ticket, $reply, $attachment]))->assertOk();
+    $this->delete(route('admin.tickets.destroy', $ticket))->assertRedirect(route('admin.tickets.index'));
+    Storage::disk('support-attachments')->assertMissing($attachment->path);
+    expect(SupportTicketReplyAttachment::count())->toBe(0);
+});
+
+test('public ticket replies can contain an image without text but reject unsupported image types', function () {
+    Storage::fake('support-attachments');
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $ticket = SupportTicket::create([
+        'name' => 'Reporter',
+        'email' => 'reporter@example.test',
+        'type' => 'Question / How-To',
+        'priority' => 'low',
+        'subject' => 'Question',
+        'details' => 'I need help with this feature.',
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('admin.tickets.replies.store', $ticket), [
+            'body' => '',
+            'images' => [UploadedFile::fake()->image('instruction.png', 200, 120)],
+        ])
+        ->assertRedirect();
+
+    expect(SupportTicketReply::count())->toBe(1);
+
+    $this->actingAs($admin)
+        ->post(route('admin.tickets.replies.store', $ticket), [
+            'body' => '',
+            'images' => [UploadedFile::fake()->create('notes.txt', 20, 'text/plain')],
+        ])
+        ->assertSessionHasErrors('images.0');
+
+    expect(SupportTicketReply::count())->toBe(1);
 });
 
 test('a ticket reply requires meaningful content', function () {
@@ -568,6 +641,47 @@ test('new requester follow-ups are highlighted for admins and marked read when o
     $this->get(route('admin.tickets.show', $ticket))->assertOk();
 
     expect($followUp->fresh()->admin_read_at)->not->toBeNull();
+});
+
+test('pending support requests show a live new badge until they are processed', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $requester = User::factory()->create();
+    $ticket = SupportTicket::create([
+        'user_id' => $requester->id,
+        'name' => $requester->name,
+        'email' => $requester->email,
+        'type' => 'Technical Issue / Bug Report',
+        'priority' => 'medium',
+        'subject' => 'A new support request',
+        'details' => 'The request should appear in the admin sidebar.',
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('admin.dashboard'))
+        ->assertOk()
+        ->assertSee('Support Tickets')
+        ->assertSee('id="supportNewRequestsBadge"', false)
+        ->assertSee('>New</span>', false)
+        ->assertSee('setInterval(refreshSupportBadge, 20000)', false);
+
+    $this->get(route('admin.tickets.new-count'))
+        ->assertOk()
+        ->assertExactJson(['count' => 1]);
+
+    $this->get(route('admin.tickets.show', $ticket))->assertOk();
+    expect($ticket->fresh()->admin_read_at)->not->toBeNull();
+
+    $this->patch(route('admin.tickets.status', $ticket), ['status' => 'in_progress'])
+        ->assertRedirect();
+
+    $this->get(route('admin.tickets.new-count'))
+        ->assertOk()
+        ->assertExactJson(['count' => 0]);
+
+    $this->get(route('admin.dashboard'))
+        ->assertOk()
+        ->assertSee('id="supportNewRequestsBadge"', false)
+        ->assertSee('hidden', false);
 });
 
 test('administrators can filter tickets that need a reply', function () {

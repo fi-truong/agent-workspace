@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SupportTicketReply extends Model
 {
@@ -15,6 +16,13 @@ class SupportTicketReply extends Model
         'admin_read_at' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::deleting(function (SupportTicketReply $reply): void {
+            $reply->attachments()->get()->each->delete();
+        });
+    }
+
     /** @return BelongsTo<SupportTicket, $this> */
     public function ticket(): BelongsTo
     {
@@ -25,5 +33,11 @@ class SupportTicketReply extends Model
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author_id');
+    }
+
+    /** @return HasMany<SupportTicketReplyAttachment, $this> */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(SupportTicketReplyAttachment::class);
     }
 }
