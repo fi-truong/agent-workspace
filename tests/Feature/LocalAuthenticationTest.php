@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\User;
 use App\Http\Controllers\AiPolicyAcceptanceController;
+use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
 test('the local login screen is available', function () {
@@ -42,6 +42,22 @@ test('a user can accept the AI policy and the acceptance is versioned and timest
         ->and($user->ai_policy_version)->toBe(AiPolicyAcceptanceController::VERSION);
 });
 
+test('the first-use AI policy page includes English and Vietnamese language choices', function () {
+    $user = User::factory()->withoutAiPolicyAcceptance()->create();
+
+    $this->actingAs($user)
+        ->get(route('ai-plus.policy-acceptance.show'))
+        ->assertOk()
+        ->assertSee('English')
+        ->assertSee('Tiếng Việt')
+        ->assertSee('Use AI+ responsibly')
+        ->assertSee('Sử dụng AI+ có trách nhiệm')
+        ->assertSee('data-policy-language="en" aria-pressed="true"', false)
+        ->assertSee('data-policy-copy="vi" lang="vi" hidden', false)
+        ->assertSee('Đồng ý và tiếp tục')
+        ->assertSee('Tôi đã đọc và đồng ý sử dụng AI+ phù hợp với Chính sách và Hướng dẫn AI của LSTS.');
+});
+
 test('an unaccepted user cannot bypass the policy page by opening an AI Plus URL directly', function () {
     $user = User::factory()->withoutAiPolicyAcceptance()->create();
 
@@ -51,7 +67,12 @@ test('an unaccepted user cannot bypass the policy page by opening an AI Plus URL
 
     $this->actingAs($user)
         ->get(route('ai-plus.ai-policy.index'))
-        ->assertOk();
+        ->assertOk()
+        ->assertSee('data-policy-language="en" aria-pressed="true"', false)
+        ->assertSee('data-policy-language="vi" aria-pressed="false"', false)
+        ->assertSee('Chính sách và Hướng dẫn sử dụng AI')
+        ->assertSee('Bảo vệ dữ liệu')
+        ->assertSee('Hành vi bị cấm');
 });
 
 test('inactive users and invalid credentials cannot sign in through local login', function () {

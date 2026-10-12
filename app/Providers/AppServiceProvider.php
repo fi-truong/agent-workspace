@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Agent;
+use App\Models\SupportTicket;
 use App\Policies\AgentPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Pagination\Paginator;
@@ -35,6 +36,10 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer(['layouts.ai-plus', 'layouts.app'], function ($view) {
             $view->with('currentUser', auth()->user());
+        });
+
+        View::composer('layouts.admin', function ($view) {
+            $view->with('newSupportRequestsCount', SupportTicket::query()->where('status', 'pending')->count());
         });
 
         Event::listen(function (SocialiteWasCalled $event) {

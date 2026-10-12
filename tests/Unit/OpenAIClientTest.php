@@ -52,6 +52,53 @@ it('sends a privacy-preserving safety identifier when supplied', function () {
     Http::assertSent(fn (Request $request): bool => $request->data()['safety_identifier'] === 'hashed-user-id');
 });
 
+it('decodes streamed function-call arguments without exposing them as text deltas', function () {
+    config(['openai.api_key' => 'sk-test', 'openai.model' => 'gpt-6-luna']);
+    $toolArguments = json_encode([
+        'summary' => 'Updated the greeting.',
+        'edits' => [['find' => "print('before')", 'replace' => "print('after')"]],
+    ]);
+    $events = [
+        ['choices' => [['delta' => ['tool_calls' => [[
+            'index' => 0,
+            'id' => 'call-code-edit',
+            'type' => 'function',
+            'function' => ['name' => 'apply_code_patch', 'arguments' => $toolArguments],
+        ]]], 'finish_reason' => null]], 'model' => 'gpt-6-luna'],
+        ['choices' => [['delta' => [], 'finish_reason' => 'tool_calls']], 'usage' => ['prompt_tokens' => 30, 'completion_tokens' => 10], 'model' => 'gpt-6-luna'],
+    ];
+    $body = collect($events)
+        ->map(fn (array $event): string => 'data: '.json_encode($event)."\n\n")
+        ->push("data: [DONE]\n\n")
+        ->implode('');
+    Http::fake(['https://api.openai.com/*' => Http::response($body, 200, ['Content-Type' => 'text/event-stream'])]);
+    Http::preventStrayRequests();
+    $deltas = [];
+
+    $result = (new OpenAIClient)->streamChat(
+        [['role' => 'user', 'content' => 'Please update the attached source.']],
+        function (string $delta) use (&$deltas): void {
+            $deltas[] = $delta;
+        },
+        maxCompletionTokens: 2048,
+        tools: [[
+            'type' => 'function',
+            'function' => ['name' => 'apply_code_patch'],
+        ]],
+    );
+
+    expect($result['content'])->toBe('')
+        ->and($result['tool_calls'][0]['id'])->toBe('call-code-edit')
+        ->and($result['tool_calls'][0]['name'])->toBe('apply_code_patch')
+        ->and($result['tool_calls'][0]['arguments'])->toBe($toolArguments)
+        ->and($result['prompt_tokens'])->toBe(30)
+        ->and($deltas)->toBe([]);
+
+    Http::assertSent(fn (Request $request): bool => $request->data()['reasoning_effort'] === 'none'
+        && $request->data()['tool_choice'] === 'auto'
+        && $request->data()['parallel_tool_calls'] === false);
+});
+
 it('retries only on server errors', function () {
     config(['openai.api_key' => 'sk-test']);
 

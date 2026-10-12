@@ -31,7 +31,12 @@ class KnowledgeService
      * File types accepted as direct attachments in a chat message.
      * Images use the separate multimodal chat path and are not included here.
      */
-    public const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'html', 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
+    public const CHAT_CODE_EXTENSIONS = [
+        'js', 'jsx', 'mjs', 'cjs', 'css', 'ts', 'tsx', 'json', 'xml', 'md', 'php', 'py', 'java', 'sql',
+        'yaml', 'yml', 'sh', 'bash', 'c', 'h', 'cpp', 'hpp', 'cs', 'go', 'rb',
+    ];
+
+    public const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'html', ...self::CHAT_CODE_EXTENSIONS, 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
 
     // Direct chat attachments remain deliberately small so one turn cannot
     // consume excessive context or upload bandwidth.
@@ -46,6 +51,8 @@ class KnowledgeService
     public const MAX_AGENT_TOTAL_SIZE_KB = 51_200;
 
     public const MAX_HTML_CODE_CONTEXT_CHARS = 20_000;
+
+    public const MAX_SOURCE_CODE_CONTEXT_CHARS = 20_000;
 
     /** @var array<int, string> */
     private const OCR_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
@@ -671,6 +678,10 @@ class KnowledgeService
             return $binary;
         }
 
+        if (in_array($extension, self::CHAT_CODE_EXTENSIONS, true)) {
+            return $this->sourceCodeForEditing($binary);
+        }
+
         if ($extension === 'html') {
             return $this->htmlToText($binary);
         }
@@ -829,12 +840,45 @@ class KnowledgeService
 
     public function htmlSourceForCode(string $html): string
     {
-        $html = str_replace("\0", '', $html);
-        if (! mb_check_encoding($html, 'UTF-8')) {
+        $html = $this->sourceCodeForPiiScan($html);
+
+        return Str::limit(trim($html), self::MAX_HTML_CODE_CONTEXT_CHARS, "\n<!-- Source truncated because it exceeds the safe chat limit. -->");
+    }
+
+    public function sourceCodeForEditing(string $source, int $maxCharacters = self::MAX_SOURCE_CODE_CONTEXT_CHARS): string
+    {
+        $source = $this->sourceCodeForPiiScan($source);
+        if (! mb_check_encoding($source, 'UTF-8') || trim($source) === '') {
             return '';
         }
 
-        return Str::limit(trim($html), self::MAX_HTML_CODE_CONTEXT_CHARS, "\n<!-- Source truncated because it exceeds the safe chat limit. -->");
+        return mb_substr($source, 0, $maxCharacters);
+    }
+
+    public function sourceCodeForPiiScan(string $source): string
+    {
+        if (! mb_check_encoding($source, 'UTF-8')) {
+            return '';
+        }
+
+        return str_replace("\0", '', $source);
+    }
+
+    public function sourceCodeLanguage(string $extension): string
+    {
+        return match (strtolower($extension)) {
+            'js', 'mjs', 'cjs' => 'javascript',
+            'ts' => 'typescript',
+            'py' => 'python',
+            'rb' => 'ruby',
+            'md' => 'markdown',
+            'yml' => 'yaml',
+            'sh' => 'bash',
+            'h' => 'c',
+            'hpp' => 'cpp',
+            'cs' => 'csharp',
+            default => strtolower($extension),
+        };
     }
 
     /**

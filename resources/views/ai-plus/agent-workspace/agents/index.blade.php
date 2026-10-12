@@ -21,9 +21,14 @@
         <div class="agent-icon">@if($agent->avatar_url)<img src="{{ $agent->avatar_url }}" alt="">@else 🤖 @endif</div>
         <div class="agent-title">{{ $agent->title }}</div>
       </div>
-      @if($agent->description)
-      <p class="agent-description">{{ $agent->description }}</p>
-      @endif
+      <div class="agent-description-wrap">
+        @if($agent->description)
+        <p class="agent-description is-collapsed" id="agent-description-{{ $agent->id }}">{{ $agent->description }}</p>
+        @if(\Illuminate\Support\Str::length($agent->description) > 120)
+        <button class="agent-description-toggle" type="button" aria-expanded="false" aria-controls="agent-description-{{ $agent->id }}" data-description-toggle>More</button>
+        @endif
+        @endif
+      </div>
       <div class="agent-meta">
         <span class="badge {{ $agent->is_shared ? 'shared' : 'private' }}">
           {{ $agent->is_shared ? 'Shared' : 'Private' }}
@@ -43,9 +48,14 @@
         <div class="agent-icon">@if($agent->avatar_url)<img src="{{ $agent->avatar_url }}" alt="">@else 🤖 @endif</div>
         <div class="agent-title">{{ $agent->title }}</div>
       </div>
-      @if($agent->description)
-      <p class="agent-description">{{ $agent->description }}</p>
-      @endif
+      <div class="agent-description-wrap">
+        @if($agent->description)
+        <p class="agent-description is-collapsed" id="agent-description-{{ $agent->id }}">{{ $agent->description }}</p>
+        @if(\Illuminate\Support\Str::length($agent->description) > 120)
+        <button class="agent-description-toggle" type="button" aria-expanded="false" aria-controls="agent-description-{{ $agent->id }}" data-description-toggle>More</button>
+        @endif
+        @endif
+      </div>
       <div class="agent-meta">
         <span class="badge shared">Shared · Use-only</span>
         <span class="updated-at">Shortcut in your workspace</span>
@@ -75,16 +85,21 @@
 .page-header .page-title { margin: 0; font-size: clamp(28px, 3.5vw, 36px); }
 
 /* Grid */
-.agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-.agent-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; align-items: start; }
+.agent-card { box-sizing: border-box; height: 302px; background: var(--card-bg); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.agent-card.is-expanded { height: auto; }
 .agent-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -12px rgba(31,56,100,0.25); border-color: rgba(31,56,100,0.2); }
 .shared-agent-card{border-color:rgba(35,95,78,.28);background:linear-gradient(135deg,rgba(238,248,243,.72),var(--card-bg));}
-.agent-card-header { display: flex; align-items: center; gap: 12px; }
+.agent-card-header { display: flex; align-items: center; gap: 12px; min-height: 56px; }
 .agent-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--navy); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; overflow:hidden; }
 .agent-icon img{width:100%;height:100%;object-fit:cover;}
-.agent-title { font-family: 'Fraunces', serif; font-weight: 600; font-size: 18px; color: var(--ink); }
-.agent-description { color: var(--ink-soft); font-size: 14px; margin: 0; line-height: 1.5; }
-.agent-meta { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); }
+.agent-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-family: 'Fraunces', serif; font-weight: 600; font-size: 18px; color: var(--ink); }
+.agent-description-wrap { min-width: 0; min-height: calc(4.5em + 20px); font-size: 14px; line-height: 1.5; }
+.agent-description { min-height: 4.5em; color: var(--ink-soft); font-size: 14px; margin: 0; line-height: 1.5; }
+.agent-description.is-collapsed { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.agent-description-toggle { margin: 5px 0 0; padding: 0; border: 0; background: transparent; color: var(--navy); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.agent-description-toggle:hover { text-decoration: underline; }
+.agent-meta { display: flex; align-items: center; gap: 10px; min-height: 52px; box-sizing: border-box; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); }
 .badge { font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 3px 8px; border-radius: 999px; font-weight: 500; }
 .badge.shared { background: var(--sage); color: #fff; }
 .badge.private { background: var(--paper); color: var(--ink-soft); border: 1px solid var(--line); }
@@ -216,5 +231,21 @@
 .knowledge-saved-row.removing { text-decoration: line-through; }
 .knowledge-saved-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
+@endpush
+
+@push('scripts')
+<script>
+document.querySelectorAll('[data-description-toggle]').forEach(button => {
+  button.addEventListener('click', () => {
+    const description = document.getElementById(button.getAttribute('aria-controls'));
+    const card = button.closest('.agent-card');
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    description.classList.toggle('is-collapsed', isExpanded);
+    card.classList.toggle('is-expanded', !isExpanded);
+    button.setAttribute('aria-expanded', String(!isExpanded));
+    button.textContent = isExpanded ? 'More' : 'Less';
+  });
+});
+</script>
 @endpush
 @endsection

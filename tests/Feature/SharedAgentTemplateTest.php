@@ -2,6 +2,7 @@
 
 use App\Models\Agent;
 use App\Models\ShowcasePost;
+use App\Models\ShowcaseUse;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
@@ -180,7 +181,44 @@ test('using a use-only agent more than once does not inflate its use count', fun
         ->assertSessionHas('success', 'You are already using this agent. Continue in Agent Workspace.');
 
     expect($showcase->fresh()->uses_count)->toBe(1)
-        ->and(\App\Models\ShowcaseUse::count())->toBe(1);
+        ->and(ShowcaseUse::count())->toBe(1);
+});
+
+test('My Agents truncates long descriptions and provides a More toggle', function () {
+    $owner = User::factory()->create();
+    $longDescription = str_repeat('This Agent helps staff prepare classroom resources and school communications. ', 4);
+    Agent::create([
+        'user_id' => $owner->id,
+        'title' => 'Long description Agent',
+        'description' => $longDescription,
+        'is_shared' => false,
+    ]);
+    Agent::create([
+        'user_id' => $owner->id,
+        'title' => 'Short description Agent',
+        'description' => 'A concise assistant.',
+        'is_shared' => false,
+    ]);
+
+    $response = $this->actingAs($owner)
+        ->get(route('ai-plus.agent-workspace.agents.index'));
+
+    $response
+        ->assertOk()
+        ->assertSee('agent-description is-collapsed', false)
+        ->assertSee('aria-expanded="false"', false)
+        ->assertSee('data-description-toggle', false)
+        ->assertSee('.agent-card { box-sizing: border-box; height: 302px;', false)
+        ->assertSee('.agent-card.is-expanded { height: auto; }', false)
+        ->assertSee("card.classList.toggle('is-expanded', !isExpanded)", false)
+        ->assertSee('.agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; align-items: start; }', false)
+        ->assertSee('.agent-card-header { display: flex; align-items: center; gap: 12px; min-height: 56px; }', false)
+        ->assertSee('-webkit-line-clamp: 2', false)
+        ->assertSee('.agent-meta { display: flex; align-items: center; gap: 10px; min-height: 52px;', false)
+        ->assertSee('.agent-description-wrap { min-width: 0; min-height: calc(4.5em + 20px); font-size: 14px; line-height: 1.5; }', false)
+        ->assertSee('Short description Agent');
+
+    expect(substr_count($response->getContent(), 'aria-expanded="false"'))->toBe(1);
 });
 
 test('copying a shared agent more than once reopens the existing copy', function () {

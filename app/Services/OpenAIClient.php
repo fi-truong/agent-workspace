@@ -13,11 +13,12 @@ class OpenAIClient
      * Gọi OpenAI Chat Completions API (không streaming — giữ nguyên cho các chỗ khác đang dùng).
      *
      * @param  array<int, array{role: string, content: mixed}>  $messages
-     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string}
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string, tool_calls: array<int, array{id: string, name: string, arguments: string}>}
      *
      * @throws \Throwable
      */
-    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null): array
+    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = []): array
     {
         $apiKey = config('openai.api_key');
 
@@ -31,8 +32,13 @@ class OpenAIClient
             'model' => config('openai.model'),
             'messages' => $messages,
             'max_completion_tokens' => $maxCompletionTokens ?? config('openai.max_tokens'),
-            'reasoning_effort' => config('openai.reasoning_effort'),
+            'reasoning_effort' => $tools !== [] ? 'none' : config('openai.reasoning_effort'),
         ];
+        if ($tools !== []) {
+            $payload['tools'] = $tools;
+            $payload['tool_choice'] = 'auto';
+            $payload['parallel_tool_calls'] = false;
+        }
         if ($safetyIdentifier !== null) {
             $payload['safety_identifier'] = $safetyIdentifier;
         }
@@ -57,8 +63,24 @@ class OpenAIClient
 
         $data = $response->json();
 
-        $content = $data['choices'][0]['message']['content']
-            ?? throw new \RuntimeException('OpenAI trả về phản hồi thiếu nội dung.');
+        $message = $data['choices'][0]['message'] ?? [];
+        $content = $message['content'] ?? '';
+        $toolCalls = collect($message['tool_calls'] ?? [])
+            ->map(fn (array $toolCall): array => [
+                'id' => (string) ($toolCall['id'] ?? ''),
+                'name' => (string) ($toolCall['function']['name'] ?? ''),
+                'arguments' => (string) ($toolCall['function']['arguments'] ?? ''),
+            ])
+            ->filter(fn (array $toolCall): bool => $toolCall['id'] !== '' && $toolCall['name'] !== '')
+            ->values()
+            ->all();
+
+        if (! is_string($content)) {
+            $content = '';
+        }
+        if ($content === '' && $toolCalls === []) {
+            throw new \RuntimeException('OpenAI trả về phản hồi thiếu nội dung.');
+        }
 
         $finishReason = $data['choices'][0]['finish_reason'] ?? null;
 
@@ -76,6 +98,7 @@ class OpenAIClient
             'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
             'completion_tokens' => (int) ($usage['completion_tokens'] ?? 0),
             'model' => $data['model'] ?? config('openai.model'),
+            'tool_calls' => $toolCalls,
         ];
     }
 
@@ -86,11 +109,12 @@ class OpenAIClient
      *
      * @param  array<int, array{role: string, content: mixed}>  $messages
      * @param  callable(string): void  $onDelta
-     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string}
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string, tool_calls: array<int, array{id: string, name: string, arguments: string}>}
      *
      * @throws \Throwable
      */
-    public function streamChat(array $messages, callable $onDelta, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null): array
+    public function streamChat(array $messages, callable $onDelta, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = []): array
     {
         $apiKey = config('openai.api_key');
 
@@ -104,10 +128,15 @@ class OpenAIClient
             'model' => config('openai.model'),
             'messages' => $messages,
             'max_completion_tokens' => $maxCompletionTokens ?? config('openai.max_tokens'),
-            'reasoning_effort' => config('openai.reasoning_effort'),
+            'reasoning_effort' => $tools !== [] ? 'none' : config('openai.reasoning_effort'),
             'stream' => true,
             'stream_options' => ['include_usage' => true],
         ];
+        if ($tools !== []) {
+            $payload['tools'] = $tools;
+            $payload['tool_choice'] = 'auto';
+            $payload['parallel_tool_calls'] = false;
+        }
         if ($safetyIdentifier !== null) {
             $payload['safety_identifier'] = $safetyIdentifier;
         }
@@ -137,6 +166,7 @@ class OpenAIClient
         $fullContent = '';
         $finishReason = null;
         $usage = [];
+        $toolCallChunks = [];
         $model = config('openai.model');
         $streamDone = false;
 
@@ -173,11 +203,20 @@ class OpenAIClient
                         continue;
                     }
 
-                    $delta = $json['choices'][0]['delta']['content'] ?? null;
+                    $messageDelta = $json['choices'][0]['delta'] ?? [];
+                    $delta = $messageDelta['content'] ?? null;
 
                     if (is_string($delta) && $delta !== '') {
                         $fullContent .= $delta;
                         $onDelta($delta);
+                    }
+
+                    foreach ($messageDelta['tool_calls'] ?? [] as $toolCallDelta) {
+                        $index = (int) ($toolCallDelta['index'] ?? 0);
+                        $toolCallChunks[$index] ??= ['id' => '', 'name' => '', 'arguments' => ''];
+                        $toolCallChunks[$index]['id'] .= (string) ($toolCallDelta['id'] ?? '');
+                        $toolCallChunks[$index]['name'] .= (string) ($toolCallDelta['function']['name'] ?? '');
+                        $toolCallChunks[$index]['arguments'] .= (string) ($toolCallDelta['function']['arguments'] ?? '');
                     }
 
                     $finishReason = $json['choices'][0]['finish_reason'] ?? $finishReason;
@@ -190,15 +229,22 @@ class OpenAIClient
             }
         }
 
+        $toolCalls = collect($toolCallChunks)
+            ->map(fn (array $toolCall): array => $toolCall)
+            ->filter(fn (array $toolCall): bool => $toolCall['id'] !== '' && $toolCall['name'] !== '')
+            ->values()
+            ->all();
+
         Log::info('OpenAI stream completion decoded', [
             'content_len' => mb_strlen($fullContent),
+            'tool_call_count' => count($toolCalls),
             'finish_reason' => $finishReason,
             // This value is supplied by OpenAI in the stream itself, so it is
             // authoritative metadata rather than the model's self-description.
             'model' => $model,
         ]);
 
-        if ($fullContent === '' && $finishReason === 'length') {
+        if ($fullContent === '' && $toolCalls === [] && $finishReason === 'length') {
             throw new \RuntimeException(
                 'Câu trả lời bị cắt vì vượt giới hạn token (thường do prompt/Knowledge quá dài). '
                 .'Hãy thử rút ngắn tin nhắn, hoặc liên hệ CIEC để tăng giới hạn.'
@@ -210,6 +256,7 @@ class OpenAIClient
             'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
             'completion_tokens' => (int) ($usage['completion_tokens'] ?? 0),
             'model' => $model,
+            'tool_calls' => $toolCalls,
         ];
     }
 

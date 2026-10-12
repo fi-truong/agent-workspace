@@ -23,14 +23,19 @@ class ArtifactService
 {
     public function generate(User $user, ?Conversation $conversation, string $type, string $content, ?string $filename = null): AiArtifact
     {
-        $base = 'ai-plus-document';
-        [, $mime, $binary] = match ($type) {
-            'excel' => $this->excel($base, $content),
-            'word' => $this->word($base, $content),
-            'pdf' => $this->pdf($base, $content),
-            'html' => $this->html($base, $content),
-            default => [$base.'.txt', 'text/plain', $content],
-        };
+        if (preg_match('/^code:([a-z0-9]+)$/', $type, $codeType) === 1
+            && in_array($codeType[1], KnowledgeService::CHAT_CODE_EXTENSIONS, true)) {
+            [, $mime, $binary] = $this->sourceCode($codeType[1], $content);
+        } else {
+            $base = 'ai-plus-document';
+            [, $mime, $binary] = match ($type) {
+                'excel' => $this->excel($base, $content),
+                'word' => $this->word($base, $content),
+                'pdf' => $this->pdf($base, $content),
+                'html' => $this->html($base, $content),
+                default => [$base.'.txt', 'text/plain', $content],
+            };
+        }
         $name = $this->filename($type, $content, $filename);
         $path = $user->id.'/'.Str::uuid().'/'.$name;
         Storage::disk('ai-artifacts')->put($path, $binary);
@@ -40,6 +45,67 @@ class ArtifactService
         return $artifact;
     }
 
+    /**
+     * Apply exact, unique text replacements to the original source and save
+     * the complete result. Untouched sections never pass through the model.
+     *
+     * @return array{artifact: AiArtifact, summary: string}
+     */
+    public function generatePatchedSourceCode(
+        User $user,
+        ?Conversation $conversation,
+        string $extension,
+        string $source,
+        string $patchResponse,
+        ?string $filename = null,
+    ): array {
+        if ($extension !== 'html' && ! in_array($extension, KnowledgeService::CHAT_CODE_EXTENSIONS, true)) {
+            throw new \RuntimeException('This source file type cannot be edited.');
+        }
+
+        try {
+            $payload = json_decode($patchResponse, true, 64, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw new \RuntimeException('I could not safely apply the code changes. No file was created; please try a more specific edit request.');
+        }
+
+        $edits = is_array($payload) ? ($payload['edits'] ?? null) : null;
+        $summary = is_array($payload) ? ($payload['summary'] ?? null) : null;
+        if (! is_array($edits) || $edits === [] || count($edits) > 50 || ! is_string($summary) || trim($summary) === '') {
+            throw new \RuntimeException('I could not safely apply the code changes. No file was created; please try a more specific edit request.');
+        }
+
+        foreach ($edits as $edit) {
+            if (! is_array($edit)
+                || ! is_string($edit['find'] ?? null)
+                || $edit['find'] === ''
+                || mb_strlen($edit['find']) > 20_000
+                || ! is_string($edit['replace'] ?? null)
+                || mb_strlen($edit['replace']) > 50_000
+                || substr_count($source, $edit['find']) !== 1) {
+                throw new \RuntimeException('I could not match a code change to exactly one place in the original file. No file was created; please specify the section to change more precisely.');
+            }
+
+            $source = str_replace($edit['find'], $edit['replace'], $source);
+        }
+
+        $type = 'code:'.$extension;
+        $name = $this->filename($type, '', $filename);
+        $path = $user->id.'/'.Str::uuid().'/'.$name;
+        Storage::disk('ai-artifacts')->put($path, $source);
+        $artifact = AiArtifact::create([
+            'user_id' => $user->id,
+            'conversation_id' => $conversation?->id,
+            'name' => $name,
+            'mime_type' => 'text/plain; charset=UTF-8',
+            'path' => $path,
+            'size' => strlen($source),
+        ]);
+        AdminAuditLog::record('ai_artifact.created', $artifact, ['name' => $name, 'mime_type' => $artifact->mime_type]);
+
+        return ['artifact' => $artifact, 'summary' => trim($summary)];
+    }
+
     private function filename(string $type, string $content, ?string $requestedName): string
     {
         $extension = match ($type) {
@@ -47,7 +113,10 @@ class ArtifactService
             'excel' => 'xlsx',
             'pdf' => 'pdf',
             'html' => 'html',
-            default => 'txt',
+            default => preg_match('/^code:([a-z0-9]+)$/', $type, $matches) === 1
+                && ($matches[1] === 'html' || in_array($matches[1], KnowledgeService::CHAT_CODE_EXTENSIONS, true))
+                    ? $matches[1]
+                    : 'txt',
         };
         $requestedName = trim((string) $requestedName);
         $base = pathinfo($requestedName, PATHINFO_FILENAME);
@@ -220,6 +289,18 @@ class ArtifactService
             .'</style></head><body><main class="document">'.$this->markdownHtml($content).'</main></body></html>';
 
         return [$base.'.html', 'text/html; charset=UTF-8', $html];
+    }
+
+    /** @return array{0: string, 1: string, 2: string} */
+    private function sourceCode(string $extension, string $content): array
+    {
+        $language = app(KnowledgeService::class)->sourceCodeLanguage($extension);
+        $labels = array_unique([$language, $extension]);
+        $alternation = implode('|', array_map(fn (string $label): string => preg_quote($label, '/'), $labels));
+        $pattern = '/```(?:'.$alternation.')\s*\R(.*?)```/is';
+        $source = preg_match($pattern, $content, $matches) === 1 ? trim($matches[1]) : trim($content);
+
+        return ['ai-plus-source-code.'.$extension, 'text/plain; charset=UTF-8', $source];
     }
 
     private function markdownHtml(string $content): string

@@ -13,11 +13,12 @@ class ChatCompletionService
 
     /**
      * @param  array<int, array{role: string, content: mixed}>  $messages
-     * @return array{content: string, prompt_tokens: int, completion_tokens: int}
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model?: string, tool_calls?: array<int, array{id: string, name: string, arguments: string}>}
      *
      * @throws \RuntimeException
      */
-    public function complete(array $messages, ?string $systemPrompt = null, ?string $safetyIdentifier = null): array
+    public function complete(array $messages, ?string $systemPrompt = null, ?string $safetyIdentifier = null, array $tools = []): array
     {
         [$payload, $filtered] = $this->buildPayload($messages, $systemPrompt);
 
@@ -26,7 +27,7 @@ class ChatCompletionService
         }
 
         try {
-            return $this->client->chat($payload, $safetyIdentifier, $this->outputTokenLimit($payload));
+            return $this->client->chat($payload, $safetyIdentifier, $this->outputTokenLimit($payload), $tools);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }
@@ -37,11 +38,12 @@ class ChatCompletionService
      *
      * @param  array<int, array{role: string, content: mixed}>  $messages
      * @param  callable(string): void  $onDelta
-     * @return array{content: string, prompt_tokens: int, completion_tokens: int}
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model?: string, tool_calls?: array<int, array{id: string, name: string, arguments: string}>}
      *
      * @throws \RuntimeException
      */
-    public function streamComplete(array $messages, ?string $systemPrompt, callable $onDelta, ?string $safetyIdentifier = null): array
+    public function streamComplete(array $messages, ?string $systemPrompt, callable $onDelta, ?string $safetyIdentifier = null, array $tools = []): array
     {
         [$payload, $filtered] = $this->buildPayload($messages, $systemPrompt);
 
@@ -50,7 +52,7 @@ class ChatCompletionService
         }
 
         try {
-            return $this->client->streamChat($payload, $onDelta, $safetyIdentifier, $this->outputTokenLimit($payload));
+            return $this->client->streamChat($payload, $onDelta, $safetyIdentifier, $this->outputTokenLimit($payload), $tools);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }

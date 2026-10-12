@@ -848,7 +848,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Cac dinh dang tai lieu (ngoai anh) duoc phep dinh kem trong o chat - khop voi
   // KnowledgeService::CHAT_DOCUMENT_EXTENSIONS phia backend.
-  const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'html', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+  const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'html', 'js', 'jsx', 'mjs', 'cjs', 'css', 'ts', 'tsx', 'json', 'xml', 'md', 'php', 'py', 'java', 'sql', 'yaml', 'yml', 'sh', 'bash', 'c', 'h', 'cpp', 'hpp', 'cs', 'go', 'rb', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
   const MAX_ATTACHMENTS = 5;
   const MAX_IMAGES = 4;
   const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
