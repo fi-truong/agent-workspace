@@ -141,6 +141,8 @@ class OpenAIClient
             $payload['safety_identifier'] = $safetyIdentifier;
         }
 
+        $requestStartedAt = hrtime(true);
+
         $response = Http::retry(
             $this->retryAttempts(),
             $this->retryDelayMilliseconds(),
@@ -160,6 +162,7 @@ class OpenAIClient
             $response->throw();
         }
 
+        $responseReceivedAt = hrtime(true);
         $body = $response->toPsrResponse()->getBody();
 
         $buffer = '';
@@ -167,6 +170,11 @@ class OpenAIClient
         $finishReason = null;
         $usage = [];
         $toolCallChunks = [];
+        $deltaCount = 0;
+        $firstDeltaAt = null;
+        $lastDeltaAt = null;
+        $deltaGapTotalMs = 0.0;
+        $deltaGapMaxMs = 0.0;
         $model = config('openai.model');
         $streamDone = false;
 
@@ -207,6 +215,17 @@ class OpenAIClient
                     $delta = $messageDelta['content'] ?? null;
 
                     if (is_string($delta) && $delta !== '') {
+                        $deltaAt = hrtime(true);
+                        if ($firstDeltaAt === null) {
+                            $firstDeltaAt = $deltaAt;
+                        }
+                        if ($lastDeltaAt !== null) {
+                            $gapMs = ($deltaAt - $lastDeltaAt) / 1_000_000;
+                            $deltaGapTotalMs += $gapMs;
+                            $deltaGapMaxMs = max($deltaGapMaxMs, $gapMs);
+                        }
+                        $lastDeltaAt = $deltaAt;
+                        $deltaCount++;
                         $fullContent .= $delta;
                         $onDelta($delta);
                     }
@@ -242,6 +261,14 @@ class OpenAIClient
             // This value is supplied by OpenAI in the stream itself, so it is
             // authoritative metadata rather than the model's self-description.
             'model' => $model,
+            'response_headers_ms' => round(($responseReceivedAt - $requestStartedAt) / 1_000_000, 1),
+            'time_to_first_delta_ms' => $firstDeltaAt === null
+                ? null
+                : round(($firstDeltaAt - $requestStartedAt) / 1_000_000, 1),
+            'stream_duration_ms' => round((hrtime(true) - $responseReceivedAt) / 1_000_000, 1),
+            'delta_count' => $deltaCount,
+            'average_delta_gap_ms' => $deltaCount > 1 ? round($deltaGapTotalMs / ($deltaCount - 1), 1) : null,
+            'maximum_delta_gap_ms' => $deltaCount > 1 ? round($deltaGapMaxMs, 1) : null,
         ]);
 
         if ($fullContent === '' && $toolCalls === [] && $finishReason === 'length') {

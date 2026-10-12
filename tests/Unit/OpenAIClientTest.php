@@ -4,6 +4,7 @@ use App\Services\OpenAIClient;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 uses()->group('openai', 'unit');
 
@@ -74,6 +75,7 @@ it('decodes streamed function-call arguments without exposing them as text delta
     Http::fake(['https://api.openai.com/*' => Http::response($body, 200, ['Content-Type' => 'text/event-stream'])]);
     Http::preventStrayRequests();
     $deltas = [];
+    Log::spy();
 
     $result = (new OpenAIClient)->streamChat(
         [['role' => 'user', 'content' => 'Please update the attached source.']],
@@ -97,6 +99,14 @@ it('decodes streamed function-call arguments without exposing them as text delta
     Http::assertSent(fn (Request $request): bool => $request->data()['reasoning_effort'] === 'none'
         && $request->data()['tool_choice'] === 'auto'
         && $request->data()['parallel_tool_calls'] === false);
+
+    Log::shouldHaveReceived('info')
+        ->once()
+        ->with('OpenAI stream completion decoded', Mockery::on(fn (array $context): bool => isset($context['response_headers_ms'], $context['stream_duration_ms'])
+            && $context['delta_count'] === 0
+            && $context['time_to_first_delta_ms'] === null
+            && $context['average_delta_gap_ms'] === null
+            && ! array_key_exists('content', $context)));
 });
 
 it('retries only on server errors', function () {

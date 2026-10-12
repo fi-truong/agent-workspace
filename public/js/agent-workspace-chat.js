@@ -1132,6 +1132,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Bubble "đang suy nghĩ" hiện ngay lập tức, trước khi có delta đầu tiên.
     const assistantBubble = createTypingBubble();
     let rawText = '';
+    let streamedTextNode = null;
+    let scrollScheduled = false;
     let firstDeltaReceived = false;
     let sawDoneOrError = false;
     let committedUserMessageId = null;
@@ -1281,10 +1283,19 @@ document.addEventListener('DOMContentLoaded', function () {
             if (sendBtn) sendBtn.textContent = 'Generating…';
             assistantBubble.innerHTML = '';
             assistantBubble.style.whiteSpace = 'pre-wrap';
+            streamedTextNode = document.createTextNode('');
+            assistantBubble.appendChild(streamedTextNode);
           }
-          rawText += parsed.data.text || '';
-          assistantBubble.textContent = rawText;
-          container.scrollTop = container.scrollHeight;
+          const deltaText = parsed.data.text || '';
+          rawText += deltaText;
+          streamedTextNode.appendData(deltaText);
+          if (!scrollScheduled) {
+            scrollScheduled = true;
+            requestAnimationFrame(() => {
+              container.scrollTop = container.scrollHeight;
+              scrollScheduled = false;
+            });
+          }
         } else if (parsed.event === 'progress') {
           if (!firstDeltaReceived) assistantBubble.textContent = parsed.data.message || 'Đang xử lý…';
         } else if (parsed.event === 'error') {
