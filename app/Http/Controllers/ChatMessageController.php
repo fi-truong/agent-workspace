@@ -309,7 +309,7 @@ class ChatMessageController extends Controller
                     $ctx['tools'],
                 );
 
-                $send('progress', ['message' => 'Đang tạo file hoặc email nháp…']);
+                $send('progress', ['message' => 'Đang hoàn tất phản hồi…']);
                 $actions = $this->createRequestedOutputs($completion, $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService, $knowledgeService, $chatService, $ctx);
                 $completion['content'] = $this->normalizeGeneratedFileReply($completion['content'], $actions);
                 $completion['content'] = $this->appendOutputLinks($completion['content'], $actions);
@@ -1526,6 +1526,16 @@ class ChatMessageController extends Controller
     private function createRequestedOutputs(array &$completion, Conversation $conversation, User $user, ArtifactService $artifacts, EmailDraftService $drafts, KnowledgeService $knowledgeService, ?ChatCompletionService $chatService = null, ?array $chatContext = null): array
     {
         $result = ['artifacts' => [], 'email_draft' => null];
+        $proposedFileAction = collect($completion['tool_calls'] ?? [])
+            ->first(fn (array $toolCall): bool => in_array($toolCall['name'], [
+                'apply_code_patch',
+                'create_ai_artifact',
+                'revise_ai_artifact',
+            ], true));
+        if ($proposedFileAction !== null && ! $this->confirmRequestedFileAction($completion, $proposedFileAction['name'], $conversation, $chatService, $chatContext)) {
+            return $result;
+        }
+
         $sourceFile = $this->latestAttachedSourceCode($conversation);
         $codePatchCall = collect($completion['tool_calls'] ?? [])
             ->first(fn (array $toolCall): bool => $toolCall['name'] === 'apply_code_patch');
@@ -1772,6 +1782,67 @@ class ChatMessageController extends Controller
         }
 
         return $result;
+    }
+
+    /**
+     * A model tool call is a proposal, not authorization to create or change a file.
+     * Confirm the intent through OpenAI itself; never infer it from prompt keywords.
+     *
+     * @param array{content: string, prompt_tokens: int, completion_tokens: int, tool_calls?: array<int, array{id: string, name: string, arguments: string}>} $completion
+     * @param array{history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, safetyIdentifier: string}|null $chatContext
+     */
+    private function confirmRequestedFileAction(array &$completion, string $toolName, Conversation $conversation, ?ChatCompletionService $chatService, ?array $chatContext): bool
+    {
+        $confirmedMarker = 'AI_PLUS_FILE_ACTION_CONFIRMED';
+        $fallbackReply = 'Mình chưa tạo file vì chưa xác nhận được đây có phải yêu cầu tạo hoặc chỉnh sửa file hay không. Bạn có thể nói rõ nếu muốn tạo file tải xuống.';
+
+        if ($chatService === null || $chatContext === null) {
+            $completion['content'] = $fallbackReply;
+            $completion['tool_calls'] = [];
+
+            return false;
+        }
+
+        $actionLabel = match ($toolName) {
+            'apply_code_patch' => 'edit the attached source file and return an updated copy',
+            'revise_ai_artifact' => 'revise a file previously created in AI+ and return a new copy',
+            default => 'create or export a downloadable file',
+        };
+        $confirmationPrompt = "\n\nAI+ FILE ACTION CONFIRMATION GATE: A tool call from the previous model response is only a proposal and is not authorization. Review the latest user request and use prior conversation only to resolve what the user refers to. Confirm this action only if the user clearly asked for this file operation: {$actionLabel}. If the latest turn is a question, asks for explanation/advice, discusses a hypothetical, asks what file formats are available, or otherwise does not clearly request this operation, do not confirm. If ambiguous, do not confirm. When confirmed, output exactly {$confirmedMarker} and nothing else. Otherwise, answer the user's latest request normally in chat, without creating a file and without claiming a file was created. This gate overrides any earlier instruction that might suggest creating a file.";
+
+        try {
+            $verification = $chatService->complete(
+                $chatContext['history'],
+                trim(($chatContext['systemPrompt'] ?? '').$confirmationPrompt),
+                $chatContext['safetyIdentifier'],
+            );
+            $completion['prompt_tokens'] += $verification['prompt_tokens'];
+            $completion['completion_tokens'] += $verification['completion_tokens'];
+            $reply = trim($verification['content']);
+
+            if ($reply === $confirmedMarker) {
+                return true;
+            }
+
+            $completion['content'] = $reply !== '' ? $reply : $fallbackReply;
+            $completion['tool_calls'] = [];
+            Log::info('Unconfirmed file action discarded', [
+                'conversation_id' => $conversation->id,
+                'tool_name' => $toolName,
+            ]);
+
+            return false;
+        } catch (\Throwable $exception) {
+            $completion['content'] = $fallbackReply;
+            $completion['tool_calls'] = [];
+            Log::warning('File action confirmation failed; no file created', [
+                'conversation_id' => $conversation->id,
+                'tool_name' => $toolName,
+                'exception' => $exception::class,
+            ]);
+
+            return false;
+        }
     }
 
     private function requestsAttachedDocumentTranslation(string $query): bool

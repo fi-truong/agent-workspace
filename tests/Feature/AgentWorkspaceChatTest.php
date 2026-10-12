@@ -71,6 +71,39 @@ function artifactToolCallResponse(string $format, string $content, string $summa
     ];
 }
 
+function fileActionConfirmationResponse(string $content = 'AI_PLUS_FILE_ACTION_CONFIRMED'): array
+{
+    return [
+        'choices' => [['message' => ['content' => $content]]],
+        'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 2],
+        'model' => 'gpt-6-luna',
+    ];
+}
+
+function confirmedArtifactResponseSequence(string $format, string $content, string $summary = 'File ready.', string $filename = '', string $extension = '', int $promptTokens = 20, int $completionTokens = 8): \Illuminate\Http\Client\ResponseSequence
+{
+    return Http::sequence()
+        ->push(artifactToolCallResponse($format, $content, $summary, $filename, $extension, $promptTokens, $completionTokens))
+        ->push(fileActionConfirmationResponse());
+}
+
+function confirmedCodePatchResponseSequence(array ...$patchResponses): \Illuminate\Http\Client\ResponseSequence
+{
+    $sequence = Http::sequence();
+    foreach ($patchResponses as $index => $patchResponse) {
+        if ($index === 1) {
+            $sequence->push(fileActionConfirmationResponse());
+        }
+        $sequence->push($patchResponse);
+    }
+
+    if (count($patchResponses) === 1) {
+        $sequence->push(fileActionConfirmationResponse());
+    }
+
+    return $sequence;
+}
+
 function emailDraftToolCallResponse(string $subject, string $body, string $summary = 'Draft saved.'): array
 {
     return [
@@ -496,7 +529,7 @@ it('shows a dedicated image workspace only when image generation is enabled', fu
 it('creates a requested Excel artifact and returns an authorized download URL', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
-    Http::fake(['https://api.openai.com/*' => Http::response(artifactToolCallResponse('excel', "# Budget\n\n| Item | Cost |\n| --- | --- |\n| Travel | 100 |", 'Budget workbook ready.'))]);
+    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence('excel', "# Budget\n\n| Item | Cost |\n| --- | --- |\n| Travel | 100 |", 'Budget workbook ready.')]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', ['message' => 'Hãy tạo file Excel từ nội dung này']);
 
@@ -515,7 +548,7 @@ it('creates requested Word and PDF artifacts', function (string $request, string
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
     $format = $extension === '.pdf' ? 'pdf' : 'word';
-    Http::fake(['https://api.openai.com/*' => Http::response(artifactToolCallResponse($format, '# Deliverable', 'File ready.'))]);
+    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence($format, '# Deliverable', 'File ready.')]);
 
     $this->postJson('/ai-plus/agent-workspace/send', ['message' => $request])->assertOk();
 
@@ -571,11 +604,11 @@ it('creates a revised Word file when a follow-up changes a previously requested 
         'role' => 'assistant',
         'content' => 'Đã tạo bản Word ban đầu.',
     ]);
-    Http::fake(['https://api.openai.com/*' => Http::response(artifactToolCallResponse(
+    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence(
         'word',
         "# Lịch năm học đã cập nhật\n\n| Tháng | Ghi chú địa điểm |\n| --- | --- |\n| Tháng 9 | (H) |\n| Tháng 10 | (M) |\n| Tháng 11 | (joint) |",
         'Đã cập nhật file Word theo quy ước mới.',
-    ))]);
+    )]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
         'conversation_id' => $conversation->id,
@@ -616,6 +649,7 @@ it('reuses a readable AI+ file in the same conversation when the user asks to re
     $revisedContent = "# School calendar\n\n## September\n\nOpening assembly, orientation, and parent meeting.";
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(reviseArtifactToolCallResponse($original->id))
+        ->push(fileActionConfirmationResponse())
         ->push(artifactToolCallResponse('word', $revisedContent, 'The revised school calendar is ready.'))]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
@@ -640,10 +674,12 @@ it('asks the user to upload the source instead of creating a file when no saved 
         'title' => 'Unlinked document',
         'type' => Conversation::TYPE_CHAT,
     ]);
-    Http::fake(['https://api.openai.com/*' => Http::response(reviseArtifactToolCallResponse(
-        0,
-        'Please upload the original Word file here so I can revise it.',
-    ))]);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(reviseArtifactToolCallResponse(
+            0,
+            'Please upload the original Word file here so I can revise it.',
+        ))
+        ->push(fileActionConfirmationResponse())]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
         'conversation_id' => $conversation->id,
@@ -653,7 +689,7 @@ it('asks the user to upload the source instead of creating a file when no saved 
         ->assertJsonPath('reply', 'Please upload the original Word file here so I can revise it.');
 
     expect(AiArtifact::query()->exists())->toBeFalse();
-    Http::assertSentCount(1);
+    Http::assertSentCount(2);
 });
 
 it('asks the user to upload the original when a saved artifact contains only an acknowledgement', function () {
@@ -672,6 +708,7 @@ it('asks the user to upload the original when a saved artifact contains only an 
     );
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(reviseArtifactToolCallResponse($acknowledgement->id))
+        ->push(fileActionConfirmationResponse())
         ->push(requestSourceFileToolCallResponse('Mình chỉ tìm thấy lời hứa chỉnh sửa, chưa có nội dung tài liệu. Vui lòng tải file gốc lên để mình sửa chính xác.'))]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
@@ -682,7 +719,7 @@ it('asks the user to upload the original when a saved artifact contains only an 
         ->assertJsonPath('reply', 'Mình chỉ tìm thấy lời hứa chỉnh sửa, chưa có nội dung tài liệu. Vui lòng tải file gốc lên để mình sửa chính xác.');
 
     expect(AiArtifact::query()->where('conversation_id', $conversation->id)->count())->toBe(1);
-    Http::assertSentCount(2);
+    Http::assertSentCount(3);
 });
 
 it('generates full attached-document content instead of saving a short chat acknowledgement', function () {
@@ -691,6 +728,10 @@ it('generates full attached-document content instead of saving a short chat ackn
     $documentText = 'BEGINNING_EVENT_MARKER'.str_repeat("\nTháng 9: CIEC tổ chức một hoạt động trong năm học.", 500)."\nFINAL_EVENT_MARKER";
     Http::fake(['https://api.openai.com/*' => function (Request $request) use ($documentText) {
         expect(json_encode($request->data(), JSON_UNESCAPED_UNICODE))->toContain('FINAL_EVENT_MARKER');
+
+        if (! isset($request->data()['tools'])) {
+            return Http::response(fileActionConfirmationResponse());
+        }
 
         return Http::response(artifactToolCallResponse(
             'word',
@@ -744,6 +785,10 @@ it('keeps file-request acknowledgements hidden until the downloadable file is re
                 return Http::response($streamBody, 200, ['Content-Type' => 'text/event-stream']);
             }
 
+            if (! isset($request->data()['tools'])) {
+                return Http::response(fileActionConfirmationResponse());
+            }
+
             return Http::response(['choices' => [['message' => ['content' => 'Interactive Apps']]], 'usage' => ['prompt_tokens' => 30, 'completion_tokens' => 25], 'model' => 'gpt-6-luna']);
         },
     ]);
@@ -766,7 +811,7 @@ it('does not create a purported complete artifact when the attached source excee
     config(['openai.api_key' => 'sk-test', 'openai.rag_embeddings_enabled' => false]);
     $sourceText = str_repeat('Academic calendar event and organizer details. ', 900);
     Http::swap(new Factory);
-    Http::fake(['https://api.openai.com/*' => Http::response(artifactToolCallResponse('word', 'Incomplete output', 'Summary'))]);
+    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence('word', 'Incomplete output', 'Summary')]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
         'message' => 'Hãy thống kê toàn bộ sự kiện trong tài liệu và tạo file Word.',
@@ -786,7 +831,7 @@ it('does not create a purported complete artifact when the attached source excee
 it('creates a file only when OpenAI selects the artifact tool and format', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
-    Http::fake(['https://api.openai.com/*' => Http::response(artifactToolCallResponse('word', '# Bilingual content', 'Bilingual file ready.'))]);
+    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence('word', '# Bilingual content', 'Bilingual file ready.')]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
         'message' => 'Hãy tạo ra file song ngữ, một dòng tiếng Việt, một dòng tiếng Hoa',
@@ -800,7 +845,7 @@ it('creates a file only when OpenAI selects the artifact tool and format', funct
 it('replaces an incorrect model refusal when the requested file was created', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
-    Http::fake(['https://api.openai.com/*' => Http::response(artifactToolCallResponse('word', '# Actual document content', 'The Word file is ready.'))]);
+    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence('word', '# Actual document content', 'The Word file is ready.')]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', ['message' => 'Tạo file Word cho nội dung này']);
 
@@ -811,11 +856,11 @@ it('replaces an incorrect model refusal when the requested file was created', fu
 it('exports the previously prepared content when a user asks to export it as Word', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
-    Http::fake(['https://api.openai.com/*' => Http::response(artifactToolCallResponse(
+    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence(
         'word',
         "# Detailed trip plan prepared earlier\n\n## Budget\n\n- Hotel: **80 USD**\n\n| Item | Cost |\n| --- | ---: |\n| Hotel | 80 USD |",
         'The Word document is ready.',
-    ))]);
+    )]);
     $conversation = Conversation::create([
         'user_id' => $this->user->id,
         'title' => 'Trip plan',
@@ -986,7 +1031,7 @@ it('creates an HTML artifact from the AI code block', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
     Http::fake([
-        'https://api.openai.com/*' => Http::response(artifactToolCallResponse('html', "```html\n<!doctype html><html><head><meta charset=\"utf-8\"><title>Updated</title></head><body><h1>Updated</h1></body></html>\n```", 'Updated page is ready.')),
+        'https://api.openai.com/*' => confirmedArtifactResponseSequence('html', "```html\n<!doctype html><html><head><meta charset=\"utf-8\"><title>Updated</title></head><body><h1>Updated</h1></body></html>\n```", 'Updated page is ready.'),
     ]);
 
     $this->postJson('/ai-plus/agent-workspace/send', ['message' => 'Hãy sửa file HTML và tạo file HTML'])
@@ -1003,7 +1048,7 @@ it('uses the model-selected HTML format for a Vietnamese homepage file request',
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
     Http::fake([
-        'https://api.openai.com/*' => Http::response(artifactToolCallResponse('html', "```html\n<!doctype html><html lang=\"vi\"><head><meta charset=\"utf-8\"><title>Apps</title></head><body><main><h1>Apps</h1><a href=\"#\">App 1</a></main></body></html>\n```", 'Trang HTML đã sẵn sàng.')),
+        'https://api.openai.com/*' => confirmedArtifactResponseSequence('html', "```html\n<!doctype html><html lang=\"vi\"><head><meta charset=\"utf-8\"><title>Apps</title></head><body><main><h1>Apps</h1><a href=\"#\">App 1</a></main></body></html>\n```", 'Trang HTML đã sẵn sàng.'),
     ]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
@@ -1034,6 +1079,26 @@ it('does not infer or retry file creation when the model does not call the artif
 
     expect(AiArtifact::count())->toBe(0)
         ->and($response->json('reply'))->toBe('Mình có thể tạo file HTML nếu bạn muốn.');
+});
+
+it('does not create a file when the model proposes one for a normal question', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(artifactToolCallResponse('word', '# Unrequested file content'))
+        ->push(fileActionConfirmationResponse('A right triangle has one 90-degree angle.'))
+        ->push(['choices' => [['message' => ['content' => 'Right triangle']]], 'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 2], 'model' => 'gpt-6-luna'])]);
+
+    $response = $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'What is a right triangle?',
+    ])->assertOk()
+        ->assertJsonPath('artifacts', [])
+        ->assertJsonPath('reply', 'A right triangle has one 90-degree angle.');
+
+    expect(AiArtifact::query()->exists())->toBeFalse();
+    Http::assertSentCount(3);
+    Http::assertSent(fn (Request $request): bool => ! isset($request->data()['tools'])
+        && str_contains(json_encode($request->data()['messages'], JSON_UNESCAPED_UNICODE), 'AI+ FILE ACTION CONFIRMATION GATE'));
 });
 
 it('creates an email draft but never sends an email', function () {
@@ -1836,7 +1901,7 @@ it('reads a Python source attachment and returns an edited file with the same ex
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
     Http::fake([
-        'https://api.openai.com/*' => Http::response(codePatchToolCallResponse(
+        'https://api.openai.com/*' => confirmedCodePatchResponseSequence(codePatchToolCallResponse(
             'call-code-edit',
             'Fixed the broken output.',
             [['find' => "print('broken')", 'replace' => "print('fixed')"]],
@@ -1885,7 +1950,9 @@ it('applies a model-selected code patch through the chat streaming endpoint', fu
         ->map(fn (array $event): string => 'data: '.json_encode($event)."\n\n")
         ->push("data: [DONE]\n\n")
         ->implode('');
-    Http::fake(['https://api.openai.com/*' => Http::response($streamBody, 200, ['Content-Type' => 'text/event-stream'])]);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push($streamBody, 200, ['Content-Type' => 'text/event-stream'])
+        ->push(fileActionConfirmationResponse())]);
 
     $response = $this->post('/ai-plus/agent-workspace/send-stream', [
         'message' => 'Please update the greeting and return the file.',
@@ -1914,6 +1981,28 @@ it('does not create a code artifact when a source attachment is only being revie
 
     expect(AiArtifact::count())->toBe(0)
         ->and(Message::where('role', 'user')->sole()->internal_context)->toContain('Source code file: school_tool.py');
+});
+
+it('does not create a code artifact when the model proposes an edit for an explanation request', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(codePatchToolCallResponse('call-unrequested-code-edit', 'Updated the file.', [['find' => "print('hello')", 'replace' => "print('goodbye')"]]))
+        ->push(fileActionConfirmationResponse('This Python file prints “hello” to the console.'))
+        ->push(['choices' => [['message' => ['content' => 'Explain Python file']]], 'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 2], 'model' => 'gpt-6-luna'])]);
+
+    $response = $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Explain what this Python file does.',
+        'documents' => [[
+            'name' => 'school_tool.py',
+            'data_url' => 'data:text/x-python;base64,'.base64_encode("print('hello')"),
+        ]],
+    ])->assertOk()
+        ->assertJsonPath('artifacts', [])
+        ->assertJsonPath('reply', 'This Python file prints “hello” to the console.');
+
+    expect(AiArtifact::query()->exists())->toBeFalse();
+    Http::assertSentCount(3);
 });
 
 it('treats a question asking for code-edit suggestions as advice instead of an edit command', function () {
@@ -1953,9 +2042,10 @@ it('retries a code patch once when its exact source match is invalid', function 
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
     Http::fake([
-        'https://api.openai.com/*' => Http::sequence()
-            ->push(codePatchToolCallResponse('call-bad-patch', 'Updated the greeting.', [['find' => "print('missing')", 'replace' => "print('updated')"]]))
-            ->push(codePatchToolCallResponse('call-retry-patch', 'Updated the greeting.', [['find' => "print('before')", 'replace' => "print('after')"]], 24, 9)),
+        'https://api.openai.com/*' => confirmedCodePatchResponseSequence(
+            codePatchToolCallResponse('call-bad-patch', 'Updated the greeting.', [['find' => "print('missing')", 'replace' => "print('updated')"]]),
+            codePatchToolCallResponse('call-retry-patch', 'Updated the greeting.', [['find' => "print('before')", 'replace' => "print('after')"]], 24, 9),
+        ),
     ]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
@@ -1972,10 +2062,10 @@ it('retries a code patch once when its exact source match is invalid', function 
 
     $artifact = AiArtifact::firstOrFail();
     expect(Storage::disk('ai-artifacts')->get($artifact->path))->toBe("print('after')\n")
-        ->and(Message::where('role', 'assistant')->sole()->prompt_tokens)->toBe(44)
-        ->and(Message::where('role', 'assistant')->sole()->completion_tokens)->toBe(17);
+        ->and(Message::where('role', 'assistant')->sole()->prompt_tokens)->toBe(49)
+        ->and(Message::where('role', 'assistant')->sole()->completion_tokens)->toBe(19);
 
-    Http::assertSentCount(2);
+    Http::assertSentCount(3);
 });
 
 it('can patch a previously uploaded source file in a follow-up turn', function () {
@@ -1993,7 +2083,7 @@ it('can patch a previously uploaded source file in a follow-up turn', function (
 
     Http::swap(new Factory);
     Http::fake([
-        'https://api.openai.com/*' => Http::response(codePatchToolCallResponse(
+        'https://api.openai.com/*' => confirmedCodePatchResponseSequence(codePatchToolCallResponse(
             'call-follow-up',
             'Updated the greeting.',
             [['find' => "print('before')", 'replace' => "print('after')"]],
@@ -2014,7 +2104,7 @@ it('applies a small patch to a long file and preserves its sections outside mode
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
     Http::fake([
-        'https://api.openai.com/*' => Http::response(codePatchToolCallResponse(
+        'https://api.openai.com/*' => confirmedCodePatchResponseSequence(codePatchToolCallResponse(
             'call-long-source',
             'Updated the marker.',
             [['find' => '# update-me', 'replace' => '# updated']],
@@ -2048,9 +2138,10 @@ it('does not create a code artifact when a proposed patch matches multiple locat
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
     Http::fake([
-        'https://api.openai.com/*' => Http::sequence()
-            ->push(codePatchToolCallResponse('call-duplicate-first', 'Updated repeated code.', [['find' => 'print("same")', 'replace' => 'print("changed")']]))
-            ->push(codePatchToolCallResponse('call-duplicate-retry', 'Updated repeated code.', [['find' => 'print("same")', 'replace' => 'print("changed")']])),
+        'https://api.openai.com/*' => confirmedCodePatchResponseSequence(
+            codePatchToolCallResponse('call-duplicate-first', 'Updated repeated code.', [['find' => 'print("same")', 'replace' => 'print("changed")']]),
+            codePatchToolCallResponse('call-duplicate-retry', 'Updated repeated code.', [['find' => 'print("same")', 'replace' => 'print("changed")']]),
+        ),
     ]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
@@ -2162,11 +2253,11 @@ it('keeps the latest uploaded document available beyond the normal chat-history 
 it('exports an attached document translation as Word without putting source or translation text in the reply bubble', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
-    Http::fake(['https://api.openai.com/*' => Http::response(artifactToolCallResponse(
+    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence(
         'word',
         '# Translated lesson' . "\n\n" . 'Goal & objectives',
         'Đã dịch tài liệu và tạo file Word để tải xuống.',
-    ))]);
+    )]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
         'message' => 'Dịch file này sang tiếng Anh',
