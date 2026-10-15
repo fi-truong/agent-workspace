@@ -238,6 +238,22 @@ test('My Agents truncates long descriptions and provides a More toggle', functio
     expect(substr_count($response->getContent(), 'aria-expanded="false"'))->toBe(1);
 });
 
+test('agent save locks the submit action before waiting on confirmation or the server', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('ai-plus.agent-workspace.agents.index'))
+        ->assertOk()
+        ->assertSee('id="modal-submit"', false);
+
+    $script = file_get_contents(public_path('js/agent-modal.js'));
+
+    expect($script)
+        ->toContain('if (isSaving) return;')
+        ->toContain('setSaving(true);')
+        ->toContain("submitBtn.textContent = saving ? 'Saving…' : saveButtonLabel;");
+});
+
 test('copying a shared agent more than once reopens the existing copy', function () {
     $owner = User::factory()->create();
     $recipient = User::factory()->create();

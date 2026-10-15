@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const createBtns = document.querySelectorAll('[data-behavior="create-agent"], #create-agent-btn, #create-first-agent');
   const closeBtn = document.getElementById('modal-close');
   const cancelBtn = document.getElementById('modal-cancel');
+  const submitBtn = document.getElementById('modal-submit');
   const modalTitle = document.getElementById('modal-title');
   const formMethod = document.getElementById('form-method');
   const agentIdInput = document.getElementById('agent-id');
@@ -33,6 +34,19 @@ document.addEventListener('DOMContentLoaded', function () {
   // Danh sách file đã lưu khi edit (path), để gửi knowledge_remove
   let savedFiles = [];
   let removedPaths = [];
+  let isSaving = false;
+  const saveButtonLabel = submitBtn?.textContent || 'Save';
+
+  function setSaving(saving) {
+    isSaving = saving;
+    if (submitBtn) {
+      submitBtn.disabled = saving;
+      submitBtn.textContent = saving ? 'Saving…' : saveButtonLabel;
+    }
+    if (closeBtn) closeBtn.disabled = saving;
+    if (cancelBtn) cancelBtn.disabled = saving;
+    form.setAttribute('aria-busy', String(saving));
+  }
 
   // Danh sách file user đã chọn (tích lũy) — vì <input type=file> tự reset mỗi lần mở dialog.
   let allFiles = [];
@@ -278,7 +292,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   sharedInput?.addEventListener('change', syncSharedKnowledgeControl);
 
-  function closeModal() {
+  function closeModal(force = false) {
+    if (isSaving && !force) return;
+    setSaving(false);
     modal.style.display = 'none';
     form.reset();
     clearKnowledgeUI();
@@ -463,6 +479,10 @@ document.addEventListener('DOMContentLoaded', function () {
   // Form submit via FormData (multipart hỗ trợ file)
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    // Lock immediately, before any confirmation or network wait, so repeated
+    // clicks/Enter presses cannot create multiple copies of the same Agent.
+    if (isSaving) return;
+    setSaving(true);
 
     // Copyable shared agents give other school users a private copy of every
     // remaining Knowledge file. Make that consequence explicit before saving.
@@ -478,7 +498,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       );
 
-      if (!shouldShareKnowledge) return;
+      if (!shouldShareKnowledge) {
+        setSaving(false);
+        return;
+      }
     }
 
     const isEdit = formMethod.value === 'PUT';
@@ -505,7 +528,7 @@ document.addEventListener('DOMContentLoaded', function () {
       });
 
       if (res.ok) {
-        closeModal();
+        closeModal(true);
         showToast('✅ Agent saved successfully');
         setTimeout(() => window.location.reload(), 1200);
         return;
@@ -520,9 +543,11 @@ document.addEventListener('DOMContentLoaded', function () {
       const message = err.message || (err.errors ? Object.values(err.errors).flat().join(' ') : 'The agent could not be saved. Please try again.');
       await noticeDialog(message, 'Could not save agent');
       // Keep validation errors visible in the form so they can be corrected.
-      if (res.status !== 422) closeModal();
+      if (res.status !== 422) closeModal(true);
     } catch (_) {
       await noticeDialog('We could not reach the server. Check your connection and try again.', 'Connection interrupted');
+    } finally {
+      if (modal.style.display !== 'none') setSaving(false);
     }
   });
 
