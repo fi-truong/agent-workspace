@@ -455,6 +455,8 @@ body{
   border-radius:999px;
 }
 .role-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--role-pill-color);}
+[data-theme="orange"] .crumbbar .role-pill{background:rgba(242,138,53,.18);border-color:rgba(242,138,53,.5);}
+[data-theme="burgundy"] .crumbbar .role-pill{background:rgba(216,163,106,.16);border-color:rgba(216,163,106,.45);}
 
 /* ---------- Hero ---------- */
 header.hero{

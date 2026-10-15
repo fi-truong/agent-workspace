@@ -16,6 +16,12 @@ it('keeps the homepage guide hidden by default', function () {
         ->assertSee('data-theme-value="orange"', false)
         ->assertSee('data-theme-value="burgundy"', false)
         ->assertSee('body:has(.ai-guide) .theme-switcher{left:20px;right:auto;}', false);
+
+    $styles = file_get_contents(public_path('css/ai-plus.css'));
+
+    expect($styles)
+        ->toContain('[data-theme="orange"] .crumbbar .role-pill{background:rgba(242,138,53,.18);')
+        ->toContain('[data-theme="burgundy"] .crumbbar .role-pill{background:rgba(216,163,106,.16);');
 });
 
 it('lets an administrator control the homepage guide visibility', function () {
