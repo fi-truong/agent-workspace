@@ -42,6 +42,43 @@ test('public prompt library only lists published prompts and supports both taxon
         ->assertDontSee('Unpublished prompt');
 });
 
+test('homepage catalog counts include only published prompts and templates', function () {
+    $user = User::factory()->create();
+
+    PromptLibraryPrompt::create([
+        'author_id' => $user->id,
+        'title' => 'Published prompt',
+        'description' => 'A published prompt.',
+        'preview_text' => 'Use this prompt.',
+        'status' => 'published',
+    ]);
+    PromptLibraryPrompt::create([
+        'author_id' => $user->id,
+        'title' => 'Draft prompt',
+        'description' => 'A draft prompt.',
+        'preview_text' => 'Not visible yet.',
+        'status' => 'draft',
+    ]);
+    AgentTemplate::create([
+        'name' => 'Published template',
+        'description' => 'A published template.',
+        'system_prompt' => 'Help the user with a task.',
+        'status' => 'published',
+    ]);
+    AgentTemplate::create([
+        'name' => 'Draft template',
+        'description' => 'A draft template.',
+        'system_prompt' => 'Not visible yet.',
+        'status' => 'draft',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('ai-plus.index'))
+        ->assertOk()
+        ->assertSee('1 prompts ready')
+        ->assertSee('1 templates');
+});
+
 test('public agent templates only list published templates and support taxonomy filters', function () {
     $user = User::factory()->create();
     AgentTemplate::create([

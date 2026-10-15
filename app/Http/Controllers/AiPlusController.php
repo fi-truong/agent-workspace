@@ -14,8 +14,8 @@ class AiPlusController extends Controller
         // Số liệu thật từ DB cho các mục thống kê (không còn mock).
         $publishedShowcases = ShowcasePost::where('status', 'published');
         $departmentsSharing = (clone $publishedShowcases)->whereNotNull('department')->distinct('department')->count('department');
-        $totalPrompts = PromptLibraryPrompt::count();
-        $totalTemplates = AgentTemplate::count();
+        $totalPrompts = PromptLibraryPrompt::where('status', 'published')->count();
+        $totalTemplates = AgentTemplate::where('status', 'published')->count();
 
         $createCards = [
             [
