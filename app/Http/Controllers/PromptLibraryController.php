@@ -33,13 +33,6 @@ class PromptLibraryController extends Controller
             });
         }
 
-        // Subject filter
-        if ($request->filled('subject')) {
-            $query->whereHas('tags', function ($q) use ($request) {
-                $q->where('name', $request->subject);
-            });
-        }
-
         // Sort
         $sort = $request->get('sort', 'popular');
         if ($sort === 'popular') {

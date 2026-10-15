@@ -29,36 +29,32 @@
         <span class="icon">🔍</span>
         <input type="text" id="prompt-search" placeholder="Search prompts..." value="{{ request('search') }}">
       </div>
-      <label class="catalog-filter">Group
-        <select id="prompt-group-filter">
-          <option value="">All groups</option>
-          @foreach($categoryGroups as $key => $label)
-          <option value="{{ $key }}" {{ request('group') === $key ? 'selected' : '' }}>{{ $label }}</option>
-          @endforeach
-        </select>
-      </label>
-      <label class="catalog-filter">Category
-        <select id="prompt-category-filter">
-          <option value="">All categories</option>
-          @foreach($catalogCategories as $group => $categories)
-          <optgroup label="{{ $categoryGroups[$group] }}" data-category-group="{{ $group }}">
-            @foreach($categories as $key => $label)
-            <option value="{{ $key }}" {{ request('category') === $key ? 'selected' : '' }}>{{ $label }}</option>
+      <div class="filter-controls-row">
+        <label class="catalog-filter">Group
+          <select id="prompt-group-filter">
+            <option value="">All groups</option>
+            @foreach($categoryGroups as $key => $label)
+            <option value="{{ $key }}" {{ request('group') === $key ? 'selected' : '' }}>{{ $label }}</option>
             @endforeach
-          </optgroup>
-          @endforeach
-        </select>
-      </label>
-      <div class="filter-group" id="subject-filters">
-        <button class="filter-btn {{ !request('subject') ? 'active' : '' }}" data-subject="">All</button>
-        @foreach($subjects as $subject)
-        <button class="filter-btn {{ request('subject') == $subject->name ? 'active' : '' }}" data-subject="{{ $subject->name }}">{{ $subject->name }}</button>
-        @endforeach
-      </div>
-      <div class="filter-group sort-group">
-        <span class="sort-label">Sort by:</span>
-        <button class="filter-btn {{ request('sort') == 'popular' ? 'active' : '' }}" data-sort="popular">⭐ Popular</button>
-        <button class="filter-btn {{ request('sort') == 'new' ? 'active' : '' }}" data-sort="new">✨ New</button>
+          </select>
+        </label>
+        <label class="catalog-filter">Category
+          <select id="prompt-category-filter">
+            <option value="">All categories</option>
+            @foreach($catalogCategories as $group => $categories)
+            <optgroup label="{{ $categoryGroups[$group] }}" data-category-group="{{ $group }}">
+              @foreach($categories as $key => $label)
+              <option value="{{ $key }}" {{ request('category') === $key ? 'selected' : '' }}>{{ $label }}</option>
+              @endforeach
+            </optgroup>
+            @endforeach
+          </select>
+        </label>
+        <div class="filter-group sort-group">
+          <span class="sort-label">Sort by:</span>
+          <button class="filter-btn {{ request('sort') == 'popular' ? 'active' : '' }}" data-sort="popular">⭐ Popular</button>
+          <button class="filter-btn {{ request('sort') == 'new' ? 'active' : '' }}" data-sort="new">✨ New</button>
+        </div>
       </div>
     </div>
   </div>
@@ -119,14 +115,15 @@
   .stat-label{font-size:12px;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.05em;}
 
   .filters-section{background: var(--surface);border-bottom:1px solid var(--surface-border);padding:20px 0;position:sticky;top:0;z-index:10;}
-  .filters{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+  .filters{display:flex;flex-direction:column;gap:12px;align-items:stretch;}
+  .filter-controls-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
   .catalog-filter{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-soft);}
   .catalog-filter select{max-width:220px;padding:9px 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--input-text);}
   .search-box{flex:1;min-width:200px;max-width:400px;position:relative;}
   .search-box input{width:100%;padding:10px 16px 10px 40px;border:1px solid var(--input-border);border-radius:8px;font-size:14px;background: var(--input-bg);color: var(--input-text);transition: border-color .15s, background .3s, color .3s;}
   .search-box input:focus{outline:none;border-color:var(--navy);}
   .search-box .icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color: var(--text-soft);}
-  .filter-group{display:flex;gap:8px;}
+  .filter-group{display:flex;gap:8px;align-items:center;}
   .filter-group.sort-group{align-items:center;}
   .sort-label{font-size:13px;color: var(--text-soft);white-space:nowrap;}
   .filter-btn{padding:8px 14px;background: var(--chip-bg);border:1px solid var(--chip-border);border-radius:6px;font-size:13px;color: var(--chip-text);cursor:pointer;transition: all 0.15s;}
@@ -163,9 +160,11 @@
 
   @media (max-width: 700px){
     .prompt-grid{grid-template-columns:1fr;}
-    .filters{flex-direction:column;align-items:stretch;}
+    .filter-controls-row{align-items:stretch;}
     .search-box{max-width:none;}
-    .filter-group{justify-content:center;}
+    .catalog-filter{flex:1;}
+    .catalog-filter select{max-width:none;flex:1;min-width:0;}
+    .filter-group.sort-group{justify-content:flex-start;flex-wrap:wrap;}
   }
 
   .pagination{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:16px;padding-top:12px;border-top:1px solid var(--surface-border);}
@@ -182,7 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('prompt-search');
   const groupFilter = document.getElementById('prompt-group-filter');
   const categoryFilter = document.getElementById('prompt-category-filter');
-  const subjectButtons = document.querySelectorAll('#subject-filters .filter-btn[data-subject]');
   const sortButtons = document.querySelectorAll('.filter-btn[data-sort]');
   const promptGrid = document.getElementById('prompt-grid');
   const promptCards = document.querySelectorAll('.prompt-card');
@@ -191,7 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentSearch = searchInput.value;
   let currentGroup = groupFilter.value;
   let currentCategory = categoryFilter.value;
-  let currentSubject = '{{ request('subject') }}';
   let currentSort = '{{ request('sort') }}';
   let currentPage = 1;
   let listLoading = false;
@@ -212,7 +209,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentSearch) params.set('search', currentSearch);
     if (currentGroup) params.set('group', currentGroup);
     if (currentCategory) params.set('category', currentCategory);
-    if (currentSubject) params.set('subject', currentSubject);
     if (currentSort) params.set('sort', currentSort);
     if (page > 1) params.set('page', page);
     return '{{ route('ai-plus.prompt-library.index') }}?' + params.toString();
@@ -302,18 +298,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   syncCategoryGroups();
-
-  // Subject filter buttons
-  subjectButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      subjectButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentSubject = btn.dataset.subject;
-      // Reset to page 1 when changing subject
-      currentPage = 1;
-      fetchPrompts();
-    });
-  });
 
   // Sort filter buttons
   sortButtons.forEach(btn => {
