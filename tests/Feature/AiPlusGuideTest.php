@@ -39,7 +39,12 @@ it('lets an administrator control the homepage guide visibility', function () {
         ->assertSee('Ask AI Plus Guide')
         ->assertSee('.ai-guide-form textarea{', false)
         ->assertSee('color:#1b2e2a;background:#fff', false)
-        ->assertSee('.ai-guide-form textarea::placeholder{color:#657772', false);
+        ->assertSee('.ai-guide-form textarea::placeholder{color:#657772', false)
+        ->assertSee('data-theme-src-orange=', false)
+        ->assertSee('ai-plus-guide-bot-orange.png')
+        ->assertSee('data-theme-src-burgundy=', false)
+        ->assertSee('ai-plus-guide-bot-burgundy.png')
+        ->assertSee('updateGuideBotTheme(button.dataset.themeValue)', false);
 });
 
 it('answers guide questions for signed-in users and records token usage', function () {

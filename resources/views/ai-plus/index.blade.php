@@ -89,7 +89,7 @@
     <section class="ai-guide-panel" id="aiGuidePanel" hidden>
       <div class="ai-guide-head">
         <div class="ai-guide-title">
-          <img src="{{ asset('images/ai-plus-guide-bot.png') }}" alt="" class="ai-guide-avatar">
+          <img src="{{ asset('images/ai-plus-guide-bot.png') }}" alt="" class="ai-guide-avatar ai-guide-bot-image" data-guide-bot data-theme-src-mint="{{ asset('images/ai-plus-guide-bot.png') }}" data-theme-src-teal="{{ asset('images/ai-plus-guide-bot.png') }}" data-theme-src-orange="{{ asset('images/ai-plus-guide-bot-orange.png') }}" data-theme-src-burgundy="{{ asset('images/ai-plus-guide-bot-burgundy.png') }}">
           <div>
           <strong>AI Plus Guide</strong>
           <span>Find the right place to start</span>
@@ -111,7 +111,7 @@
       @endauth
     </section>
     <button type="button" class="ai-guide-trigger" id="aiGuideTrigger" aria-label="Ask AI Plus Guide" aria-expanded="false" aria-controls="aiGuidePanel">
-      <img src="{{ asset('images/ai-plus-guide-bot.png') }}" alt="">
+      <img src="{{ asset('images/ai-plus-guide-bot.png') }}" alt="" class="ai-guide-bot-image" data-guide-bot data-theme-src-mint="{{ asset('images/ai-plus-guide-bot.png') }}" data-theme-src-teal="{{ asset('images/ai-plus-guide-bot.png') }}" data-theme-src-orange="{{ asset('images/ai-plus-guide-bot-orange.png') }}" data-theme-src-burgundy="{{ asset('images/ai-plus-guide-bot-burgundy.png') }}">
     </button>
   </aside>
   @endif
@@ -141,6 +141,19 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+  const botThemeSources = ['mint', 'teal', 'orange', 'burgundy'];
+  const updateGuideBotTheme = (theme) => {
+    const activeTheme = botThemeSources.includes(theme) ? theme : 'mint';
+    document.querySelectorAll('[data-guide-bot]').forEach((image) => {
+      const source = image.dataset[`themeSrc${activeTheme[0].toUpperCase()}${activeTheme.slice(1)}`];
+      if (source && image.src !== source) image.src = source;
+    });
+  };
+  updateGuideBotTheme(document.documentElement.dataset.theme || 'mint');
+  document.querySelectorAll('#themeSwitcher .theme-swatch').forEach((button) => {
+    button.addEventListener('click', () => updateGuideBotTheme(button.dataset.themeValue));
+  });
+
   const panel = document.getElementById('aiGuidePanel');
   const trigger = document.getElementById('aiGuideTrigger');
   const close = document.getElementById('aiGuideClose');
