@@ -282,6 +282,140 @@
   --sage: #6E8E82;
   --gold: #F0C878;
 }
+
+/* Warm Orange theme based on the supplied AI+ mockup. */
+[data-theme="orange"]{
+  --mint: #F7DCC8;
+  --navy: #B84F16;
+  --navy-deep: #71300F;
+  --navy-light: #D36A28;
+  --gold: #F28A35;
+  --gold-light: #FFB36F;
+  --gold-text: #71300F;
+  --paper: #FFF8F1;
+  --ink: #35271F;
+  --ink-soft: #78685D;
+  --line: #EBD8C9;
+  --sage: #C9682D;
+  --card-bg: #FFFFFF;
+
+  --hero-bg: linear-gradient(135deg, #C75B1B 0%, #A94311 100%);
+  --hero-text: #FFFFFF;
+  --hero-accent: #FFD0A2;
+  --hero-title-em: #FFD0A2;
+  --hero-sub: #FCE9DC;
+  --crumb-bg: var(--navy-deep);
+  --crumb-text: #F4DCCB;
+  --crumb-link-hover: #FFFFFF;
+  --crumb-sep: #D49A76;
+  --crumb-muted: #D49A76;
+  --crumb-strong: #FFFFFF;
+  --role-pill-color: #FFD2A8;
+
+  --showcase-bg: linear-gradient(135deg, #B84F16 0%, #D36A28 100%);
+  --showcase-text: #FFFFFF;
+  --showcase-icon-bg: rgba(255,255,255,0.16);
+  --showcase-icon-color: #FFD0A2;
+  --showcase-p-color: #FCE9DC;
+  --showcase-cta-color: #FFE0C3;
+  --showcase-border: transparent;
+
+  --body-bg: var(--paper);
+  --surface: var(--card-bg);
+  --surface-border: var(--line);
+  --page-bg: var(--card-bg);
+  --page-header-bg: linear-gradient(135deg, #F7DCC8 0%, #FFF0E3 100%);
+  --page-header-text: var(--ink);
+  --page-header-muted: var(--ink-soft);
+  --page-header-accent: var(--navy);
+  --page-header-stat: var(--navy);
+  --text-main: var(--ink);
+  --text-soft: var(--ink-soft);
+  --input-bg: var(--paper);
+  --input-border: var(--line);
+  --input-text: var(--ink);
+  --chip-bg: var(--paper);
+  --chip-border: var(--line);
+  --chip-text: var(--ink);
+  --chip-active-bg: var(--navy);
+  --chip-active-text: #FFFFFF;
+  --section-title: var(--navy);
+  --brand-badge-bg: #FCE9DC;
+  --brand-badge-text: var(--navy-deep);
+  --sage-badge-bg: #F8E7DA;
+  --sage-badge-text: var(--sage);
+  --topbar-bg: var(--card-bg);
+  --topbar-border: var(--line);
+  --topbar-link: var(--navy);
+  --topbar-crumb: var(--ink-soft);
+}
+
+/* Burgundy theme based on the supplied AI+ mockup. */
+[data-theme="burgundy"]{
+  --mint: #E8D2D9;
+  --navy: #6B1F3A;
+  --navy-deep: #451326;
+  --navy-light: #87445D;
+  --gold: #D8A36A;
+  --gold-light: #F2C99F;
+  --gold-text: #6B1F3A;
+  --paper: #FBF5F6;
+  --ink: #33252B;
+  --ink-soft: #75636A;
+  --line: #E8D9DE;
+  --sage: #9A6B7B;
+  --card-bg: #FFFFFF;
+
+  --hero-bg: var(--navy);
+  --hero-text: #FFFFFF;
+  --hero-accent: #F2C99F;
+  --hero-title-em: #F2C99F;
+  --hero-sub: #F0DDE3;
+  --crumb-bg: var(--navy-deep);
+  --crumb-text: #F0DDE3;
+  --crumb-link-hover: #FFFFFF;
+  --crumb-sep: #C59AA8;
+  --crumb-muted: #C59AA8;
+  --crumb-strong: #FFFFFF;
+  --role-pill-color: #F2C99F;
+
+  --showcase-bg: linear-gradient(135deg, var(--navy) 0%, #87445D 100%);
+  --showcase-text: #FFFFFF;
+  --showcase-icon-bg: rgba(255,255,255,0.14);
+  --showcase-icon-color: #F2C99F;
+  --showcase-p-color: #F0DDE3;
+  --showcase-cta-color: #F2C99F;
+  --showcase-border: transparent;
+
+  --body-bg: var(--paper);
+  --surface: var(--card-bg);
+  --surface-border: var(--line);
+  --page-bg: var(--card-bg);
+  --page-header-bg: linear-gradient(135deg, #E8D2D9 0%, #FBF0F3 100%);
+  --page-header-text: var(--ink);
+  --page-header-muted: var(--ink-soft);
+  --page-header-accent: var(--navy);
+  --page-header-stat: var(--navy);
+  --text-main: var(--ink);
+  --text-soft: var(--ink-soft);
+  --input-bg: var(--paper);
+  --input-border: var(--line);
+  --input-text: var(--ink);
+  --chip-bg: var(--paper);
+  --chip-border: var(--line);
+  --chip-text: var(--ink);
+  --chip-active-bg: var(--navy);
+  --chip-active-text: #FFFFFF;
+  --section-title: var(--navy);
+  --brand-badge-bg: #F0DDE3;
+  --brand-badge-text: var(--navy);
+  --sage-badge-bg: #F3E8EC;
+  --sage-badge-text: var(--sage);
+  --topbar-bg: var(--card-bg);
+  --topbar-border: var(--line);
+  --topbar-link: var(--navy);
+  --topbar-crumb: var(--ink-soft);
+}
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{

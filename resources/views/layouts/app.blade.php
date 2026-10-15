@@ -10,8 +10,8 @@
   // Áp dụng theme đã lưu NGAY LẬP TỨC, tránh nháy màu sai lúc đầu load trang
   (function(){
     var saved = localStorage.getItem('aiplus-theme');
-    if (saved === 'teal') {
-      document.documentElement.setAttribute('data-theme', 'teal');
+    if (['teal', 'orange', 'burgundy'].includes(saved)) {
+      document.documentElement.setAttribute('data-theme', saved);
     }
   })();
 </script>
