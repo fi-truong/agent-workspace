@@ -25,7 +25,10 @@ it('lets an administrator control the homepage guide visibility', function () {
 
     $this->get(route('ai-plus.index'))
         ->assertOk()
-        ->assertSee('Ask AI Plus Guide');
+        ->assertSee('Ask AI Plus Guide')
+        ->assertSee('.ai-guide-form textarea{', false)
+        ->assertSee('color:#1b2e2a;background:#fff', false)
+        ->assertSee('.ai-guide-form textarea::placeholder{color:#657772', false);
 });
 
 it('answers guide questions for signed-in users and records token usage', function () {
