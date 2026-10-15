@@ -6,6 +6,7 @@ use App\Http\Requests\StoreAgentRequest;
 use App\Http\Requests\UpdateAgentRequest;
 use App\Models\Agent;
 use App\Models\AppSetting;
+use App\Models\Conversation;
 use App\Models\ShowcaseUse;
 use App\Services\AgentAvatarService;
 use App\Services\KnowledgeService;
@@ -54,9 +55,25 @@ class AgentController extends Controller
             return response()->json($agents->concat($usedSharedAgents)->values());
         }
 
+        $availableAgentIds = $agents->pluck('id')->merge($usedSharedAgents->pluck('id'))->unique();
+        $agentConversations = $user
+            ? $user->conversations()
+                ->where('type', Conversation::TYPE_CHAT)
+                ->whereIn('agent_id', $availableAgentIds)
+                ->latest('updated_at')
+                ->get(['id', 'agent_id', 'title'])
+                ->groupBy('agent_id')
+                ->map(fn ($conversations) => $conversations->map(fn (Conversation $conversation) => [
+                    'id' => $conversation->id,
+                    'title' => $conversation->title,
+                ])->values()->all())
+                ->all()
+            : [];
+
         return view('ai-plus.agent-workspace.agents.index', [
             'agents' => $agents,
             'usedSharedAgents' => $usedSharedAgents,
+            'agentConversations' => $agentConversations,
             'imageGenerationEnabled' => AppSetting::boolean('ai_plus_image_generation_enabled'),
         ]);
     }

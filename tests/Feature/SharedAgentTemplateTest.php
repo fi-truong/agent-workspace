@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Agent;
+use App\Models\Conversation;
 use App\Models\ShowcasePost;
 use App\Models\ShowcaseUse;
 use App\Models\User;
@@ -146,6 +147,19 @@ test('use-only sharing opens the source agent without copying its setup or knowl
         ->assertSee('Private knowledge agent')
         ->assertSee('Shared · Use-only')
         ->assertSee('Shortcut in your workspace');
+
+    $agentChat = Conversation::create([
+        'user_id' => $recipient->id,
+        'agent_id' => $source->id,
+        'title' => 'Budget planning chat',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+
+    $this->get(route('ai-plus.agent-workspace.agents.index'))
+        ->assertOk()
+        ->assertSee('Budget planning chat')
+        ->assertSee(route('ai-plus.agent-workspace.index', ['conversation_id' => $agentChat->id]), false)
+        ->assertSee('href="#agent-card-'.$source->id.'"', false);
 
     // The Use-only Agent is a persistent workspace shortcut, not an owned
     // clone, so the recipient can begin another chat without returning to the

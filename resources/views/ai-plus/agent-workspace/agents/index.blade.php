@@ -26,6 +26,35 @@
       </a>
       @endif
     </nav>
+    <div class="agent-sidebar-section-title">My Agents</div>
+    <div class="agent-sidebar-list">
+      @foreach($agents->concat($usedSharedAgents) as $sidebarAgent)
+      @php($sidebarConversations = $agentConversations[$sidebarAgent->id] ?? [])
+      @php($conversationListId = 'agent-conversations-'.$sidebarAgent->id)
+      <section class="agent-sidebar-group">
+        <div class="agent-sidebar-heading">
+          <a href="#agent-card-{{ $sidebarAgent->id }}" class="agent-sidebar-agent" title="Show {{ $sidebarAgent->title }}">
+            <span class="agent-sidebar-icon">@if($sidebarAgent->avatar_url)<img src="{{ $sidebarAgent->avatar_url }}" alt="">@else 🤖 @endif</span>
+            <span class="agent-sidebar-title">{{ $sidebarAgent->title }}</span>
+          </a>
+          <button class="agent-sidebar-toggle" type="button" aria-expanded="true" aria-controls="{{ $conversationListId }}" title="Collapse conversations">−</button>
+        </div>
+        <div class="agent-sidebar-conversations" id="{{ $conversationListId }}">
+          @forelse($sidebarConversations as $conversation)
+          <a href="{{ route('ai-plus.agent-workspace.index', ['conversation_id' => $conversation['id']]) }}" class="agent-sidebar-conversation {{ (string) request('conversation_id') === (string) $conversation['id'] ? 'active' : '' }}" @if((string) request('conversation_id') === (string) $conversation['id']) aria-current="page" @endif>
+            <span aria-hidden="true">💬</span>
+            <span class="agent-sidebar-conversation-title">{{ $conversation['title'] }}</span>
+          </a>
+          @empty
+          <span class="agent-sidebar-empty">No chats yet</span>
+          @endforelse
+        </div>
+      </section>
+      @endforeach
+      @if($agents->isEmpty() && $usedSharedAgents->isEmpty())
+      <p class="agent-sidebar-empty-state">Your Agents and their chats will appear here.</p>
+      @endif
+    </div>
   </aside>
 
   <main class="agents-workspace-main">
@@ -40,7 +69,7 @@
   <div class="agents-grid" id="agents-grid">
     @if($agents->count() > 0 || $usedSharedAgents->isNotEmpty())
     @foreach($agents as $agent)
-    <article class="agent-card" data-agent-id="{{ $agent->id }}">
+    <article class="agent-card" id="agent-card-{{ $agent->id }}" tabindex="-1" data-agent-id="{{ $agent->id }}">
       <div class="agent-card-header">
         <div class="agent-icon">@if($agent->avatar_url)<img src="{{ $agent->avatar_url }}" alt="">@else 🤖 @endif</div>
         <div class="agent-title">{{ $agent->title }}</div>
@@ -67,7 +96,7 @@
     </article>
     @endforeach
     @foreach($usedSharedAgents as $agent)
-    <article class="agent-card shared-agent-card" data-agent-id="{{ $agent->id }}">
+    <article class="agent-card shared-agent-card" id="agent-card-{{ $agent->id }}" tabindex="-1" data-agent-id="{{ $agent->id }}">
       <div class="agent-card-header">
         <div class="agent-icon">@if($agent->avatar_url)<img src="{{ $agent->avatar_url }}" alt="">@else 🤖 @endif</div>
         <div class="agent-title">{{ $agent->title }}</div>
@@ -115,6 +144,24 @@
 .agents-workspace-sidebar .ws-tab:hover { background: var(--surface); color: var(--text-main); }
 .agents-workspace-sidebar .ws-tab.active { background: var(--chip-active-bg); color: var(--chip-active-text); border-color: var(--chip-active-bg); }
 .agents-workspace-sidebar .ws-tab .icon { font-size: 18px; }
+.agent-sidebar-section-title { color: var(--text-soft); font-size: 11px; font-weight: 500; letter-spacing: .08em; padding: 16px 16px 8px; text-transform: uppercase; }
+.agent-sidebar-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 10px 16px; }
+.agent-sidebar-group { margin-bottom: 4px; }
+.agent-sidebar-heading { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.agent-sidebar-agent { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; padding: 7px 6px; border-radius: 7px; color: var(--text-main); text-decoration: none; }
+.agent-sidebar-agent:hover, .agent-sidebar-conversation:hover { background: var(--surface); }
+.agent-sidebar-icon { width: 26px; height: 26px; flex: 0 0 26px; display: grid; place-items: center; overflow: hidden; border-radius: 7px; background: var(--chip-bg); font-size: 14px; }
+.agent-sidebar-icon img { width: 100%; height: 100%; object-fit: cover; }
+.agent-sidebar-title, .agent-sidebar-conversation-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-sidebar-title { font-size: 13px; }
+.agent-sidebar-toggle { width: 26px; height: 26px; flex: 0 0 26px; border: 0; border-radius: 6px; background: transparent; color: var(--text-soft); font-size: 18px; cursor: pointer; }
+.agent-sidebar-toggle:hover { background: var(--surface); color: var(--text-main); }
+.agent-sidebar-conversations { display: flex; flex-direction: column; margin: 0 0 4px 18px; padding-left: 7px; border-left: 1px solid var(--surface-border); }
+.agent-sidebar-conversations[hidden] { display: none; }
+.agent-sidebar-conversation { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 7px 6px; border-radius: 6px; color: var(--text-soft); font-size: 12px; text-decoration: none; }
+.agent-sidebar-conversation.active { background: var(--chip-active-bg); color: var(--chip-active-text); }
+.agent-sidebar-empty, .agent-sidebar-empty-state { margin: 2px 6px 6px; color: var(--text-soft); font-size: 11px; line-height: 1.4; }
+.agent-card:target { outline: 2px solid var(--chip-active-bg); outline-offset: 3px; }
 .agents-workspace-main { flex: 1; min-width: 0; overflow: auto; }
 .agents-page { max-width: 1080px; margin: 0 auto; padding: 24px 32px 48px; }
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; gap: 16px; flex-wrap: wrap; }
@@ -254,6 +301,7 @@
 @media (max-width: 640px) {
   .agents-workspace-shell { min-height: calc(100vh - 52px); flex-direction: column; }
   .agents-workspace-sidebar { width: auto; flex-basis: auto; border-right: 0; border-bottom: 1px solid var(--surface-border); }
+  .agent-sidebar-list { max-height: 36vh; }
   .agents-workspace-main { overflow: visible; }
   .agents-page { padding: 16px 20px 32px; }
   .agents-grid { grid-template-columns: 1fr; }
@@ -283,6 +331,17 @@ document.querySelectorAll('[data-description-toggle]').forEach(button => {
     card.classList.toggle('is-expanded', !isExpanded);
     button.setAttribute('aria-expanded', String(!isExpanded));
     button.textContent = isExpanded ? 'More' : 'Less';
+  });
+});
+
+document.querySelectorAll('.agent-sidebar-toggle').forEach(button => {
+  button.addEventListener('click', () => {
+    const list = document.getElementById(button.getAttribute('aria-controls'));
+    const isExpanded = button.getAttribute('aria-expanded') === 'true';
+    list.hidden = isExpanded;
+    button.setAttribute('aria-expanded', String(!isExpanded));
+    button.textContent = isExpanded ? '+' : '−';
+    button.title = isExpanded ? 'Expand conversations' : 'Collapse conversations';
   });
 });
 </script>
