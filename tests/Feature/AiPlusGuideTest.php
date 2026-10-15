@@ -14,7 +14,8 @@ it('keeps the homepage guide hidden by default', function () {
         ->assertSee('data-theme-value="mint"', false)
         ->assertSee('data-theme-value="teal"', false)
         ->assertSee('data-theme-value="orange"', false)
-        ->assertSee('data-theme-value="burgundy"', false);
+        ->assertSee('data-theme-value="burgundy"', false)
+        ->assertSee('body:has(.ai-guide) .theme-switcher{left:20px;right:auto;}', false);
 });
 
 it('lets an administrator control the homepage guide visibility', function () {
