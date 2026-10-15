@@ -140,6 +140,9 @@ test('use-only sharing opens the source agent without copying its setup or knowl
 
     $this->get(route('ai-plus.agent-workspace.agents.index'))
         ->assertOk()
+        ->assertSee('aria-label="Agent Workspace navigation"', false)
+        ->assertSee('href="'.route('ai-plus.agent-workspace.index').'" class="ws-tab"', false)
+        ->assertSee('href="'.route('ai-plus.agent-workspace.agents.index').'" class="ws-tab active" aria-current="page"', false)
         ->assertSee('Private knowledge agent')
         ->assertSee('Shared · Use-only')
         ->assertSee('Shortcut in your workspace');

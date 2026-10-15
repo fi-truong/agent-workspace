@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreAgentRequest;
 use App\Http\Requests\UpdateAgentRequest;
 use App\Models\Agent;
+use App\Models\AppSetting;
 use App\Models\ShowcaseUse;
 use App\Services\AgentAvatarService;
 use App\Services\KnowledgeService;
@@ -56,6 +57,7 @@ class AgentController extends Controller
         return view('ai-plus.agent-workspace.agents.index', [
             'agents' => $agents,
             'usedSharedAgents' => $usedSharedAgents,
+            'imageGenerationEnabled' => AppSetting::boolean('ai_plus_image_generation_enabled'),
         ]);
     }
 

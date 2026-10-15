@@ -5,6 +5,30 @@
 @section('breadcrumb', 'Agents')
 
 @section('content')
+<div class="agents-workspace-shell">
+  <aside class="agents-workspace-sidebar" aria-label="Agent Workspace navigation">
+    <div class="agents-workspace-sidebar-header">
+      <h2>Agent Workspace</h2>
+    </div>
+    <nav class="workspace-tabs" aria-label="Workspace">
+      <a href="{{ route('ai-plus.agent-workspace.index') }}" class="ws-tab" data-behavior="new-quick-chat">
+        <span class="icon">💬</span>
+        <span>Chat</span>
+      </a>
+      <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="ws-tab active" aria-current="page">
+        <span class="icon">🤖</span>
+        <span>Agents</span>
+      </a>
+      @if($imageGenerationEnabled)
+      <a href="{{ route('ai-plus.agent-workspace.images.index') }}" class="ws-tab">
+        <span class="icon">🖼️</span>
+        <span>Image</span>
+      </a>
+      @endif
+    </nav>
+  </aside>
+
+  <main class="agents-workspace-main">
 <div class="agents-page">
   <div class="page-header">
     <h1 class="page-title">My Agents</h1>
@@ -75,11 +99,23 @@
     @endif
   </div>
 </div>
+</main>
+</div>
 
 @include('ai-plus.agent-workspace.agents._agent-form-modal')
 
 @push('styles')
 <style>
+.agents-workspace-shell { display: flex; min-height: calc(100vh - 52px); background: var(--body-bg); }
+.agents-workspace-sidebar { width: var(--workspace-sidebar-width, 300px); flex: 0 0 var(--workspace-sidebar-width, 300px); background: var(--page-bg); border-right: 1px solid var(--surface-border); display: flex; flex-direction: column; }
+.agents-workspace-sidebar-header { padding: 20px; border-bottom: 1px solid var(--surface-border); }
+.agents-workspace-sidebar-header h2 { color: var(--page-header-text); font-family: 'Fraunces', serif; font-weight: 600; font-size: 20px; margin: 0; }
+.agents-workspace-sidebar .workspace-tabs { display: flex; gap: 8px; padding: 16px 12px 12px; }
+.agents-workspace-sidebar .ws-tab { flex: 1; padding: 10px 12px; background: var(--chip-bg); border: 1px solid var(--chip-border); border-radius: 8px; color: var(--chip-text); font-size: 12px; font-weight: 500; cursor: pointer; text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: all .15s; }
+.agents-workspace-sidebar .ws-tab:hover { background: var(--surface); color: var(--text-main); }
+.agents-workspace-sidebar .ws-tab.active { background: var(--chip-active-bg); color: var(--chip-active-text); border-color: var(--chip-active-bg); }
+.agents-workspace-sidebar .ws-tab .icon { font-size: 18px; }
+.agents-workspace-main { flex: 1; min-width: 0; overflow: auto; }
 .agents-page { max-width: 1080px; margin: 0 auto; padding: 24px 32px 48px; }
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; gap: 16px; flex-wrap: wrap; }
 .page-header .page-title { margin: 0; font-size: clamp(28px, 3.5vw, 36px); }
@@ -216,6 +252,9 @@
 .btn-secondary:hover { background: var(--line); }
 
 @media (max-width: 640px) {
+  .agents-workspace-shell { min-height: calc(100vh - 52px); flex-direction: column; }
+  .agents-workspace-sidebar { width: auto; flex-basis: auto; border-right: 0; border-bottom: 1px solid var(--surface-border); }
+  .agents-workspace-main { overflow: visible; }
   .agents-page { padding: 16px 20px 32px; }
   .agents-grid { grid-template-columns: 1fr; }
 }
