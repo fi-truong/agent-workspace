@@ -38,8 +38,8 @@ class AgentTemplateController extends Controller
             $query->latest();
         }
 
-        // Pagination - 10 per page
-        $templatesPaginator = $query->paginate(10)->withQueryString();
+        // Keep enough templates together to avoid a mostly empty final grid row.
+        $templatesPaginator = $query->paginate(12)->withQueryString();
 
         $templates = $templatesPaginator->getCollection()->map(function ($t) {
             return [
