@@ -1,10 +1,19 @@
 <?php
 
-use App\Models\Conversation;
 use App\Models\Agent;
+use App\Models\Conversation;
 use App\Models\UsageLog;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
+
+test('assistant chat links remain visible in the dark theme', function () {
+    $this->actingAs(User::factory()->create())
+        ->get(route('ai-plus.agent-workspace.index'))
+        ->assertOk()
+        ->assertSee('.chat-msg-wrap .chat-bubble a{color:var(--navy);', false)
+        ->assertSee('[data-theme="teal"] .chat-msg-wrap .chat-bubble a{color:#B0EDE1;', false)
+        ->assertSee('[data-theme="teal"] .chat-msg-wrap .chat-bubble a:hover{color:#F0C878;', false);
+});
 
 test('a user cannot send a message to another users conversation', function () {
     $owner = User::factory()->create();

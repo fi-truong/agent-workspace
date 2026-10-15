@@ -372,7 +372,10 @@
   [style*="align-self:flex-start"] table{border-collapse:collapse;margin:8px 0;}
   [style*="align-self:flex-start"] th,[style*="align-self:flex-start"] td{border:1px solid var(--line);padding:6px 10px;font-size:13px;}
   [style*="align-self:flex-start"] th{background:var(--paper);font-weight:600;}
-  [style*="align-self:flex-start"] a{color:var(--navy);text-decoration:underline;}
+  .chat-msg-wrap .chat-bubble a{color:var(--navy);text-decoration:underline;text-underline-offset:2px;}
+  [data-theme="teal"] .chat-msg-wrap .chat-bubble a{color:#B0EDE1;}
+  .chat-msg-wrap .chat-bubble a:hover{color:#8A5C10;}
+  [data-theme="teal"] .chat-msg-wrap .chat-bubble a:hover{color:#F0C878;}
   [style*="align-self:flex-start"] blockquote{border-left:3px solid var(--sage);margin:8px 0;padding-left:12px;color:var(--text-soft);}
   #chat-messages{max-width:100%;}
 
