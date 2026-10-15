@@ -15,6 +15,28 @@
             @include('admin.partials.field-error', ['field' => 'title'])
         </div>
         <div class="form-group">
+            <label>Category group <span class="text-danger">*</span></label>
+            <select name="category_group" class="form-select" required>
+                @foreach($categoryGroups as $key => $label)
+                <option value="{{ $key }}" {{ old('category_group', $prompt->category_group) == $key ? 'selected' : '' }}>{{ $label }}</option>
+                @endforeach
+            </select>
+            @include('admin.partials.field-error', ['field' => 'category_group'])
+        </div>
+        <div class="form-group">
+            <label>Category <span class="text-danger">*</span></label>
+            <select name="category" class="form-select" required>
+                @foreach($catalogCategories as $group => $options)
+                <optgroup label="{{ $categoryGroups[$group] }}">
+                    @foreach($options as $key => $label)
+                    <option value="{{ $key }}" {{ old('category', $prompt->category) == $key ? 'selected' : '' }}>{{ $label }}</option>
+                    @endforeach
+                </optgroup>
+                @endforeach
+            </select>
+            @include('admin.partials.field-error', ['field' => 'category'])
+        </div>
+        <div class="form-group">
             <label>Subject <span class="text-danger">*</span></label>
             <select name="subject" class="form-select" required>
                 <option value="">— Select Subject —</option>

@@ -8,7 +8,8 @@
     'searchPlaceholder' => 'Search templates...',
     'searchValue' => request('search'),
     'filters' => [
-        ['key' => 'category', 'label' => 'Category', 'options' => collect($categories)->mapWithKeys(fn($c) => [$c => $c])->all(), 'selected' => request('category')],
+        ['key' => 'group', 'label' => 'Group', 'options' => $categoryGroups, 'selected' => request('group')],
+        ['key' => 'category', 'label' => 'Category', 'options' => $categories, 'selected' => request('category')],
         ['key' => 'status', 'label' => 'Status', 'options' => $statuses, 'selected' => request('status')],
     ],
     'sortOptions' => ['newest' => 'Newest', 'oldest' => 'Oldest', 'alpha' => 'A–Z'],
@@ -18,14 +19,14 @@
 ])
 
 @include('admin.partials.table', [
-    'headers' => ['Name', 'Category', 'Status', 'Features', 'Created', 'Actions'],
+    'headers' => ['Name', 'Group / Category', 'Status', 'Features', 'Created', 'Actions'],
     'rows' => $templates,
     'renderRow' => function($template) {
         $csrf = csrf_field();
         $method = method_field('DELETE');
         return [
             '<div><div class="item-title">' . e($template->name) . '</div><div class="item-sub">' . e(Str::limit($template->description, 60)) . '</div></div>',
-            '<span class="badge new">' . e($template->category ?? '—') . '</span>',
+            '<span class="badge new">' . e($template->category_group ?? '—') . ' / ' . e($template->category ?? '—') . '</span>',
             '<span class="badge ' . ($template->status === 'published' ? 'published' : ($template->status === 'archived' ? 'draft' : 'pending')) . '">' . ucfirst($template->status) . '</span>',
             $template->features_count ?? $template->features->count(),
             $template->created_at?->format('d/m/Y') ?? '—',

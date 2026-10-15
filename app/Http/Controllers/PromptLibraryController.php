@@ -4,13 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Models\PromptLibraryPrompt;
 use App\Models\Tag;
+use App\Support\AiPlusCatalogCategories;
 use Illuminate\Http\Request;
 
 class PromptLibraryController extends Controller
 {
     public function index(Request $request)
     {
-        $query = PromptLibraryPrompt::with(['author', 'tags'])->latest();
+        $query = PromptLibraryPrompt::with(['author', 'tags'])
+            ->where('status', 'published')
+            ->latest();
+
+        if ($request->filled('group')) {
+            $query->where('category_group', $request->string('group')->toString());
+        }
+
+        if ($request->filled('category')) {
+            $query->where('category', $request->string('category')->toString());
+        }
 
         // Search
         if ($request->filled('search')) {
@@ -47,6 +58,8 @@ class PromptLibraryController extends Controller
                 'title' => $p->title,
                 'description' => $p->description,
                 'preview' => $p->preview_text,
+                'category_group' => $p->category_group,
+                'category' => $p->category,
                 'author' => $p->author->name,
                 'authorInitials' => $p->author->initials,
                 'badges' => $p->tags->pluck('name')->toArray(),
@@ -62,8 +75,10 @@ class PromptLibraryController extends Controller
             'promptsPaginator' => $promptsPaginator,
             'subjects' => $subjects,
             'viewingAs' => 'Teacher / Staff',
-            'totalPrompts' => PromptLibraryPrompt::count(),
+            'totalPrompts' => (clone $query)->count(),
             'totalSubjects' => Tag::where('category', 'subject')->count(),
+            'categoryGroups' => AiPlusCatalogCategories::GROUPS,
+            'catalogCategories' => AiPlusCatalogCategories::CATEGORIES,
         ]);
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAuditLog;
 use App\Models\AgentTemplate;
 use App\Models\AgentTemplateFeature;
+use App\Support\AiPlusCatalogCategories;
 use Illuminate\Http\Request;
 
 class TemplateController extends Controller
@@ -25,6 +26,9 @@ class TemplateController extends Controller
         if ($request->filled('category')) {
             $query->where('category', $request->category);
         }
+        if ($request->filled('group')) {
+            $query->where('category_group', $request->string('group')->toString());
+        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -38,17 +42,19 @@ class TemplateController extends Controller
         };
 
         $templates = $query->paginate(15)->withQueryString();
-        $categories = AgentTemplate::distinct()->pluck('category')->filter()->all();
+        $categories = AiPlusCatalogCategories::allCategories();
+        $categoryGroups = AiPlusCatalogCategories::GROUPS;
         $statuses = ['draft' => 'Draft', 'published' => 'Published', 'archived' => 'Archived'];
 
-        return view('admin.templates.index', compact('templates', 'categories', 'statuses'));
+        return view('admin.templates.index', compact('templates', 'categories', 'categoryGroups', 'statuses'));
     }
 
     public function create()
     {
-        $categories = AgentTemplate::distinct()->pluck('category')->filter()->all();
+        $categories = AiPlusCatalogCategories::CATEGORIES;
+        $categoryGroups = AiPlusCatalogCategories::GROUPS;
 
-        return view('admin.templates.create', compact('categories'));
+        return view('admin.templates.create', compact('categories', 'categoryGroups'));
     }
 
     public function store(Request $request)
@@ -56,7 +62,9 @@ class TemplateController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'required|string',
-            'category' => 'nullable|string|max:100',
+            'system_prompt' => 'required|string|min:100',
+            'category_group' => 'required|in:teaching,school_operations',
+            'category' => 'required|in:lesson_planning,instruction_differentiation,assessment_feedback,subject_specific,student_support,communication,administration_operations,events_planning,data_reporting',
             'status' => 'required|in:draft,published,archived',
             'features' => 'array',
             'features.*.title' => 'required|string',
@@ -64,9 +72,15 @@ class TemplateController extends Controller
             'features.*.icon' => 'nullable|string',
         ]);
 
+        if (! AiPlusCatalogCategories::contains($data['category_group'], $data['category'])) {
+            return back()->withErrors(['category' => 'Choose a category that belongs to the selected group.'])->withInput();
+        }
+
         $template = AgentTemplate::create([
             'name' => $data['name'],
             'description' => $data['description'],
+            'system_prompt' => $data['system_prompt'],
+            'category_group' => $data['category_group'],
             'category' => $data['category'],
             'status' => $data['status'],
         ]);
@@ -86,10 +100,11 @@ class TemplateController extends Controller
 
     public function edit(AgentTemplate $template)
     {
-        $categories = AgentTemplate::distinct()->pluck('category')->filter()->all();
+        $categories = AiPlusCatalogCategories::CATEGORIES;
+        $categoryGroups = AiPlusCatalogCategories::GROUPS;
         $template->load('features');
 
-        return view('admin.templates.edit', compact('template', 'categories'));
+        return view('admin.templates.edit', compact('template', 'categories', 'categoryGroups'));
     }
 
     public function update(Request $request, AgentTemplate $template)
@@ -97,7 +112,9 @@ class TemplateController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'required|string',
-            'category' => 'nullable|string|max:100',
+            'system_prompt' => 'required|string|min:100',
+            'category_group' => 'required|in:teaching,school_operations',
+            'category' => 'required|in:lesson_planning,instruction_differentiation,assessment_feedback,subject_specific,student_support,communication,administration_operations,events_planning,data_reporting',
             'status' => 'required|in:draft,published,archived',
             'features' => 'array',
             'features.*.id' => 'nullable|integer',
@@ -107,9 +124,15 @@ class TemplateController extends Controller
             'features.*._delete' => 'boolean',
         ]);
 
+        if (! AiPlusCatalogCategories::contains($data['category_group'], $data['category'])) {
+            return back()->withErrors(['category' => 'Choose a category that belongs to the selected group.'])->withInput();
+        }
+
         $template->update([
             'name' => $data['name'],
             'description' => $data['description'],
+            'system_prompt' => $data['system_prompt'],
+            'category_group' => $data['category_group'],
             'category' => $data['category'],
             'status' => $data['status'],
         ]);

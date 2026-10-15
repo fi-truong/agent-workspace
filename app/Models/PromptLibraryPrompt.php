@@ -8,7 +8,7 @@ class PromptLibraryPrompt extends Model
 {
     protected $table = 'prompt_library_prompts';
 
-    protected $fillable = ['author_id', 'title', 'description', 'preview_text', 'uses_count', 'status'];
+    protected $fillable = ['author_id', 'title', 'description', 'preview_text', 'uses_count', 'status', 'category_group', 'category'];
 
     public function author()
     {

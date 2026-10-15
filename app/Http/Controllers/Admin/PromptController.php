@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAuditLog;
 use App\Models\PromptLibraryPrompt;
 use App\Models\Tag;
+use App\Support\AiPlusCatalogCategories;
 use Illuminate\Http\Request;
 
 class PromptController extends Controller
@@ -28,6 +29,12 @@ class PromptController extends Controller
         if ($request->filled('subject')) {
             $query->whereHas('tags', fn ($q) => $q->where('category', 'subject')->where('name', $request->subject));
         }
+        if ($request->filled('group')) {
+            $query->where('category_group', $request->string('group')->toString());
+        }
+        if ($request->filled('category')) {
+            $query->where('category', $request->string('category')->toString());
+        }
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
@@ -44,15 +51,20 @@ class PromptController extends Controller
 
         $subjects = Tag::where('category', 'subject')->pluck('name')->all();
         $statuses = ['draft' => 'Draft', 'published' => 'Published'];
+        $categoryGroups = AiPlusCatalogCategories::GROUPS;
+        $categories = AiPlusCatalogCategories::allCategories();
 
-        return view('admin.prompts.index', compact('prompts', 'subjects', 'statuses'));
+        return view('admin.prompts.index', compact('prompts', 'subjects', 'statuses', 'categoryGroups', 'categories'));
     }
 
     public function create()
     {
         $subjects = Tag::where('category', 'subject')->pluck('name', 'name')->all();
 
-        return view('admin.prompts.create', compact('subjects'));
+        $categoryGroups = AiPlusCatalogCategories::GROUPS;
+        $catalogCategories = AiPlusCatalogCategories::CATEGORIES;
+
+        return view('admin.prompts.create', compact('subjects', 'categoryGroups', 'catalogCategories'));
     }
 
     public function store(Request $request)
@@ -63,13 +75,21 @@ class PromptController extends Controller
             'preview_text' => 'required|string',
             'subject' => 'required|string',
             'status' => 'required|in:draft,published',
+            'category_group' => 'required|in:teaching,school_operations',
+            'category' => 'required|in:lesson_planning,instruction_differentiation,assessment_feedback,subject_specific,student_support,communication,administration_operations,events_planning,data_reporting',
         ]);
+
+        if (! AiPlusCatalogCategories::contains($data['category_group'], $data['category'])) {
+            return back()->withErrors(['category' => 'Choose a category that belongs to the selected group.'])->withInput();
+        }
 
         $prompt = PromptLibraryPrompt::create([
             'title' => $data['title'],
             'description' => $data['description'],
             'preview_text' => $data['preview_text'],
             'status' => $data['status'],
+            'category_group' => $data['category_group'],
+            'category' => $data['category'],
         ]);
 
         // Attach subject tag
@@ -84,8 +104,10 @@ class PromptController extends Controller
     {
         $subjects = Tag::where('category', 'subject')->pluck('name', 'name')->all();
         $currentSubject = $prompt->tags()->where('category', 'subject')->value('name');
+        $categoryGroups = AiPlusCatalogCategories::GROUPS;
+        $catalogCategories = AiPlusCatalogCategories::CATEGORIES;
 
-        return view('admin.prompts.edit', compact('prompt', 'subjects', 'currentSubject'));
+        return view('admin.prompts.edit', compact('prompt', 'subjects', 'currentSubject', 'categoryGroups', 'catalogCategories'));
     }
 
     public function update(Request $request, PromptLibraryPrompt $prompt)
@@ -96,13 +118,21 @@ class PromptController extends Controller
             'preview_text' => 'required|string',
             'subject' => 'required|string',
             'status' => 'required|in:draft,published',
+            'category_group' => 'required|in:teaching,school_operations',
+            'category' => 'required|in:lesson_planning,instruction_differentiation,assessment_feedback,subject_specific,student_support,communication,administration_operations,events_planning,data_reporting',
         ]);
+
+        if (! AiPlusCatalogCategories::contains($data['category_group'], $data['category'])) {
+            return back()->withErrors(['category' => 'Choose a category that belongs to the selected group.'])->withInput();
+        }
 
         $prompt->update([
             'title' => $data['title'],
             'description' => $data['description'],
             'preview_text' => $data['preview_text'],
             'status' => $data['status'],
+            'category_group' => $data['category_group'],
+            'category' => $data['category'],
         ]);
 
         // Update subject tag

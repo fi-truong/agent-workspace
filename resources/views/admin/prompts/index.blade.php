@@ -8,6 +8,8 @@
     'searchPlaceholder' => 'Search prompts...',
     'searchValue' => request('search'),
     'filters' => [
+        ['key' => 'group', 'label' => 'Group', 'options' => $categoryGroups, 'selected' => request('group')],
+        ['key' => 'category', 'label' => 'Category', 'options' => $categories, 'selected' => request('category')],
         ['key' => 'subject', 'label' => 'Subject', 'options' => collect($subjects)->mapWithKeys(fn($s) => [$s => $s])->all(), 'selected' => request('subject')],
         ['key' => 'status', 'label' => 'Status', 'options' => $statuses, 'selected' => request('status')],
     ],
@@ -18,7 +20,7 @@
 ])
 
 @include('admin.partials.table', [
-    'headers' => ['Title', 'Subject', 'Status', 'Created', 'Actions'],
+    'headers' => ['Title', 'Group / Category', 'Subject', 'Status', 'Created', 'Actions'],
     'rows' => $prompts,
     'renderRow' => function($prompt) {
         $subject = $prompt->tags->where('category', 'subject')->first()?->name ?? '—';
@@ -26,6 +28,7 @@
         $method = method_field('DELETE');
         return [
             '<div><div class="item-title">' . e($prompt->title) . '</div><div class="item-sub">' . e(Str::limit($prompt->description, 60)) . '</div></div>',
+            '<span class="badge new">' . e($prompt->category_group ?? '—') . ' / ' . e($prompt->category ?? '—') . '</span>',
             '<span class="badge new">' . e($subject) . '</span>',
             '<span class="badge ' . ($prompt->status === 'published' ? 'published' : 'draft') . '">' . ucfirst($prompt->status) . '</span>',
             $prompt->created_at?->format('d/m/Y') ?? '—',

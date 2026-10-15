@@ -3,22 +3,30 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property-read Agent|null $sourceAgent
+ */
 class AgentTemplate extends Model
 {
-    protected $fillable = ['source_agent_id', 'icon', 'name', 'description', 'preview_class', 'badge', 'uses_count', 'category', 'status'];
+    protected $fillable = ['source_agent_id', 'icon', 'name', 'description', 'system_prompt', 'preview_class', 'badge', 'uses_count', 'category', 'category_group', 'status'];
 
-    public function sourceAgent()
+    /** @return BelongsTo<Agent, $this> */
+    public function sourceAgent(): BelongsTo
     {
         return $this->belongsTo(Agent::class, 'source_agent_id');
     }
 
-    public function features()
+    /** @return HasMany<AgentTemplateFeature, $this> */
+    public function features(): HasMany
     {
         return $this->hasMany(AgentTemplateFeature::class)->orderBy('sort_order');
     }
 
-    public function usageLogs()
+    /** @return HasMany<UsageLog, $this> */
+    public function usageLogs(): HasMany
     {
         return $this->hasMany(UsageLog::class, 'related_agent_template_id');
     }

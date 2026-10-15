@@ -737,23 +737,181 @@ class PromptLibrarySeeder extends Seeder
             ],
         ];
 
-        // Xóa dữ liệu cũ để seed sạch (idempotent)
-        PromptLibraryPrompt::query()->delete();
-        \DB::table('prompt_tags')->delete();
+        $seededTitles = collect($prompts)->pluck('title')->all();
+        $curatedPrompts = [
+            'Lesson Plan Creator' => [
+                'category_group' => 'teaching', 'category' => 'lesson_planning',
+                'description' => 'A structured lesson-design prompt that connects objectives, timed learning activities, differentiation, and evidence of learning.',
+                'preview_text' => <<<'PROMPT'
+Act as an experienced K–12 instructional designer for a bilingual school. Plan a [DURATION]-minute [SUBJECT] lesson for Grade [GRADE] on [TOPIC]. Context: [UNIT / PRIOR LEARNING / CLASS NEEDS]. Learning standard or objective: [STANDARD OR OBJECTIVE]. Available materials and constraints: [MATERIALS / CONSTRAINTS].
+
+Before drafting, ask up to three concise questions only if missing information would materially change the plan; otherwise state your assumptions. Produce: (1) 2–3 measurable learning objectives; (2) key vocabulary and likely misconceptions; (3) a timed sequence showing teacher actions, student actions, and checks for understanding; (4) support/core/extension options, including language scaffolds; (5) materials; and (6) an exit check with success criteria. Keep every activity aligned to the objectives and feasible within the stated time. End with a brief alignment check and any assumptions. Do not invent school-specific policies or standards.
+PROMPT,
+            ],
+            'Bilingual Lesson Plan (VN/EN)' => [
+                'category_group' => 'teaching', 'category' => 'lesson_planning',
+                'description' => 'Plans bilingual instruction with aligned content and language objectives, purposeful language scaffolds, and checks for understanding.',
+                'preview_text' => <<<'PROMPT'
+Act as a bilingual K–12 lesson designer. Create a [DURATION]-minute lesson for Grade [GRADE], subject [SUBJECT], topic [TOPIC]. Students’ language profile: [PROFILE]. Content objective: [OBJECTIVE]. Required languages: [LANGUAGES]. Materials/constraints: [DETAILS].
+
+If essential context is missing, ask brief clarifying questions; otherwise state assumptions. Provide separate, measurable content and language objectives; identify 5–8 key terms with student-friendly definitions and accurate translations; map a timed lesson sequence with teacher/student actions; show where students listen, speak, read, and write; include scaffolds that preserve grade-level thinking; and give one formative check with criteria. Keep the two language versions equivalent in meaning, not merely word-for-word translations. Flag terms whose translation depends on context. Conclude with a short check that activities, language supports, and assessment align to the objectives.
+PROMPT,
+            ],
+            'Differentiated Instruction Planner' => [
+                'category_group' => 'teaching', 'category' => 'instruction_differentiation',
+                'description' => 'Creates flexible support, core, and extension pathways without lowering the shared learning objective.',
+                'preview_text' => <<<'PROMPT'
+Act as an inclusive instructional-design coach. Topic/task: [TOPIC]. Shared learning objective: [OBJECTIVE]. Grade: [GRADE]. Class context and known barriers: [CONTEXT]. Time/material constraints: [CONSTRAINTS]. Do not include identifiable student information.
+
+Design three flexible pathways—Support, Core, and Extension—that all address the same objective. For each, specify the student task, anticipated challenge, scaffold or resource, expected evidence of learning, and a quick teacher check. Include at least one option for language access and one choice of how students may demonstrate learning. Do not assume diagnoses or permanently label students. If the objective or context is unclear, ask what is needed before designing. Finish with a practical regrouping suggestion based on evidence, not ability labels.
+PROMPT,
+            ],
+            'Formative Assessment Designer' => [
+                'category_group' => 'teaching', 'category' => 'assessment_feedback',
+                'description' => 'Builds quick checks that reveal student thinking and connect results to concrete next teaching moves.',
+                'preview_text' => <<<'PROMPT'
+Act as an assessment-for-learning specialist. Design formative checks for [GRADE / SUBJECT / TOPIC]. Target learning objective(s): [OBJECTIVES]. Available time: [TIME]. Context or likely misconceptions: [CONTEXT].
+
+Create 3–5 varied checks that can be used during the lesson, not just at the end. For each, include: prompt/task, estimated time, what a correct response demonstrates, one likely misconception and what it may indicate, and the teacher’s next move for each response pattern. Include sample answers or success criteria. Ensure every check measures the stated objective and is age-appropriate. If key context is missing, ask concise questions rather than guessing. Finish with a simple way to record evidence without collecting unnecessary personal data.
+PROMPT,
+            ],
+            'Classroom Discussion Question Bank' => [
+                'category_group' => 'teaching', 'category' => 'instruction_differentiation',
+                'description' => 'Provides sequenced discussion questions, follow-up probes, and accessible participation structures.',
+                'preview_text' => <<<'PROMPT'
+Act as a discussion facilitator for Grade [GRADE] in [SUBJECT]. Text, phenomenon, or topic: [TOPIC]. Learning goal: [GOAL]. Lesson time: [TIME]. Language/access needs: [NEEDS].
+
+Write 8 open-ended questions in a deliberate sequence: notice/recall, explain, analyze, evaluate, and transfer. For each, provide the thinking it is intended to elicit and one follow-up probe that presses for evidence or reasoning. Avoid questions with only one obvious answer unless checking prerequisite knowledge. Include two participation structures (for example, think-write-pair-share) and sentence starters that support multilingual learners without giving away the reasoning. End with a brief teacher note on how to respond when discussion stalls or becomes dominated by a few voices.
+PROMPT,
+            ],
+            'Math Problem Generator' => [
+                'category_group' => 'teaching', 'category' => 'subject_specific',
+                'description' => 'Generates sequenced mathematics problems with verified worked solutions and misconception-aware notes.',
+                'preview_text' => <<<'PROMPT'
+Act as a careful mathematics teacher. Create [NUMBER] original problems for Grade [GRADE] on [CONCEPT]. Intended difficulty progression: [PROGRESSION]. Contexts to use or avoid: [CONTEXT]. Notation/language requirements: [REQUIREMENTS].
+
+For each problem, provide the student-facing question, the concept assessed, a complete worked solution, and the final answer. Include at least one problem that asks students to explain or compare strategies. Make the progression coherent and avoid adding reading difficulty unrelated to the math. Verify each calculation and ensure the problem has a valid solution. If grade or concept is ambiguous, ask before drafting. End with a short answer-key consistency check and one common misconception the teacher should watch for.
+PROMPT,
+            ],
+            'Math Misconception Diagnostic' => [
+                'category_group' => 'teaching', 'category' => 'assessment_feedback',
+                'description' => 'Interprets a worked response cautiously, identifies possible misconceptions, and proposes targeted follow-up.',
+                'preview_text' => <<<'PROMPT'
+Act as a mathematics assessment specialist. Grade: [GRADE]. Target concept: [CONCEPT]. Original question: [QUESTION]. Student work/answer (remove names and identifying details): [WORK].
+
+Analyze only the evidence in the work. First state what the student appears to understand; then identify plausible misconception(s), distinguishing evidence from inference. Do not diagnose a learner from one response. Show the correct solution in clear steps, explain the exact point where the reasoning diverges if visible, and suggest two short follow-up questions that would distinguish between possible misconceptions. Include a supportive teacher response that invites the student to explain their thinking. If the work is incomplete or the question is missing, say what is needed rather than guessing.
+PROMPT,
+            ],
+            'Science Inquiry Question Bank' => [
+                'category_group' => 'teaching', 'category' => 'subject_specific',
+                'description' => 'Develops evidence-seeking science questions at progressively deeper levels for an inquiry unit.',
+                'preview_text' => <<<'PROMPT'
+Act as a K–12 science inquiry coach. Grade: [GRADE]. Unit/phenomenon: [UNIT OR PHENOMENON]. Relevant prior learning: [PRIOR LEARNING]. Available evidence/materials: [DETAILS].
+
+Create a sequence of 6 investigable questions: two that establish observations, two that compare patterns or variables, and two that invite explanation or prediction. For each, state what evidence students would need and what makes the question answerable at this grade level. Include one question that supports a Claim–Evidence–Reasoning response. Avoid questions that imply a predetermined result or ask students to conduct an unsafe investigation. If the phenomenon or evidence is not specified, ask a brief clarification. Finish with one teacher prompt for helping students refine a question that is too broad.
+PROMPT,
+            ],
+            'Science Lab Report Template' => [
+                'category_group' => 'teaching', 'category' => 'subject_specific',
+                'description' => 'Creates an age-appropriate lab-report scaffold that separates observations, evidence, and explanations.',
+                'preview_text' => <<<'PROMPT'
+Act as a science teacher creating a lab-report scaffold. Grade: [GRADE]. Investigation: [INVESTIGATION]. Learning objective: [OBJECTIVE]. Required format or rubric: [FORMAT, IF ANY].
+
+Create student-facing sections for question, background, hypothesis/prediction, variables, materials, procedure, data/observations, analysis, claim, evidence, reasoning, limitations, and conclusion. Tailor the wording and level of support to the grade. Add prompts or sentence frames, but do not invent results or write the student’s conclusion for them. Clearly distinguish observed data from interpretation. Include a concise teacher key or checklist describing what quality evidence looks like. If the supplied investigation lacks safety or procedure details, flag them for teacher review rather than fabricating approval.
+PROMPT,
+            ],
+            'Essay Rubric Builder' => [
+                'category_group' => 'teaching', 'category' => 'assessment_feedback',
+                'description' => 'Builds transparent, task-aligned criteria and performance descriptors students can use to improve their work.',
+                'preview_text' => <<<'PROMPT'
+Act as an assessment-design specialist. Assignment: [TASK]. Grade/course: [GRADE]. Learning objectives: [OBJECTIVES]. Required conventions or standards: [REQUIREMENTS]. Total points: [POINTS].
+
+Draft an analytic rubric with 4–6 criteria directly aligned to the objectives and 4 performance levels. Give observable, distinct descriptors for every criterion-level cell; avoid vague labels such as “good” or “poor.” Allocate points that sum exactly to the requested total and explain the weighting briefly. Include student-friendly language and one short “how to improve” cue for each criterion. Do not assess traits unrelated to the learning goals. End with a consistency check showing the point total and any assumptions.
+PROMPT,
+            ],
+            'Essay Feedback Generator' => [
+                'category_group' => 'teaching', 'category' => 'assessment_feedback',
+                'description' => 'Produces specific, kind, criteria-linked feedback that helps a student choose a manageable next revision step.',
+                'preview_text' => <<<'PROMPT'
+Act as a writing teacher giving formative feedback. Grade/course: [GRADE]. Assignment and criteria: [TASK / RUBRIC]. Student draft (remove names and identifying details): [DRAFT]. Feedback language: [LANGUAGE].
+
+Focus on the stated criteria and the evidence in the draft. Give: (1) one specific strength with an example from the text; (2) up to two high-impact next steps, each with a concrete revision example or question; and (3) one achievable next action for the student. Preserve the student’s ideas and voice; do not rewrite the entire essay unless requested. Use age-appropriate, encouraging language and distinguish suggestions from required corrections. If no rubric is supplied, state the criteria you are using. Do not infer personal characteristics from the writing.
+PROMPT,
+            ],
+            'Email to Parents Generator' => [
+                'category_group' => 'school_operations', 'category' => 'communication',
+                'description' => 'Drafts accurate, warm, audience-aware family messages with clear action items and bilingual options.',
+                'preview_text' => <<<'PROMPT'
+Act as a school communications editor. Draft a message for [AUDIENCE] about [PURPOSE]. Verified facts to include: [FACTS]. Action requested and deadline: [ACTION / DEADLINE]. Channel and length: [CHANNEL / LENGTH]. Languages: [LANGUAGES].
+
+Ask for any missing facts that would otherwise require guessing—especially dates, policies, costs, names, or commitments. Write in a warm, respectful, professional tone. Put the main point and requested action near the beginning; use a clear subject line and scannable paragraphs. If bilingual versions are requested, make them equivalent in meaning and natural in each language. Use placeholders for unprovided facts and avoid unnecessary student-identifying information. Return the draft and a short verification checklist; do not send it or claim it has been approved.
+PROMPT,
+            ],
+            'Meeting Minutes Summarizer' => [
+                'category_group' => 'school_operations', 'category' => 'administration_operations',
+                'description' => 'Turns notes into neutral minutes and traceable actions without inventing owners, decisions, or dates.',
+                'preview_text' => <<<'PROMPT'
+Act as a neutral meeting secretary. Meeting type/date: [DETAILS]. Intended audience: [AUDIENCE]. Notes (remove unnecessary personal or student information): [NOTES].
+
+Create concise minutes with sections for purpose, attendees (only if explicitly listed), key discussion, decisions, unresolved questions, and next steps. Then create an action table with task, owner, due date, and status. Never infer that a proposal was approved or invent an owner/deadline; write “Not specified” when absent. Preserve disagreements and uncertainty neutrally. Flag contradictions or unclear references for confirmation. End with a short list of facts the meeting lead should verify before circulation.
+PROMPT,
+            ],
+            'School Event Planner Checklist' => [
+                'category_group' => 'school_operations', 'category' => 'events_planning',
+                'description' => 'Builds an event plan with owners, timeline, communications, accessibility, safety checks, and follow-up.',
+                'preview_text' => <<<'PROMPT'
+Act as a school event-planning coordinator. Event: [EVENT]. Date/location/audience: [DETAILS]. Expected attendance: [NUMBER OR RANGE]. Budget/resources: [DETAILS]. Constraints or school requirements supplied by the user: [REQUIREMENTS].
+
+Ask clarifying questions for critical missing information; do not invent school rules, approvals, or vendor commitments. Produce a phased checklist (planning, 1–2 weeks before, event day, follow-up) with task, suggested owner role, due date/relative timing, dependency, and status. Include communication, accessibility, materials, setup/cleanup, safeguarding and emergency-planning checks, clearly marking items requiring school-leader confirmation. Finish with the top five open decisions and a concise day-of run sheet.
+PROMPT,
+            ],
+            'Policy Brief Generator' => [
+                'category_group' => 'school_operations', 'category' => 'data_reporting',
+                'description' => 'Summarizes a supplied policy for a defined audience while separating source facts from implications.',
+                'preview_text' => <<<'PROMPT'
+Act as a policy analyst preparing a brief for [AUDIENCE]. Source document/text: [ATTACH OR PASTE]. Purpose of the brief: [DECISION OR INFORMATION NEED]. Desired length: [LENGTH].
+
+Use only information supported by the supplied source. Produce: executive summary, purpose and scope, key requirements or changes, who is affected, dates or implementation steps explicitly stated, open questions, and implications for the audience. Clearly distinguish direct source statements from your interpretation; cite section/page headings when available. Do not provide legal advice or invent requirements. If the source is incomplete or ambiguous, identify the uncertainty. End with a short “verify before circulation” checklist.
+PROMPT,
+            ],
+            'Weekly Update to Leadership' => [
+                'category_group' => 'school_operations', 'category' => 'data_reporting',
+                'description' => 'Transforms supplied weekly notes into an evidence-based leadership update with decisions and next steps.',
+                'preview_text' => <<<'PROMPT'
+Act as an executive communications editor. Reporting period: [DATES]. Audience/decision context: [AUDIENCE / PURPOSE]. Source notes and verified metrics: [NOTES]. Priorities for next week: [PRIORITIES]. Maximum length: [WORD LIMIT].
+
+Create a concise update with sections for key progress, evidence/metrics, challenges or risks, decisions needed, and next-week priorities. Preserve units, dates, and denominators exactly; do not invent or overstate results. Separate confirmed facts from interpretation, and flag missing context needed to interpret a metric. Use neutral, specific language and explain why each issue matters to the audience. Finish with no more than three clear asks, each with an owner or deadline only when supplied.
+PROMPT,
+            ],
+        ];
+
+        $curatedTitles = array_keys($curatedPrompts);
+        PromptLibraryPrompt::query()
+            ->whereIn('title', $seededTitles)
+            ->whereNotIn('title', $curatedTitles)
+            ->update(['status' => 'draft']);
 
         foreach ($prompts as $data) {
+            if (! isset($curatedPrompts[$data['title']])) {
+                continue;
+            }
+
+            $data = array_merge($data, $curatedPrompts[$data['title']]);
             $authorId = $getAuthor($data['author_email']);
             if (! $authorId) {
                 continue; // Chưa seed User thì bỏ qua — chạy UserSeeder trước
             }
 
-            $prompt = PromptLibraryPrompt::create([
-                'author_id' => $authorId,
-                'title' => $data['title'],
-                'description' => $data['description'],
-                'preview_text' => $data['preview_text'],
-                'uses_count' => $data['uses_count'],
-            ]);
+            $prompt = PromptLibraryPrompt::updateOrCreate(
+                ['author_id' => $authorId, 'title' => $data['title']],
+                [
+                    'description' => $data['description'],
+                    'preview_text' => $data['preview_text'],
+                    'status' => 'published',
+                    'category_group' => $data['category_group'],
+                    'category' => $data['category'],
+                ],
+            );
 
             $tagIds = [];
             foreach ($data['tags'] as $tagData) {

@@ -29,6 +29,26 @@
         <span class="icon">🔍</span>
         <input type="text" id="prompt-search" placeholder="Search prompts..." value="{{ request('search') }}">
       </div>
+      <label class="catalog-filter">Group
+        <select id="prompt-group-filter">
+          <option value="">All groups</option>
+          @foreach($categoryGroups as $key => $label)
+          <option value="{{ $key }}" {{ request('group') === $key ? 'selected' : '' }}>{{ $label }}</option>
+          @endforeach
+        </select>
+      </label>
+      <label class="catalog-filter">Category
+        <select id="prompt-category-filter">
+          <option value="">All categories</option>
+          @foreach($catalogCategories as $group => $categories)
+          <optgroup label="{{ $categoryGroups[$group] }}" data-category-group="{{ $group }}">
+            @foreach($categories as $key => $label)
+            <option value="{{ $key }}" {{ request('category') === $key ? 'selected' : '' }}>{{ $label }}</option>
+            @endforeach
+          </optgroup>
+          @endforeach
+        </select>
+      </label>
       <div class="filter-group" id="subject-filters">
         <button class="filter-btn {{ !request('subject') ? 'active' : '' }}" data-subject="">All</button>
         @foreach($subjects as $subject)
@@ -60,6 +80,9 @@
           </div>
         </div>
         <p class="prompt-desc">{{ $prompt['description'] }}</p>
+        @if($prompt['category_group'] && $prompt['category'])
+        <div class="prompt-category-path">{{ $categoryGroups[$prompt['category_group']] ?? $prompt['category_group'] }} <span>›</span> {{ $catalogCategories[$prompt['category_group']][$prompt['category']] ?? $prompt['category'] }}</div>
+        @endif
         <div class="prompt-preview">{{ $prompt['preview'] }}</div>
         <div class="prompt-footer">
           <button class="copy-btn" data-prompt="{{ htmlspecialchars($prompt['preview'], ENT_QUOTES, 'UTF-8') }}">Copy Prompt</button>
@@ -97,6 +120,8 @@
 
   .filters-section{background: var(--surface);border-bottom:1px solid var(--surface-border);padding:20px 0;position:sticky;top:0;z-index:10;}
   .filters{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+  .catalog-filter{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-soft);}
+  .catalog-filter select{max-width:220px;padding:9px 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--input-text);}
   .search-box{flex:1;min-width:200px;max-width:400px;position:relative;}
   .search-box input{width:100%;padding:10px 16px 10px 40px;border:1px solid var(--input-border);border-radius:8px;font-size:14px;background: var(--input-bg);color: var(--input-text);transition: border-color .15s, background .3s, color .3s;}
   .search-box input:focus{outline:none;border-color:var(--navy);}
@@ -123,6 +148,8 @@
   .badge.role{background:var(--brand-badge-bg);color:var(--brand-badge-text);}
   .badge.new{background:var(--sage-badge-bg);color:var(--sage-badge-text);}
   .prompt-desc{font-size:14px;color: var(--text-soft);margin-bottom:16px;line-height:1.5;}
+  .prompt-category-path{font-size:11px;font-weight:600;color:var(--sage);margin:-8px 0 12px;}
+  .prompt-category-path span{padding:0 4px;color:var(--text-soft);}
   .prompt-preview{background: var(--input-bg);border:1px solid var(--input-border);border-radius:8px;padding:12px;font-family:'IBM Plex Mono', monospace;font-size:12px;color: var(--text-soft);margin-bottom:16px;max-height:80px;overflow:hidden;position:relative;}
   .prompt-preview::after{content:"";position:absolute;bottom:0;left:0;right:0;height:30px;background: linear-gradient(transparent, var(--input-bg));}
   .prompt-footer{display:flex;justify-content:space-between;align-items:center;}
@@ -153,6 +180,8 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('prompt-search');
+  const groupFilter = document.getElementById('prompt-group-filter');
+  const categoryFilter = document.getElementById('prompt-category-filter');
   const subjectButtons = document.querySelectorAll('#subject-filters .filter-btn[data-subject]');
   const sortButtons = document.querySelectorAll('.filter-btn[data-sort]');
   const promptGrid = document.getElementById('prompt-grid');
@@ -160,6 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const sectionTitleCount = document.querySelector('.section-title .count');
 
   let currentSearch = searchInput.value;
+  let currentGroup = groupFilter.value;
+  let currentCategory = categoryFilter.value;
   let currentSubject = '{{ request('subject') }}';
   let currentSort = '{{ request('sort') }}';
   let currentPage = 1;
@@ -179,6 +210,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function buildUrl(page = currentPage) {
     const params = new URLSearchParams();
     if (currentSearch) params.set('search', currentSearch);
+    if (currentGroup) params.set('group', currentGroup);
+    if (currentCategory) params.set('category', currentCategory);
     if (currentSubject) params.set('subject', currentSubject);
     if (currentSort) params.set('sort', currentSort);
     if (page > 1) params.set('page', page);
@@ -243,6 +276,32 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 300);
 
   searchInput.addEventListener('input', debouncedSearch);
+
+  function syncCategoryGroups() {
+    categoryFilter.querySelectorAll('optgroup[data-category-group]').forEach(group => {
+      group.hidden = !!currentGroup && group.dataset.categoryGroup !== currentGroup;
+    });
+    const selected = categoryFilter.selectedOptions[0];
+    if (selected?.parentElement?.tagName === 'OPTGROUP' && selected.parentElement.hidden) {
+      categoryFilter.value = '';
+      currentCategory = '';
+    }
+  }
+
+  groupFilter.addEventListener('change', () => {
+    currentGroup = groupFilter.value;
+    syncCategoryGroups();
+    currentPage = 1;
+    fetchPrompts();
+  });
+
+  categoryFilter.addEventListener('change', () => {
+    currentCategory = categoryFilter.value;
+    currentPage = 1;
+    fetchPrompts();
+  });
+
+  syncCategoryGroups();
 
   // Subject filter buttons
   subjectButtons.forEach(btn => {

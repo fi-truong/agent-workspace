@@ -24,12 +24,27 @@
         <button id="clearSearch" class="clear-btn" aria-label="Clear search" style="display: none;">×</button>
       </div>
 
-      <div class="filter-group">
-        <span class="filter-label">Filter:</span>
+      <div class="filter-group taxonomy-filter">
+        <span class="filter-label">Group:</span>
+        <div class="filter-chips" id="groupFilters">
+          <button class="filter-chip {{ request('group') ? '' : 'active' }}" data-group="">All</button>
+          @foreach($categoryGroups as $key => $label)
+          <button class="filter-chip {{ request('group') === $key ? 'active' : '' }}" data-group="{{ $key }}">{{ $label }}</button>
+          @endforeach
+        </div>
+      </div>
+
+      <div class="filter-group taxonomy-filter">
+        <span class="filter-label">Category:</span>
         <div class="filter-chips" id="categoryFilters">
-          <button class="filter-chip active" data-category="">All Categories</button>
-          @foreach($categories as $category)
-          <button class="filter-chip" data-category="{{ $category }}">{{ $categoryLabels[$category] ?? ucfirst($category) }}</button>
+          <button class="filter-chip {{ request('category') ? '' : 'active' }}" data-category="">All categories</button>
+          @foreach($categories as $group => $groupCategories)
+          <div class="category-chip-group" data-category-group="{{ $group }}" {{ request('group') && request('group') !== $group ? 'hidden' : '' }}>
+            <span>{{ $categoryGroups[$group] }}</span>
+            @foreach($groupCategories as $category => $label)
+            <button class="filter-chip {{ request('category') === $category ? 'active' : '' }}" data-category="{{ $category }}">{{ $label }}</button>
+            @endforeach
+          </div>
           @endforeach
         </div>
       </div>
@@ -77,6 +92,7 @@
           <div class="template-body">
             <h3 class="template-title">{{ $template['title'] }}</h3>
             <p class="template-desc">{{ $template['description'] }}</p>
+            <div class="template-category-path">{{ $categoryGroups[$template['category_group']] ?? $template['category_group'] }} <span>›</span> {{ $categoryLabels[$template['category']] ?? $template['category'] }}</div>
             <div class="template-features">
               @foreach($template['features'] as $feature)
               <span class="feature-tag">{{ $feature }}</span>
@@ -201,6 +217,12 @@
     gap: 8px;
     flex-wrap: wrap;
   }
+  .taxonomy-filter{align-items:flex-start;}
+  .category-chip-group{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-left:1px solid var(--surface-border);padding-left:8px;}
+  .category-chip-group[hidden]{display:none;}
+  .category-chip-group > span{font-size:11px;color:var(--text-soft);white-space:nowrap;}
+  .template-category-path{margin:-4px 0 12px;color:var(--sage);font-size:11px;font-weight:600;}
+  .template-category-path span{padding:0 4px;color:var(--text-soft);}
   .filter-chip {
     padding: 6px 12px;
     background: var(--chip-bg);
@@ -444,6 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('searchInput');
   const clearSearchBtn = document.getElementById('clearSearch');
   const categoryFilters = document.getElementById('categoryFilters');
+  const groupFilters = document.getElementById('groupFilters');
   const sortChips = document.querySelectorAll('.sort-chip');
   const templateGrid = document.getElementById('templateGrid');
   const resultsCount = document.getElementById('resultsCount');
@@ -452,8 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // State
   let currentSearch = searchInput.value;
-  let currentCategory = '';
-  let currentSort = 'new';
+  let currentGroup = '{{ request('group') }}';
+  let currentCategory = '{{ request('category') }}';
+  let currentSort = '{{ request('sort', 'new') }}';
   let currentPage = 1;
   let listLoading = false;
   let lastSuccessfulListUrl = window.location.href;
@@ -471,6 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function buildUrl(page = currentPage) {
     const params = new URLSearchParams();
     if (currentSearch) params.set('search', currentSearch);
+    if (currentGroup) params.set('group', currentGroup);
     if (currentCategory) params.set('category', currentCategory);
     if (currentSort && currentSort !== 'new') params.set('sort', currentSort);
     if (page > 1) params.set('page', page);
@@ -548,6 +573,29 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Category filter buttons
+  function syncCategoryGroups() {
+    categoryFilters.querySelectorAll('.category-chip-group').forEach(group => {
+      group.hidden = !!currentGroup && group.dataset.categoryGroup !== currentGroup;
+    });
+  }
+
+  groupFilters.addEventListener('click', (e) => {
+    const chip = e.target.closest('.filter-chip');
+    if (!chip) return;
+    currentGroup = chip.dataset.group || '';
+    if (currentCategory) {
+      const categoryButton = categoryFilters.querySelector(`[data-category="${CSS.escape(currentCategory)}"]`);
+      if (categoryButton && categoryButton.closest('.category-chip-group')?.dataset.categoryGroup !== currentGroup && currentGroup) {
+        currentCategory = '';
+      }
+    }
+    groupFilters.querySelectorAll('.filter-chip').forEach(btn => btn.classList.toggle('active', btn.dataset.group === currentGroup));
+    categoryFilters.querySelectorAll('.filter-chip').forEach(btn => btn.classList.toggle('active', btn.dataset.category === currentCategory));
+    syncCategoryGroups();
+    currentPage = 1;
+    fetchTemplates();
+  });
+
   categoryFilters.addEventListener('click', (e) => {
     const chip = e.target.closest('.filter-chip');
     if (!chip) return;
@@ -560,6 +608,8 @@ document.addEventListener('DOMContentLoaded', () => {
     currentPage = 1;
     fetchTemplates();
   });
+
+  syncCategoryGroups();
 
   // Sort filter buttons
   sortChips.forEach(chip => {
@@ -574,6 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   clearFiltersBtn.addEventListener('click', () => {
     currentSearch = '';
+    currentGroup = '';
     currentCategory = '';
     currentSort = 'new';
     currentPage = 1;
@@ -583,6 +634,10 @@ document.addEventListener('DOMContentLoaded', () => {
     categoryFilters.querySelectorAll('.filter-chip').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.category === '');
     });
+    groupFilters.querySelectorAll('.filter-chip').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.group === '');
+    });
+    syncCategoryGroups();
     sortChips.forEach(c => c.classList.toggle('active', c.dataset.sort === 'new'));
 
     fetchTemplates();

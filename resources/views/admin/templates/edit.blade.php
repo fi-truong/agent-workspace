@@ -19,13 +19,31 @@
             <textarea name="description" class="form-textarea" placeholder="Describe this template" required>{{ old('description', $template->description) }}</textarea>
             @include('admin.partials.field-error', ['field' => 'description'])
         </div>
+        <div class="form-group">
+            <label>System Prompt <span class="text-danger">*</span></label>
+            <textarea name="system_prompt" class="form-textarea" rows="10" placeholder="Define the Agent’s role, scope, workflow, clarifying questions, and response format." required>{{ old('system_prompt', $template->system_prompt) }}</textarea>
+            <small class="form-hint">This is the actual instruction set copied into an Agent when a user selects this template.</small>
+            @include('admin.partials.field-error', ['field' => 'system_prompt'])
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
             <div class="form-group">
-                <label>Category</label>
-                <select name="category" class="form-select">
-                    <option value="">— Select Category —</option>
-                    @foreach($categories as $c)
-                    <option value="{{ $c }}" {{ (old('category', $template->category) ?? '') == $c ? 'selected' : '' }}>{{ $c }}</option>
+                <label>Level 1 group <span class="text-danger">*</span></label>
+                <select name="category_group" class="form-select" required>
+                    @foreach($categoryGroups as $key => $label)
+                    <option value="{{ $key }}" {{ old('category_group', $template->category_group) == $key ? 'selected' : '' }}>{{ $label }}</option>
+                    @endforeach
+                </select>
+                @include('admin.partials.field-error', ['field' => 'category_group'])
+            </div>
+            <div class="form-group">
+                <label>Level 2 category <span class="text-danger">*</span></label>
+                <select name="category" class="form-select" required>
+                    @foreach($categories as $group => $options)
+                    <optgroup label="{{ $categoryGroups[$group] }}">
+                        @foreach($options as $key => $label)
+                        <option value="{{ $key }}" {{ old('category', $template->category) == $key ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </optgroup>
                     @endforeach
                 </select>
                 @include('admin.partials.field-error', ['field' => 'category'])
