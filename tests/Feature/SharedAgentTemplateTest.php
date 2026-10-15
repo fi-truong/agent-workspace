@@ -201,6 +201,71 @@ test('using a use-only agent more than once does not inflate its use count', fun
         ->and(ShowcaseUse::count())->toBe(1);
 });
 
+test('a user can remove a use-only shared-agent shortcut without deleting its source or chats', function () {
+    $owner = User::factory()->create();
+    $recipient = User::factory()->create();
+    $otherRecipient = User::factory()->create();
+    $source = Agent::create([
+        'user_id' => $owner->id,
+        'title' => 'Shared planning assistant',
+        'description' => 'Helps plan school activities.',
+        'is_shared' => true,
+        'sharing_access' => 'use_only',
+    ]);
+    $showcase = ShowcasePost::create([
+        'source_agent_id' => $source->id,
+        'author_id' => $owner->id,
+        'department' => 'CIEC',
+        'title' => $source->title,
+        'description' => $source->description,
+        'status' => 'published',
+    ]);
+    $recipientUse = ShowcaseUse::create([
+        'showcase_post_id' => $showcase->id,
+        'user_id' => $recipient->id,
+    ]);
+    $otherUse = ShowcaseUse::create([
+        'showcase_post_id' => $showcase->id,
+        'user_id' => $otherRecipient->id,
+    ]);
+    $conversation = Conversation::create([
+        'user_id' => $recipient->id,
+        'agent_id' => $source->id,
+        'title' => 'Planning conversation',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+
+    $this->actingAs($recipient)
+        ->get(route('ai-plus.agent-workspace.agents.index'))
+        ->assertOk()
+        ->assertSee('Shared · Use-only')
+        ->assertSee('Remove Shared planning assistant from My Agents', false)
+        ->assertSee(route('ai-plus.sharing-showcase.use.destroy', $showcase), false);
+
+    $this->delete(route('ai-plus.sharing-showcase.use.destroy', $showcase))
+        ->assertRedirect(route('ai-plus.agent-workspace.agents.index'));
+
+    $this->assertDatabaseMissing('showcase_uses', [
+        'id' => $recipientUse->id,
+    ]);
+    $this->assertDatabaseHas('showcase_uses', [
+        'id' => $otherUse->id,
+    ]);
+    $this->assertDatabaseHas('agents', [
+        'id' => $source->id,
+        'user_id' => $owner->id,
+    ]);
+    $this->assertDatabaseHas('conversations', [
+        'id' => $conversation->id,
+        'agent_id' => $source->id,
+    ]);
+
+    $this->get(route('ai-plus.agent-workspace.agents.index'))
+        ->assertOk()
+        ->assertDontSee('Shared · Use-only')
+        ->assertDontSee('Shared planning assistant');
+});
+
 test('My Agents truncates long descriptions and provides a More toggle', function () {
     $owner = User::factory()->create();
     $longDescription = str_repeat('This Agent helps staff prepare classroom resources and school communications. ', 4);

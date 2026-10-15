@@ -45,7 +45,14 @@ class AgentController extends Controller
                 ->with('showcase.sourceAgent')
                 ->latest('updated_at')
                 ->get()
-                ->map(fn (ShowcaseUse $use) => $use->showcase?->sourceAgent)
+                ->map(function (ShowcaseUse $use): ?Agent {
+                    $agent = $use->showcase?->sourceAgent;
+                    if ($agent) {
+                        $agent->setAttribute('showcase_post_id', $use->showcase_post_id);
+                    }
+
+                    return $agent;
+                })
                 ->filter(fn (?Agent $agent) => $agent !== null && $agent->is_shared && $agent->sharing_access !== 'copy')
                 ->reject(fn (Agent $agent) => $agents->contains('id', $agent->id))
                 ->values();

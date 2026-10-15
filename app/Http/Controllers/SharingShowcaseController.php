@@ -9,6 +9,7 @@ use App\Models\ShowcaseView;
 use App\Services\KnowledgeService;
 use App\Services\PiiFilterService;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class SharingShowcaseController extends Controller
@@ -280,6 +281,19 @@ class SharingShowcaseController extends Controller
         }
 
         return redirect()->route('ai-plus.agent-workspace.index', ['agent_id' => $agent->id]);
+    }
+
+    public function removeUse(Request $request, ShowcasePost $showcase): RedirectResponse
+    {
+        $use = ShowcaseUse::query()
+            ->where('showcase_post_id', $showcase->id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $use->delete();
+
+        return redirect()->route('ai-plus.agent-workspace.agents.index')
+            ->with('success', 'Shared agent removed from My Agents. Your conversations were kept.');
     }
 
     private function badgeFor(ShowcasePost $post): ?string

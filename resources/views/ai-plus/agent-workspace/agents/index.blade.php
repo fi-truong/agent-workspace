@@ -115,6 +115,11 @@
       </div>
       <div class="agent-actions">
         <button class="btn-icon use-agent" title="Start a new chat" data-agent-id="{{ $agent->id }}">💬</button>
+        <form method="POST" action="{{ route('ai-plus.sharing-showcase.use.destroy', $agent->showcase_post_id) }}" class="remove-shared-agent-form" data-web-confirm="Remove this shared Agent from My Agents? Your existing conversations will be kept." data-web-confirm-title="Remove shared Agent" data-web-confirm-action="Remove" data-web-confirm-danger="true">
+          @csrf
+          @method('DELETE')
+          <button class="btn-icon remove-shared-agent" type="submit" title="Remove from My Agents" aria-label="Remove {{ $agent->title }} from My Agents">×</button>
+        </form>
       </div>
     </article>
     @endforeach
@@ -190,6 +195,8 @@
 .agent-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .btn-icon { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--card-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: background .15s, border-color .15s; }
 .btn-icon:hover { background: var(--paper); border-color: var(--navy); }
+.remove-shared-agent-form{display:inline-flex;margin:0;}
+.btn-icon.remove-shared-agent:hover{background:rgba(220,53,69,.1);border-color:#dc3545;color:#dc3545;}
 .btn-icon.delete-agent:hover { background: rgba(220, 53, 69, 0.1); border-color: #dc3545; color: #dc3545; }
 
 /* Empty State */

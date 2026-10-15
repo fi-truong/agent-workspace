@@ -101,6 +101,7 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware(['auth', 'ai.policy'])->g
     Route::delete('/sharing-showcase/{showcase}/comments/{comment}', [SharingShowcaseController::class, 'destroyComment'])
         ->name('sharing-showcase.comments.destroy');
     Route::post('/sharing-showcase/{showcase}/use', [SharingShowcaseController::class, 'use'])->name('sharing-showcase.use');
+    Route::delete('/sharing-showcase/{showcase}/use', [SharingShowcaseController::class, 'removeUse'])->name('sharing-showcase.use.destroy');
     Route::get('/my-usage', [MyUsageController::class, 'index'])->name('my-usage.index');
     Route::get('/ai-policy', [AiPolicyController::class, 'index'])->name('ai-policy.index');
     Route::get('/support', [SupportController::class, 'index'])->name('support.index');
