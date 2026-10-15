@@ -21,7 +21,8 @@ it('keeps the homepage guide hidden by default', function () {
 
     expect($styles)
         ->toContain('[data-theme="orange"] .crumbbar .role-pill{background:rgba(242,138,53,.18);')
-        ->toContain('[data-theme="burgundy"] .crumbbar .role-pill{background:rgba(216,163,106,.16);');
+        ->toContain('[data-theme="burgundy"] .crumbbar .role-pill{background:rgba(216,163,106,.16);')
+        ->toContain('[data-theme="burgundy"] .crumbbar .header-logout-btn{color:#F2C99F;');
 });
 
 it('lets an administrator control the homepage guide visibility', function () {
