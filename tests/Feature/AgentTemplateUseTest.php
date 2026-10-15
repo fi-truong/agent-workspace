@@ -17,7 +17,10 @@ test('agent templates are paginated in groups of twelve', function () {
     $firstPage = $this->actingAs($user)
         ->get(route('ai-plus.agent-templates.index'))
         ->assertOk()
-        ->assertSee('12 of 13 templates');
+        ->assertSee('12 of 13 templates')
+        ->assertSee('id="groupFilter"', false)
+        ->assertSee('id="categoryFilter"', false)
+        ->assertDontSee('id="groupFilters"', false);
     $firstPagePaginator = $firstPage->viewData('templatesPaginator');
 
     expect($firstPagePaginator->perPage())->toBe(12)

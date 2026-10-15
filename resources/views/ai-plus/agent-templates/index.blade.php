@@ -24,37 +24,35 @@
         <button id="clearSearch" class="clear-btn" aria-label="Clear search" style="display: none;">×</button>
       </div>
 
-      <div class="filter-group taxonomy-filter">
-        <span class="filter-label">Group:</span>
-        <div class="filter-chips" id="groupFilters">
-          <button class="filter-chip {{ request('group') ? '' : 'active' }}" data-group="">All</button>
-          @foreach($categoryGroups as $key => $label)
-          <button class="filter-chip {{ request('group') === $key ? 'active' : '' }}" data-group="{{ $key }}">{{ $label }}</button>
-          @endforeach
-        </div>
-      </div>
-
-      <div class="filter-group taxonomy-filter">
-        <span class="filter-label">Category:</span>
-        <div class="filter-chips" id="categoryFilters">
-          <button class="filter-chip {{ request('category') ? '' : 'active' }}" data-category="">All categories</button>
-          @foreach($categories as $group => $groupCategories)
-          <div class="category-chip-group" data-category-group="{{ $group }}" {{ request('group') && request('group') !== $group ? 'hidden' : '' }}>
-            <span>{{ $categoryGroups[$group] }}</span>
-            @foreach($groupCategories as $category => $label)
-            <button class="filter-chip {{ request('category') === $category ? 'active' : '' }}" data-category="{{ $category }}">{{ $label }}</button>
+      <div class="filter-controls-row">
+        <label class="catalog-filter">Group
+          <select id="groupFilter">
+            <option value="">All groups</option>
+            @foreach($categoryGroups as $key => $label)
+            <option value="{{ $key }}" {{ request('group') === $key ? 'selected' : '' }}>{{ $label }}</option>
             @endforeach
-          </div>
-          @endforeach
-        </div>
-      </div>
+          </select>
+        </label>
+        <label class="catalog-filter">Category
+          <select id="categoryFilter">
+            <option value="">All categories</option>
+            @foreach($categories as $group => $groupCategories)
+            <optgroup label="{{ $categoryGroups[$group] }}" data-category-group="{{ $group }}">
+              @foreach($groupCategories as $category => $label)
+              <option value="{{ $category }}" {{ request('category') === $category ? 'selected' : '' }}>{{ $label }}</option>
+              @endforeach
+            </optgroup>
+            @endforeach
+          </select>
+        </label>
 
-      <div class="sort-group">
-        <span class="sort-label">Sort by:</span>
-        <div class="sort-chips">
-          <button class="sort-chip {{ request('sort') === 'popular' ? 'active' : '' }}" data-sort="popular">Popular</button>
-          <button class="sort-chip {{ request('sort') === 'new' ? 'active' : '' }}" data-sort="new">New</button>
-          <button class="sort-chip {{ request('sort') === 'alpha' ? 'active' : '' }}" data-sort="alpha">A–Z</button>
+        <div class="sort-group">
+          <span class="sort-label">Sort by:</span>
+          <div class="sort-chips">
+            <button class="sort-chip {{ request('sort') === 'popular' ? 'active' : '' }}" data-sort="popular">Popular</button>
+            <button class="sort-chip {{ request('sort') === 'new' ? 'active' : '' }}" data-sort="new">New</button>
+            <button class="sort-chip {{ request('sort') === 'alpha' ? 'active' : '' }}" data-sort="alpha">A–Z</button>
+          </div>
         </div>
       </div>
     </div>
@@ -147,12 +145,8 @@
     z-index: 10;
   }
 
-  .filters-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    align-items: center;
-  }
+  .filters-toolbar {display:flex;flex-direction:column;gap:12px;align-items:stretch;}
+  .filter-controls-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
 
   .search-box {
     position: relative;
@@ -202,54 +196,11 @@
     color: var(--text-main);
   }
 
-  .filter-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .filter-label {
-    font-size: 13px;
-    color: var(--text-soft);
-    white-space: nowrap;
-  }
-  .filter-chips {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .taxonomy-filter{align-items:flex-start;}
-  .category-chip-group{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-left:1px solid var(--surface-border);padding-left:8px;}
-  .category-chip-group[hidden]{display:none;}
-  .category-chip-group > span{font-size:11px;color:var(--text-soft);white-space:nowrap;}
+  .catalog-filter{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-soft);}
+  .catalog-filter select{max-width:220px;padding:9px 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--input-text);}
   .template-category-path{margin:-4px 0 12px;color:var(--sage);font-size:11px;font-weight:600;}
   .template-category-path span{padding:0 4px;color:var(--text-soft);}
-  .filter-chip {
-    padding: 6px 12px;
-    background: var(--chip-bg);
-    border: 1px solid var(--chip-border);
-    border-radius: 20px;
-    font-size: 12px;
-    color: var(--chip-text);
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .filter-chip:hover {
-    background: var(--surface);
-    border-color: var(--navy);
-  }
-  .filter-chip.active {
-    background: var(--chip-active-bg);
-    color: var(--chip-active-text);
-    border-color: var(--chip-active-bg);
-  }
-
-  .sort-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-  }
+  .sort-group {display:flex;align-items:center;gap:8px;margin-left:auto;}
   .sort-label {
     font-size: 13px;
     color: var(--text-soft);
@@ -434,21 +385,16 @@
   }
 
   @media (max-width: 768px) {
-    .filters-toolbar {
-      flex-direction: column;
-      align-items: stretch;
-    }
+    .filter-controls-row{align-items:stretch;}
     .search-box {
       max-width: none;
     }
+    .catalog-filter{flex:1;}
+    .catalog-filter select{max-width:none;flex:1;min-width:0;}
     .sort-group {
       margin-left: 0;
-      justify-content: space-between;
-    }
-    .filter-chips {
-      overflow-x: auto;
-      flex-wrap: nowrap;
-      padding-bottom: 4px;
+      justify-content:flex-start;
+      flex-wrap:wrap;
     }
   }
 
@@ -465,18 +411,16 @@
 document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('searchInput');
   const clearSearchBtn = document.getElementById('clearSearch');
-  const categoryFilters = document.getElementById('categoryFilters');
-  const groupFilters = document.getElementById('groupFilters');
+  const categoryFilter = document.getElementById('categoryFilter');
+  const groupFilter = document.getElementById('groupFilter');
   const sortChips = document.querySelectorAll('.sort-chip');
   const templateGrid = document.getElementById('templateGrid');
   const resultsCount = document.getElementById('resultsCount');
-  const emptyState = document.getElementById('emptyState');
-  const clearFiltersBtn = document.getElementById('clearFiltersBtn');
 
   // State
   let currentSearch = searchInput.value;
-  let currentGroup = '{{ request('group') }}';
-  let currentCategory = '{{ request('category') }}';
+  let currentGroup = groupFilter.value;
+  let currentCategory = categoryFilter.value;
   let currentSort = '{{ request('sort', 'new') }}';
   let currentPage = 1;
   let listLoading = false;
@@ -516,17 +460,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const doc = parser.parseFromString(html, 'text/html');
     const newGrid = doc.getElementById('templateGrid');
     const newCount = doc.getElementById('resultsCount');
-    const newEmptyState = doc.getElementById('emptyState');
     const newPagination = doc.querySelector('.pagination');
     if (newGrid) {
       templateGrid.innerHTML = newGrid.innerHTML;
     }
     if (newCount) {
       resultsCount.textContent = newCount.textContent;
-    }
-    if (newEmptyState) {
-      emptyState.style.display = newEmptyState.style.display;
-      emptyState.innerHTML = newEmptyState.innerHTML;
     }
     // Replace pagination
     const paginationContainer = document.querySelector('.pagination');
@@ -572,39 +511,27 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.focus();
   });
 
-  // Category filter buttons
+  // Taxonomy list filters
   function syncCategoryGroups() {
-    categoryFilters.querySelectorAll('.category-chip-group').forEach(group => {
+    categoryFilter.querySelectorAll('optgroup[data-category-group]').forEach(group => {
       group.hidden = !!currentGroup && group.dataset.categoryGroup !== currentGroup;
     });
+    const selected = categoryFilter.selectedOptions[0];
+    if (selected?.parentElement?.tagName === 'OPTGROUP' && selected.parentElement.hidden) {
+      categoryFilter.value = '';
+      currentCategory = '';
+    }
   }
 
-  groupFilters.addEventListener('click', (e) => {
-    const chip = e.target.closest('.filter-chip');
-    if (!chip) return;
-    currentGroup = chip.dataset.group || '';
-    if (currentCategory) {
-      const categoryButton = categoryFilters.querySelector(`[data-category="${CSS.escape(currentCategory)}"]`);
-      if (categoryButton && categoryButton.closest('.category-chip-group')?.dataset.categoryGroup !== currentGroup && currentGroup) {
-        currentCategory = '';
-      }
-    }
-    groupFilters.querySelectorAll('.filter-chip').forEach(btn => btn.classList.toggle('active', btn.dataset.group === currentGroup));
-    categoryFilters.querySelectorAll('.filter-chip').forEach(btn => btn.classList.toggle('active', btn.dataset.category === currentCategory));
+  groupFilter.addEventListener('change', () => {
+    currentGroup = groupFilter.value;
     syncCategoryGroups();
     currentPage = 1;
     fetchTemplates();
   });
 
-  categoryFilters.addEventListener('click', (e) => {
-    const chip = e.target.closest('.filter-chip');
-    if (!chip) return;
-
-    currentCategory = chip.dataset.category || '';
-    categoryFilters.querySelectorAll('.filter-chip').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.category === currentCategory);
-    });
-    // Reset to page 1 when changing category
+  categoryFilter.addEventListener('change', () => {
+    currentCategory = categoryFilter.value;
     currentPage = 1;
     fetchTemplates();
   });
@@ -622,7 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  clearFiltersBtn.addEventListener('click', () => {
+  function clearFilters() {
     currentSearch = '';
     currentGroup = '';
     currentCategory = '';
@@ -631,16 +558,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     searchInput.value = '';
     clearSearchBtn.style.display = 'none';
-    categoryFilters.querySelectorAll('.filter-chip').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.category === '');
-    });
-    groupFilters.querySelectorAll('.filter-chip').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.group === '');
-    });
+    groupFilter.value = '';
+    categoryFilter.value = '';
     syncCategoryGroups();
     sortChips.forEach(c => c.classList.toggle('active', c.dataset.sort === 'new'));
 
     fetchTemplates();
+  }
+
+  templateGrid.addEventListener('click', (event) => {
+    if (event.target.closest('#clearFiltersBtn')) clearFilters();
   });
 
   // Keyboard: Escape to clear search
@@ -678,17 +605,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const doc = parser.parseFromString(html, 'text/html');
         const newGrid = doc.getElementById('templateGrid');
         const newCount = doc.getElementById('resultsCount');
-        const newEmptyState = doc.getElementById('emptyState');
         const newPagination = doc.querySelector('.pagination');
         if (newGrid) {
           templateGrid.innerHTML = newGrid.innerHTML;
         }
         if (newCount) {
           resultsCount.textContent = newCount.textContent;
-        }
-        if (newEmptyState) {
-          emptyState.style.display = newEmptyState.style.display;
-          emptyState.innerHTML = newEmptyState.innerHTML;
         }
         // Replace pagination
         const paginationContainer = document.querySelector('.pagination');
