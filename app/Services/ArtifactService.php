@@ -31,6 +31,7 @@ class ArtifactService
             [, $mime, $binary] = match ($type) {
                 'excel' => $this->excel($base, $content),
                 'word' => $this->word($base, $content),
+                'powerpoint' => $this->powerpoint($base, $content),
                 'pdf' => $this->pdf($base, $content),
                 'html' => $this->html($base, $content),
                 default => [$base.'.txt', 'text/plain', $content],
@@ -111,6 +112,7 @@ class ArtifactService
         $extension = match ($type) {
             'word' => 'docx',
             'excel' => 'xlsx',
+            'powerpoint' => 'pptx',
             'pdf' => 'pdf',
             'html' => 'html',
             default => preg_match('/^code:([a-z0-9]+)$/', $type, $matches) === 1
@@ -274,6 +276,176 @@ class ArtifactService
             .'</style></head><body>'.$this->markdownHtml($content).'</body></html>';
 
         return [$base.'.pdf', 'application/pdf', Pdf::loadHTML($html)->output()];
+    }
+
+    /** Build a small, standards-based PowerPoint package without a new runtime dependency. */
+    private function powerpoint(string $base, string $content): array
+    {
+        $slides = $this->presentationSlides($content);
+        $tmp = tempnam(sys_get_temp_dir(), 'pptx');
+        $archive = new \ZipArchive;
+
+        if ($archive->open($tmp, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('The PowerPoint file could not be created. Please try again.');
+        }
+
+        $archive->addFromString('[Content_Types].xml', $this->presentationContentTypes(count($slides)));
+        $archive->addFromString('_rels/.rels', $this->presentationRootRelationships());
+        $archive->addFromString('ppt/presentation.xml', $this->presentationDocument(count($slides)));
+        $archive->addFromString('ppt/_rels/presentation.xml.rels', $this->presentationRelationships(count($slides)));
+        $archive->addFromString('ppt/slideMasters/slideMaster1.xml', $this->presentationMaster());
+        $archive->addFromString('ppt/slideMasters/_rels/slideMaster1.xml.rels', $this->presentationMasterRelationships());
+        $archive->addFromString('ppt/slideLayouts/slideLayout1.xml', $this->presentationLayout());
+        $archive->addFromString('ppt/slideLayouts/_rels/slideLayout1.xml.rels', $this->presentationLayoutRelationships());
+        $archive->addFromString('ppt/theme/theme1.xml', $this->presentationTheme());
+
+        foreach ($slides as $index => $slide) {
+            $archive->addFromString('ppt/slides/slide'.($index + 1).'.xml', $this->presentationSlide($slide['title'], $slide['lines']));
+            $archive->addFromString('ppt/slides/_rels/slide'.($index + 1).'.xml.rels', $this->presentationSlideRelationships());
+        }
+
+        $archive->close();
+        $binary = file_get_contents($tmp);
+        @unlink($tmp);
+
+        if (! is_string($binary) || $binary === '') {
+            throw new \RuntimeException('The PowerPoint file could not be created. Please try again.');
+        }
+
+        return [$base.'.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', $binary];
+    }
+
+    /** @return list<array{title: string, lines: list<array{text: string, bullet: bool}>}> */
+    private function presentationSlides(string $content): array
+    {
+        $slides = [];
+        $title = '';
+        $lines = [];
+        $flush = function () use (&$slides, &$title, &$lines): void {
+            if ($title !== '' || $lines !== []) {
+                $slides[] = ['title' => $title !== '' ? $title : 'Presentation', 'lines' => $lines];
+                $title = '';
+                $lines = [];
+            }
+        };
+
+        foreach (preg_split('/\R/u', trim($content)) ?: [] as $rawLine) {
+            $line = trim($rawLine);
+            if ($line === '' || preg_match('/^```/', $line) === 1) {
+                continue;
+            }
+            if (preg_match('/^#{1,6}\s+(.+)$/u', $line, $matches) === 1) {
+                $flush();
+                $title = trim($matches[1], " \t#");
+
+                continue;
+            }
+            if (preg_match('/^---+$/', $line) === 1) {
+                $flush();
+
+                continue;
+            }
+
+            $bullet = preg_match('/^(?:[-*+] |\d+[.)] )(.+)$/u', $line, $matches) === 1;
+            $text = $bullet ? $matches[1] : $line;
+            $text = trim(preg_replace('/[*_`]/u', '', $text) ?? $text);
+            if ($text !== '') {
+                $lines[] = ['text' => $text, 'bullet' => $bullet];
+            }
+        }
+        $flush();
+
+        if ($slides === []) {
+            $slides[] = ['title' => 'Presentation', 'lines' => [['text' => trim(strip_tags($content)), 'bullet' => false]]];
+        }
+
+        return $slides;
+    }
+
+    /** @param list<array{text: string, bullet: bool}> $lines */
+    private function presentationSlide(string $title, array $lines): string
+    {
+        $title = htmlspecialchars($title, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        $body = '';
+        foreach ($lines as $line) {
+            $text = htmlspecialchars($line['text'], ENT_XML1 | ENT_QUOTES, 'UTF-8');
+            $paragraphProperties = $line['bullet'] ? '<a:pPr lvl="0"><a:buChar char="•"/></a:pPr>' : '<a:pPr><a:buNone/></a:pPr>';
+            $body .= '<a:p>'.$paragraphProperties.'<a:r><a:rPr lang="vi-VN" dirty="0" sz="2000"><a:solidFill><a:srgbClr val="263B36"/></a:solidFill><a:latin typeface="Aptos"/></a:rPr><a:t xml:space="preserve">'.$text.'</a:t></a:r><a:endParaRPr lang="vi-VN" sz="2000"/></a:p>';
+        }
+        if ($body === '') {
+            $body = '<a:p><a:endParaRPr lang="vi-VN" sz="2000"/></a:p>';
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="F4F8F6"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>'
+            .'<p:sp><p:nvSpPr><p:cNvPr id="2" name="Title"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="548640" y="365760"/><a:ext cx="10972800" cy="914400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr wrap="square" lIns="0" rIns="0" tIns="0" bIns="0" anchor="ctr"/><a:lstStyle/><a:p><a:pPr/><a:r><a:rPr lang="vi-VN" dirty="0" sz="3000" b="1"><a:solidFill><a:srgbClr val="1F5D50"/></a:solidFill><a:latin typeface="Aptos Display"/></a:rPr><a:t>'.$title.'</a:t></a:r><a:endParaRPr lang="vi-VN" sz="3000"/></a:p></p:txBody></p:sp>'
+            .'<p:sp><p:nvSpPr><p:cNvPr id="3" name="Content"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="731520" y="1554480"/><a:ext cx="10789920" cy="4572000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr><p:txBody><a:bodyPr wrap="square" lIns="0" rIns="0" tIns="0" bIns="0" anchor="t"/><a:lstStyle/>'.$body.'</p:txBody></p:sp>'
+            .'</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>';
+    }
+
+    private function presentationContentTypes(int $slideCount): string
+    {
+        $slides = '';
+        for ($index = 1; $index <= $slideCount; $index++) {
+            $slides .= '<Override PartName="/ppt/slides/slide'.$index.'.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>';
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/><Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/><Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/><Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>'.$slides.'</Types>';
+    }
+
+    private function presentationRootRelationships(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/></Relationships>';
+    }
+
+    private function presentationDocument(int $slideCount): string
+    {
+        $slides = '';
+        for ($index = 1; $index <= $slideCount; $index++) {
+            $slides .= '<p:sldId id="'.(255 + $index).'" r:id="rId'.($index + 1).'"/>';
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:sldIdLst>'.$slides.'</p:sldIdLst><p:sldSz cx="12192000" cy="6858000" type="wide"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>';
+    }
+
+    private function presentationRelationships(int $slideCount): string
+    {
+        $relationships = '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>';
+        for ($index = 1; $index <= $slideCount; $index++) {
+            $relationships .= '<Relationship Id="rId'.($index + 1).'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide'.$index.'.xml"/>';
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'.$relationships.'</Relationships>';
+    }
+
+    private function presentationMaster(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="1" r:id="rId1"/></p:sldLayoutIdLst><p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>';
+    }
+
+    private function presentationMasterRelationships(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/></Relationships>';
+    }
+
+    private function presentationLayout(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank" preserve="1"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>';
+    }
+
+    private function presentationLayoutRelationships(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>';
+    }
+
+    private function presentationSlideRelationships(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>';
+    }
+
+    private function presentationTheme(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="AI+"><a:themeElements><a:clrScheme name="AI+"><a:dk1><a:srgbClr val="263B36"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1F5D50"/></a:dk2><a:lt2><a:srgbClr val="F4F8F6"/></a:lt2><a:accent1><a:srgbClr val="1F5D50"/></a:accent1><a:accent2><a:srgbClr val="DCA52E"/></a:accent2><a:accent3><a:srgbClr val="51756B"/></a:accent3><a:accent4><a:srgbClr val="7DA99D"/></a:accent4><a:accent5><a:srgbClr val="A6C6BD"/></a:accent5><a:accent6><a:srgbClr val="EAF4F1"/></a:accent6><a:hlink><a:srgbClr val="0563C1"/></a:hlink><a:folHlink><a:srgbClr val="954F72"/></a:folHlink></a:clrScheme><a:fontScheme name="AI+"><a:majorFont><a:latin typeface="Aptos Display"/></a:majorFont><a:minorFont><a:latin typeface="Aptos"/></a:minorFont></a:fontScheme><a:fmtScheme name="AI+"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>';
     }
 
     private function html(string $base, string $content): array

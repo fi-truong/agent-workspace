@@ -156,7 +156,7 @@ class ChatMessageController extends Controller
         abort_unless($conversation->user_id === $request->user()->id && $conversation->type === Conversation::TYPE_CHAT, 404);
 
         $data = $request->validate([
-            'format' => ['required', 'in:word,excel,pdf,html'],
+            'format' => ['required', 'in:word,excel,powerpoint,pdf,html'],
             'filename' => ['nullable', 'string', 'max:120'],
             'language' => ['required', 'in:source,vi,en'],
             'template' => ['required', 'in:standard,report,lesson_plan,meeting_minutes,budget'],
@@ -185,6 +185,9 @@ class ChatMessageController extends Controller
             'budget' => 'budget document with assumptions, line-item tables, totals, and notes',
             default => 'clear professional document with sensible headings and Markdown tables or lists where useful',
         };
+        if ($data['format'] === 'powerpoint') {
+            $template = 'a presentation outline with one concise slide title per Markdown heading (use ## for each slide), concise bullets, and no long paragraphs';
+        }
 
         // A transcript beyond the safe single-request size is still exported in
         // full. It skips AI reformatting rather than silently losing older turns.
@@ -930,7 +933,7 @@ class ChatMessageController extends Controller
             ? trim($agent->system_prompt."\n\n".$policyPrompt)
             : $policyPrompt;
 
-        $systemPrompt .= "\n\nAI+ creates downloadable DOCX (Word), XLSX (Excel), PDF, and HTML files through the create_ai_artifact tool. For an explicit file request, call that tool with the complete deliverable content. A normal text answer does not create a file. Never claim that you cannot create, attach, or export those files, that a generated download is invalid, or that the user must manually copy the content. Do not invent a download URL.";
+        $systemPrompt .= "\n\nAI+ creates downloadable DOCX (Word), XLSX (Excel), PPTX (PowerPoint), PDF, and HTML files through the create_ai_artifact tool. For an explicit file request, call that tool with the complete deliverable content. For PowerPoint, provide a complete Markdown slide outline with a concise # deck title, one ## heading per slide, and concise bullets under each slide. A normal text answer does not create a file. Never claim that you cannot create, attach, or export those files, that a generated download is invalid, or that the user must manually copy the content. Do not invent a download URL.";
         $systemPrompt .= "\n\nAI+ is powered by GPT-6 Luna. If a user asks which model is being used, answer clearly that this AI+ workspace currently uses GPT-6 Luna; do not say that the model name is unavailable.";
         $systemPrompt .= "\n\nWhen an attachment block says a document was received, the user has already uploaded that original file. You have its safely extracted text (or scan pages) as the reference material for this conversation. Never ask the user to upload the original file again merely to translate, summarize, revise, or create a new document from it. Complete the requested work from the supplied material. You cannot directly edit the source binary or promise pixel-perfect preservation of complex source layouts, embedded objects, or damaged images; mention that limitation only if the user explicitly requires exact preservation.";
         $systemPrompt .= "\n\nFor mathematics, calculations, and budgets: verify that every substituted value matches the values stated earlier in the answer and never silently change a variable or denominator. Before giving a final result, check units, arithmetic, and consistency. Use valid LaTex only: write fractions as \\frac{numerator}{denominator}, and delimit inline/display equations with \\(...\\) or \\[...\\].";
@@ -1438,7 +1441,7 @@ class ChatMessageController extends Controller
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'format' => ['type' => 'string', 'enum' => ['word', 'excel', 'pdf', 'html', 'source_code']],
+                        'format' => ['type' => 'string', 'enum' => ['word', 'excel', 'powerpoint', 'pdf', 'html', 'source_code']],
                         'file_extension' => ['type' => 'string', 'enum' => ['', ...KnowledgeService::CHAT_CODE_EXTENSIONS]],
                         'filename' => ['type' => 'string'],
                         'content' => ['type' => 'string'],
@@ -1723,7 +1726,7 @@ class ChatMessageController extends Controller
                 $filename = trim((string) ($arguments['filename'] ?? ''));
                 $summary = trim((string) ($arguments['summary'] ?? ''));
                 $type = match ($format) {
-                    'word', 'excel', 'pdf', 'html' => $format,
+                    'word', 'excel', 'powerpoint', 'pdf', 'html' => $format,
                     'source_code' => in_array($extension, KnowledgeService::CHAT_CODE_EXTENSIONS, true) ? 'code:'.$extension : null,
                     default => null,
                 };

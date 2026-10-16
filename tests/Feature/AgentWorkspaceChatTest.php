@@ -295,7 +295,7 @@ it('tells the model to call a structured tool to export requested files', functi
 
     Http::assertSent(fn (Request $request): bool => str_contains(
         json_encode($request->data(), JSON_UNESCAPED_UNICODE),
-        'AI+ creates downloadable DOCX (Word), XLSX (Excel), PDF, and HTML files through the create_ai_artifact tool',
+        'AI+ creates downloadable DOCX (Word), XLSX (Excel), PPTX (PowerPoint), PDF, and HTML files through the create_ai_artifact tool',
     ) && collect($request->data()['tools'] ?? [])->contains(fn (array $tool): bool => ($tool['function']['name'] ?? '') === 'revise_ai_artifact'));
 });
 
@@ -542,6 +542,56 @@ it('creates a requested Excel artifact and returns an authorized download URL', 
     Storage::disk('ai-artifacts')->assertExists($artifact->path);
     expect(AdminAuditLog::where('event', 'ai_artifact.created')->exists())->toBeTrue();
     $this->get(route('ai-plus.artifacts.download', $artifact))->assertOk();
+});
+
+it('creates a valid private PowerPoint artifact when requested', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence(
+        'powerpoint',
+        "# Energy Transition\n\n## Why it matters\n- Clean energy reduces emissions\n- Schools can model practical action\n\n## Next steps\n- Audit energy use\n- Choose one measurable improvement",
+        'PowerPoint ready.',
+        'energy-transition',
+    )]);
+
+    $response = $this->postJson('/ai-plus/agent-workspace/send', ['message' => 'Create a PowerPoint about energy transition']);
+
+    $response->assertOk()->assertJsonPath('artifacts.0.name', 'energy-transition.pptx');
+    $artifact = AiArtifact::firstOrFail();
+    expect($artifact->mime_type)->toBe('application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    Storage::disk('ai-artifacts')->assertExists($artifact->path);
+
+    $archive = new ZipArchive;
+    expect($archive->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue()
+        ->and($archive->locateName('ppt/presentation.xml'))->not->toBeFalse()
+        ->and($archive->locateName('ppt/slides/slide1.xml'))->not->toBeFalse()
+        ->and($archive->locateName('ppt/slides/slide3.xml'))->not->toBeFalse();
+    expect($archive->getFromName('ppt/slides/slide2.xml'))->toContain('Why it matters');
+    $archive->close();
+
+    $this->get(route('ai-plus.artifacts.download', $artifact))->assertOk();
+});
+
+it('allows PowerPoint as a conversation export format', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::response([
+        'choices' => [['message' => ['content' => "# Chat summary\n\n## Key points\n- First point\n- Second point"]]],
+        'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 20],
+        'model' => 'gpt-6-luna',
+    ])]);
+    $conversation = Conversation::create(['user_id' => $this->user->id, 'title' => 'Export deck', 'type' => Conversation::TYPE_CHAT]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => 'Here are the key points.']);
+
+    $response = $this->postJson(route('ai-plus.conversations.export', $conversation), [
+        'format' => 'powerpoint',
+        'filename' => '',
+        'language' => 'source',
+        'template' => 'standard',
+    ]);
+
+    $response->assertOk()->assertJsonPath('name', fn (string $name) => str_ends_with($name, '.pptx'));
+    expect(AiArtifact::firstOrFail()->mime_type)->toBe('application/vnd.openxmlformats-officedocument.presentationml.presentation');
 });
 
 it('creates requested Word and PDF artifacts', function (string $request, string $extension) {

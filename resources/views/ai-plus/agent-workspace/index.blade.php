@@ -210,7 +210,7 @@
   <form class="export-modal" id="export-file-form">
     <div class="export-modal-header"><div><h3>Export conversation</h3><p>Prepare the full chat history for download.</p></div><button type="button" class="export-modal-close" data-behavior="close-export-modal" aria-label="Close">×</button></div>
     <div class="export-modal-body">
-      <label>File format<select name="format"><option value="word">Word (.docx)</option><option value="excel">Excel (.xlsx)</option><option value="pdf">PDF (.pdf)</option><option value="html">HTML (.html)</option></select></label>
+      <label>File format<select name="format"><option value="word">Word (.docx)</option><option value="excel">Excel (.xlsx)</option><option value="powerpoint">PowerPoint (.pptx)</option><option value="pdf">PDF (.pdf)</option><option value="html">HTML (.html)</option></select></label>
       <label>File name <input name="filename" maxlength="120" placeholder="Leave blank for a smart name"></label>
       <label>Language<select name="language"><option value="source">Keep original language</option><option value="vi">Vietnamese</option><option value="en">English</option></select></label>
       <label>Document template<select name="template"><option value="standard">Standard document</option><option value="report">Formal report</option><option value="lesson_plan">Lesson plan</option><option value="meeting_minutes">Meeting minutes</option><option value="budget">Budget</option></select></label>

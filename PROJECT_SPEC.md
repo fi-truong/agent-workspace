@@ -1,6 +1,6 @@
 # AI Plus — Đặc tả dự án
 
-> **Phiên bản 2.0 · Đối chiếu mã nguồn: 30/09/2026.** Bản tiếng Anh tương ứng: `PROJECT_SPEC_EN.md`. Đây là đặc tả làm việc để rà soát/phê duyệt, không phải xác nhận đã triển khai production. “Hiện có” nghĩa là có mã nguồn/route; “Yêu cầu đích” là tiêu chí cần nghiệm thu; “Kế hoạch” chưa triển khai đầy đủ; “TBD” cần quyết định.
+> **Phiên bản 2.1 · Đối chiếu mã nguồn: 16/10/2026.** Bản tiếng Anh tương ứng: `PROJECT_SPEC_EN.md`. Đây là đặc tả làm việc để rà soát/phê duyệt, không phải xác nhận đã triển khai production. “Hiện có” nghĩa là có mã nguồn/route; “Yêu cầu đích” là tiêu chí cần nghiệm thu; “Kế hoạch” chưa triển khai đầy đủ; “TBD” cần quyết định.
 
 Các mục 1–11 là tóm tắt sản phẩm; mục 12–24 quy định yêu cầu chi tiết, tiêu chí nghiệm thu và các quyết định còn mở.
 
@@ -81,12 +81,13 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 
 ### 5.1 Tạo file
 
-Khi user yêu cầu tạo hoặc xuất file Excel, Word hoặc PDF từ nội dung trao đổi, AI Plus tạo artifact private cho user.
+Khi user yêu cầu tạo hoặc xuất file Excel, Word, PowerPoint hoặc PDF từ nội dung trao đổi, AI Plus tạo artifact private cho user.
 
 | Loại | Định dạng | Mục đích |
 | --- | --- | --- |
 | Excel | `.xlsx` | Bảng tổng hợp, dữ liệu, báo cáo dạng sheet. |
 | Word | `.docx` | Thông báo, kế hoạch, báo cáo, văn bản. |
+| PowerPoint | `.pptx` | Bài trình bày theo slide, tiêu đề và gạch đầu dòng. |
 | PDF | `.pdf` | Bản xuất để gửi hoặc lưu trữ. |
 
 Chat cũng nhận file mã nguồn dạng văn bản đơn lẻ (`.js`, `.css`, `.ts`, `.json`, `.xml`, `.md`, `.php`, `.py`, `.java`, `.sql` và một số định dạng phổ biến khác). AI có thể phân tích/sửa và trả file mới cùng phần mở rộng; file nguồn không bị ghi đè. Mã nguồn được xử lý như văn bản, không thực thi. Mỗi file chat tối đa 5 MiB; tối đa 20.000 ký tự được đưa vào ngữ cảnh AI. Khi sửa code, AI chỉ trả các thay đổi nhỏ theo dạng patch; server áp dụng patch duy nhất, khớp chính xác vào bản gốc riêng tư rồi tạo file hoàn chỉnh, giữ nguyên phần không đổi. Nếu patch không khớp chính xác một vị trí, hệ thống không tạo file và yêu cầu user làm rõ. File dài hơn phần ngữ cảnh không được xem như đã được AI rà soát toàn bộ.
@@ -252,7 +253,7 @@ Các ID dưới đây bổ sung phần mô tả chức năng ở mục 4–7. �
 | FR-09 | Agent chia sẻ theo `use_only` hoặc `copy`; copy knowledge chỉ xảy ra khi owner đã cho phép. Thu hồi chia sẻ chặn lượt dùng mới; quyền đối với bản sao đã tạo phải được kiểm thử. | Hiện có; cần kiểm thử quyền |
 | FR-10 | Prompt Library/Agent Templates chỉ hiển thị nội dung `published`; mỗi mục được phân loại theo nhóm cấp 1 `Teaching` hoặc `School Operations` và danh mục cấp 2 phù hợp. Thư viện mặc định chỉ xuất bản một bộ chọn lọc gồm prompt đầy đủ, có ngữ cảnh/đầu ra mong muốn và Agent Template có system prompt dùng được; nội dung cũ không chọn giữ ở trạng thái draft/archive, không xóa lịch sử hay lượt dùng. Admin quản lý trạng thái, nhóm/danh mục; bộ lọc công khai hỗ trợ cả hai tầng. Showcase có tìm kiếm/lọc, lượt xem/sử dụng, bình luận và quyền xóa theo owner/admin. | Hiện có sau migration; cần QA |
 | FR-11 | Image Workspace tạo/chỉnh ảnh từ prompt và tối đa 4 ảnh tham chiếu; ảnh gắn conversation và chỉ owner tải/xóa. | Hiện có |
-| FR-12 | Tạo file tạo artifact mới trên disk private, gắn user/conversation, không ghi đè file nguồn; hỗ trợ DOCX/XLSX/PDF/HTML và file mã nguồn văn bản giữ phần mở rộng. Yêu cầu tạo trang HTML phải tạo tài liệu HTML độc lập đầy đủ; không lưu câu trả lời dạng văn xuôi thành file HTML. Export conversation còn hỗ trợ HTML, ngôn ngữ nguồn/VI/EN và kiểu standard/report/lesson plan/meeting minutes/budget. | Hiện có |
+| FR-12 | Tạo file tạo artifact mới trên disk private, gắn user/conversation, không ghi đè file nguồn; hỗ trợ DOCX/XLSX/PPTX/PDF/HTML và file mã nguồn văn bản giữ phần mở rộng. PowerPoint phải là gói `.pptx` hợp lệ, chia nội dung thành slide và hiển thị tiêu đề/gạch đầu dòng; không chỉ trả văn bản trong chat. Yêu cầu tạo trang HTML phải tạo tài liệu HTML độc lập đầy đủ; không lưu câu trả lời dạng văn xuôi thành file HTML. Export conversation hỗ trợ PPTX/HTML, ngôn ngữ nguồn/VI/EN và kiểu standard/report/lesson plan/meeting minutes/budget. | Hiện có |
 | FR-13 | Download/xóa artifact và xem attachment/ảnh kiểm tra ownership ở backend; file thiếu trả 404, truy cập chéo bị từ chối. | Hiện có |
 | FR-14 | “Soạn email nháp” chỉ lưu subject/body gắn user/conversation; không gửi, không đọc mailbox; recipient/attachment chưa được xác nhận tự động. | Hiện có |
 | FR-15 | My Usage chỉ hiển thị dữ liệu của user; quota tính `prompt_tokens + completion_tokens` trong chu kỳ tháng/phase, có override từng user; hết quota trả 429. | Hiện có |
@@ -323,7 +324,7 @@ Quy ước lỗi đích: 401/chuyển login cho chưa xác thực; 403/404 cho t
 2. PII test bằng mẫu VI/EN: dữ liệu hợp lệ/nhạy cảm, mã học sinh theo lô, file đính kèm, false positive và whitelist; xác nhận không có raw PII trong log.
 3. Chat JSON/SSE: provider timeout/lỗi, stream ngắt, quota gần/hết mức, ghi usage và không tạo artifact trùng ngoài ý muốn.
 4. Import/index/reindex/rút nguồn Agent và School Knowledge; PDF text/scan, OCR có/không có runtime, embedding fallback.
-5. DOCX/XLSX/PDF/HTML mở được, tiếng Việt có dấu, tên file an toàn, quyền tải/xóa, draft không gửi được.
+5. DOCX/XLSX/PPTX/PDF/HTML mở được, tiếng Việt có dấu, tên file an toàn, quyền tải/xóa, draft không gửi được.
 6. Login local/Microsoft theo môi trường pilot, logout/session, rate limit, CSRF, SSRF và prompt injection.
 7. Chạy test suite, lint/type check, migration trên staging; smoke test qua HTTPS/proxy production tương đương. Diễn tập backup/restore.
 
@@ -353,6 +354,7 @@ Chuẩn bị Linux, PHP/Composer, Node để build, database production, HTTPS/r
 | --- | --- | --- |
 | 1.x | 18/09/2026 | Bản mô tả ngắn 11 mục |
 | 2.0 | 30/09/2026 | Bổ sung phạm vi, trạng thái, FR/NFR, dữ liệu, tiêu chí nghiệm thu, vận hành, rủi ro và quyết định mở; đồng bộ bản Anh–Việt |
+| 2.1 | 16/10/2026 | Bổ sung tạo và xuất PowerPoint (`.pptx`) |
 
 ## 23. Kịch bản nghiệp vụ đầu cuối
 
