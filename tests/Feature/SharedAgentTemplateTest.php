@@ -240,6 +240,7 @@ test('a user can remove a use-only shared-agent shortcut without deleting its so
         ->assertOk()
         ->assertSee('Shared · Use-only')
         ->assertSee('Remove Shared planning assistant from My Agents', false)
+        ->assertSee('aria-label="Remove Shared planning assistant from My Agents">🗑️</button>', false)
         ->assertSee(route('ai-plus.sharing-showcase.use.destroy', $showcase), false);
 
     $this->delete(route('ai-plus.sharing-showcase.use.destroy', $showcase))

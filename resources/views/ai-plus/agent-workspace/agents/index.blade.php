@@ -118,7 +118,7 @@
         <form method="POST" action="{{ route('ai-plus.sharing-showcase.use.destroy', $agent->showcase_post_id) }}" class="remove-shared-agent-form" data-web-confirm="Remove this shared Agent from My Agents? Your existing conversations will be kept." data-web-confirm-title="Remove shared Agent" data-web-confirm-action="Remove" data-web-confirm-danger="true">
           @csrf
           @method('DELETE')
-          <button class="btn-icon remove-shared-agent" type="submit" title="Remove from My Agents" aria-label="Remove {{ $agent->title }} from My Agents">×</button>
+          <button class="btn-icon remove-shared-agent" type="submit" title="Remove from My Agents" aria-label="Remove {{ $agent->title }} from My Agents">🗑️</button>
         </form>
       </div>
     </article>
