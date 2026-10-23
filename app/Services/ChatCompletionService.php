@@ -18,7 +18,7 @@ class ChatCompletionService
      *
      * @throws \RuntimeException
      */
-    public function complete(array $messages, ?string $systemPrompt = null, ?string $safetyIdentifier = null, array $tools = []): array
+    public function complete(array $messages, ?string $systemPrompt = null, ?string $safetyIdentifier = null, array $tools = [], ?int $maxCompletionTokens = null, ?int $timeoutSeconds = null): array
     {
         [$payload, $filtered] = $this->buildPayload($messages, $systemPrompt);
 
@@ -27,7 +27,7 @@ class ChatCompletionService
         }
 
         try {
-            return $this->client->chat($payload, $safetyIdentifier, $this->outputTokenLimit($payload), $tools);
+            return $this->client->chat($payload, $safetyIdentifier, $maxCompletionTokens === null ? $this->outputTokenLimit($payload) : min($maxCompletionTokens, $this->outputTokenLimit($payload)), $tools, $timeoutSeconds);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }
@@ -43,7 +43,7 @@ class ChatCompletionService
      *
      * @throws \RuntimeException
      */
-    public function streamComplete(array $messages, ?string $systemPrompt, callable $onDelta, ?string $safetyIdentifier = null, array $tools = []): array
+    public function streamComplete(array $messages, ?string $systemPrompt, callable $onDelta, ?string $safetyIdentifier = null, array $tools = [], ?int $maxCompletionTokens = null, ?int $timeoutSeconds = null): array
     {
         [$payload, $filtered] = $this->buildPayload($messages, $systemPrompt);
 
@@ -52,7 +52,7 @@ class ChatCompletionService
         }
 
         try {
-            return $this->client->streamChat($payload, $onDelta, $safetyIdentifier, $this->outputTokenLimit($payload), $tools);
+            return $this->client->streamChat($payload, $onDelta, $safetyIdentifier, $maxCompletionTokens === null ? $this->outputTokenLimit($payload) : min($maxCompletionTokens, $this->outputTokenLimit($payload)), $tools, $timeoutSeconds);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }
@@ -119,6 +119,7 @@ class ChatCompletionService
 
             if (is_string($content)) {
                 $inputText .= $content;
+
                 continue;
             }
 

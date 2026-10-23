@@ -1,6 +1,6 @@
 # AI Plus Project Specification
 
-> **Version 2.1 · Code reviewed: 16 October 2026.** Corresponding Vietnamese document: `PROJECT_SPEC.md`. This is a working specification for review and approval, not a claim that production deployment is complete. “Existing” means a route/implementation is present; “Target requirement” requires acceptance testing; “Planned” is not fully implemented; “TBD” needs an authorized decision.
+> **Version 2.2 · Code reviewed: 23 October 2026.** Corresponding Vietnamese document: `PROJECT_SPEC.md`. This is a working specification for review and approval, not a claim that production deployment is complete. “Existing” means a route/implementation is present; “Target requirement” requires acceptance testing; “Planned” is not fully implemented; “TBD” needs an authorized decision.
 
 Sections 1–11 summarize the product; Sections 12–24 provide detailed requirements, acceptance criteria and open decisions.
 
@@ -44,6 +44,10 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 - Attach an Agent to a conversation.
 - Knowledge is chunked, embedded and retrieved by relevance; a configurable keyword fallback is used when embeddings are unavailable.
 - Agents can be shared school-wide through Sharing and Showcase.
+- Owners may connect up to five workspace Agents and describe their roles. The coordinator selects useful specialists through tool calling; each runs at most once per user turn using its own prompt and Knowledge, then returns findings. Specialists cannot call further Agents or create files directly.
+- Permission is checked for the person chatting at every invocation. Connections do not grant access to private Agents. Shared coordinators may use only specialists their current user may also use. Copies do not inherit connection settings; recipients configure their own connections.
+- All model calls count toward the chatting user's quota, including calls completed before a later synthesis failure. Initial limits are five consultations, a 32,000-token threshold and 90 seconds per turn. No further calls start after a limit is reached; usage from an in-flight request may exceed the token threshold. Only the coordinator executes file tools after the existing user-intent confirmation.
+- Setting `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` restores the existing chat flow without deleting connections or history. An unmigrated connection table also leaves the existing flow available.
 
 ### 4.3 Sharing and Showcase
 
@@ -355,6 +359,7 @@ Prepare Linux, PHP/Composer, Node for builds, production DB, HTTPS/reverse proxy
 | 1.x | 18 Sep 2026 | Short, 11-section description |
 | 2.0 | 30 Sep 2026 | Added scope/status, FR/NFR, data, acceptance, operations, risks and open decisions; aligned English and Vietnamese versions |
 | 2.1 | 16 Oct 2026 | Added PowerPoint (`.pptx`) generation and conversation export |
+| 2.2 | 23 Oct 2026 | Added owner-configured Agent connections, execution limits, permission checks, usage accounting and rollback switch |
 
 ## 23. End-to-end business scenarios
 

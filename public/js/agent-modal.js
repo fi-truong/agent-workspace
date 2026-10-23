@@ -18,6 +18,14 @@ document.addEventListener('DOMContentLoaded', function () {
   const sharedInput = document.getElementById('is_shared');
   const sharingAccessGroup = document.getElementById('sharing-access-group');
   const sharingAccessInputs = document.querySelectorAll('input[name="sharing_access"]');
+  const connectionsField = document.getElementById('agent-connections-field');
+  const connectionsList = document.getElementById('agent-connections-list');
+  const connectionsSearch = document.getElementById('agent-connections-search');
+  const connectionsStatus = document.getElementById('agent-connections-status');
+  let connectionOptions = [];
+  let selectedConnections = new Map();
+  let connectionsLoaded = false;
+  let connectionLoadId = 0;
 
   if (!modal || !form) return;
 
@@ -282,7 +290,86 @@ document.addEventListener('DOMContentLoaded', function () {
       agentIdInput.value = '';
     }
     syncSharedKnowledgeControl();
+    loadConnections(agent);
   }
+
+  async function loadConnections(agent) {
+    const loadId = ++connectionLoadId;
+    connectionsLoaded = false;
+    selectedConnections = new Map((agent?.connections || []).map((connection) => [Number(connection.agent_id), connection.role || '']));
+    if (!connectionsField) return;
+    connectionsField.hidden = false;
+    connectionsList.replaceChildren();
+    connectionsSearch.value = '';
+    connectionsStatus.textContent = 'Loading available Agents…';
+    try {
+      const response = await fetch(window.AgentModalConfig.connectionOptionsUrl, { headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error('Could not load connections');
+      const data = await response.json();
+      if (loadId !== connectionLoadId) return;
+      connectionsField.hidden = !data.enabled;
+      if (!data.enabled) return;
+      connectionOptions = data.agents.filter((option) => Number(option.id) !== Number(agent?.id));
+      selectedConnections.forEach((role, id) => {
+        if (!connectionOptions.some((option) => Number(option.id) === id)) {
+          connectionOptions.push({ id, title: 'Unavailable Agent — remove this connection', unavailable: true });
+        }
+      });
+      connectionsLoaded = true;
+      renderConnections();
+    } catch (_) {
+      if (loadId !== connectionLoadId) return;
+      connectionsStatus.textContent = 'Connections could not be loaded. Existing connections will be kept when saving.';
+    }
+  }
+
+  function renderConnections() {
+    connectionsList.replaceChildren();
+    const search = connectionsSearch.value.trim().toLocaleLowerCase();
+    connectionOptions.filter((option) => option.title.toLocaleLowerCase().includes(search)).forEach((option) => {
+      const id = Number(option.id);
+      const row = document.createElement('div');
+      row.className = 'agent-connection-row';
+      const label = document.createElement('label');
+      label.className = 'agent-connection-choice';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.dataset.agentId = String(id);
+      checkbox.checked = selectedConnections.has(id);
+      checkbox.disabled = !!option.unavailable && !checkbox.checked;
+      const name = document.createElement('span');
+      name.textContent = option.title;
+      label.append(checkbox, name);
+      row.append(label);
+      if (checkbox.checked) {
+        const role = document.createElement('input');
+        role.type = 'text';
+        role.className = 'agent-connection-role';
+        role.maxLength = 500;
+        role.placeholder = 'Role, e.g. check learning objectives';
+        role.setAttribute('aria-label', 'Role for ' + option.title);
+        role.value = selectedConnections.get(id);
+        role.addEventListener('input', () => selectedConnections.set(id, role.value));
+        row.append(role);
+      }
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked && selectedConnections.size >= Number(window.AgentModalConfig.maxConnections)) {
+          checkbox.checked = false;
+          connectionsStatus.textContent = 'Choose up to ' + window.AgentModalConfig.maxConnections + ' connected Agents.';
+          return;
+        }
+        if (checkbox.checked) selectedConnections.set(id, '');
+        else selectedConnections.delete(id);
+        renderConnections();
+        connectionsList.querySelector(`[data-agent-id="${id}"]`)?.focus();
+      });
+      connectionsList.append(row);
+    });
+    connectionsStatus.textContent = selectedConnections.size + ' / ' + window.AgentModalConfig.maxConnections + ' Agents connected'
+      + (connectionOptions.length === 0 ? ' · Create or add another Agent first.' : '');
+  }
+
+  connectionsSearch?.addEventListener('input', renderConnections);
 
   function syncSharedKnowledgeControl() {
     const isShared = !!sharedInput?.checked;
@@ -296,6 +383,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (isSaving && !force) return;
     setSaving(false);
     modal.style.display = 'none';
+    connectionLoadId++;
     form.reset();
     clearKnowledgeUI();
     resetAvatarUI();
@@ -512,6 +600,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const formData = new FormData(form);
     formData.set('_method', isEdit ? 'PUT' : 'POST');
     formData.set('is_shared', sharedInput && sharedInput.checked ? '1' : '0');
+    if (connectionsLoaded) {
+      formData.set('connections_configured', '1');
+      Array.from(selectedConnections.entries()).forEach(([id, role], index) => {
+        formData.append(`connections[${index}][agent_id]`, String(id));
+        formData.append(`connections[${index}][role]`, role);
+      });
+    }
 
     // Gửi danh sách paths sẽ xóa (mỗi path 1 entry)
     if (removedPaths.length > 0) {

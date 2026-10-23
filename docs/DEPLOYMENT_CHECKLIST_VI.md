@@ -88,6 +88,8 @@ Checklist này dùng khi chuyển AI+ từ máy local lên server. Thực hiện
 
 ## 10. Kế hoạch rollback
 
+- [ ] Connected Agents: ghi nhận commit release đang chạy. Migration `2026_10_23_135428_create_agent_connections_table.php` chỉ thêm bảng kết nối, giữ nguyên dữ liệu Agent/chat/Knowledge cũ. Kiểm thử Agent có kết nối, Agent thường, sharing, tạo file và usage trước khi mở rộng test.
+- [ ] Tắt Connected Agents khi có lỗi: đặt `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` trong `.env`, chạy `php artisan config:clear`, rồi reload PHP-FPM. Cấu hình và lịch sử được giữ lại. Nếu rollback code về release trước, giữ bảng kết nối; không chạy migration rollback phá hủy cấu hình.
 - [ ] Backup database và release hiện tại trước mỗi deploy.
 - [ ] Lưu release trước đó để có thể rollback code nhanh.
 - [ ] Không rollback migration phá hủy dữ liệu khi chưa xác nhận backup/khả năng phục hồi.

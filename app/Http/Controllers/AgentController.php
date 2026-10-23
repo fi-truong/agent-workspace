@@ -9,6 +9,7 @@ use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\ShowcaseUse;
 use App\Services\AgentAvatarService;
+use App\Services\AgentConnectionService;
 use App\Services\KnowledgeService;
 use App\Services\SharedAgentTemplateSyncService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -29,6 +30,7 @@ class AgentController extends Controller
         private readonly KnowledgeService $knowledgeService,
         private readonly AgentAvatarService $agentAvatarService,
         private readonly SharedAgentTemplateSyncService $sharedAgentTemplateSyncService,
+        private readonly AgentConnectionService $agentConnections,
     ) {}
 
     public function index(Request $request): JsonResponse|View
@@ -97,6 +99,7 @@ class AgentController extends Controller
             return redirect()->route('login.local.form');
         }
 
+        $this->agentConnections->validate($request->input('connections', []), $user);
         $this->knowledgeService->ensureAgentKnowledgeLimits($request->file('knowledge', []));
 
         /** @var Agent $agent */
@@ -114,6 +117,7 @@ class AgentController extends Controller
             $this->agentAvatarService->replace($agent, $request->file('avatar'));
         }
         $this->knowledgeService->indexAgent($agent);
+        $this->agentConnections->sync($agent, $request->input('connections', []));
         $agent->refresh();
         $this->sharedAgentTemplateSyncService->sync($agent);
 
@@ -130,7 +134,7 @@ class AgentController extends Controller
         $this->authorize('view', $agent);
 
         if (request()->wantsJson()) {
-            return response()->json($agent);
+            return response()->json([...$agent->toArray(), 'connections' => $this->agentConnections->setup($agent)]);
         }
 
         return view('ai-plus.agent-workspace.agents.show', ['agent' => $agent]);
@@ -139,6 +143,10 @@ class AgentController extends Controller
     public function update(UpdateAgentRequest $request, Agent $agent): JsonResponse|RedirectResponse
     {
         $this->authorize('update', $agent);
+
+        if ($request->has('connections') || $request->boolean('connections_configured')) {
+            $this->agentConnections->validate($request->input('connections', []), $request->user(), $agent);
+        }
 
         // Validate and persist Knowledge first. This prevents partial Agent edits when
         // the aggregate Knowledge limit is exceeded.
@@ -152,6 +160,10 @@ class AgentController extends Controller
             'sharing_access' => $request->boolean('is_shared') ? $request->input('sharing_access') : 'use_only',
             'shared_with_team_id' => null,
         ]);
+
+        if ($request->has('connections') || $request->boolean('connections_configured')) {
+            $this->agentConnections->sync($agent, $request->input('connections', []));
+        }
 
         if ($request->hasFile('avatar')) {
             $this->agentAvatarService->replace($agent, $request->file('avatar'));
@@ -209,6 +221,14 @@ class AgentController extends Controller
 
         return $disk->response($agent->avatar_path, null, [
             'Cache-Control' => 'private, max-age=86400',
+        ]);
+    }
+
+    public function connectionOptions(Request $request): JsonResponse
+    {
+        return response()->json([
+            'enabled' => $this->agentConnections->enabled(),
+            'agents' => $this->agentConnections->options($request->user()),
         ]);
     }
 

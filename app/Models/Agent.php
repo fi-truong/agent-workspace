@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
@@ -51,6 +52,14 @@ class Agent extends Model
     public function copiedFrom(): BelongsTo
     {
         return $this->belongsTo(self::class, 'copied_from_agent_id');
+    }
+
+    /** @return BelongsToMany<Agent, $this> */
+    public function connectedAgents(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'agent_connections', 'agent_id', 'connected_agent_id')
+            ->withPivot('role')
+            ->withTimestamps();
     }
 
     /**

@@ -46,6 +46,13 @@
         <small class="form-hint">Up to {{ \App\Services\KnowledgeService::MAX_AGENT_FILES }} files per Agent · {{ \App\Services\KnowledgeService::MAX_AGENT_FILE_SIZE_MB }} MB per file · {{ \App\Services\KnowledgeService::MAX_AGENT_TOTAL_SIZE_MB }} MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) or images (JPG, PNG, GIF, WebP). Text in images is read with OCR and added to the agent’s Knowledge.</small>
         <div class="form-hint" id="knowledge-limit-status" aria-live="polite"></div>
       </div>
+      <fieldset class="form-group agent-connections-field" id="agent-connections-field" hidden>
+        <legend>Connected Agents <span class="form-hint">(optional)</span></legend>
+        <small class="form-hint">Choose up to {{ config('agent_connections.max_connections', 5) }} Agents this Agent may consult, and describe their roles. It chooses which help is needed for each request. All calls use your token quota. Connected Agents do not call further Agents.</small>
+        <input type="search" id="agent-connections-search" aria-label="Find an Agent to connect" placeholder="Find an Agent…">
+        <div id="agent-connections-list" aria-label="Agents available to connect"></div>
+        <div id="agent-connections-status" class="form-hint" role="status"></div>
+      </fieldset>
       <div class="form-group checkbox-group">
         <input type="checkbox" id="is_shared" name="is_shared" value="1">
         <label for="is_shared">Share with school (publish to Sharing &amp; Showcase)</label>
@@ -70,12 +77,15 @@
   window.AgentModalConfig.maxKnowledgeFiles = {{ \App\Services\KnowledgeService::MAX_AGENT_FILES }};
   window.AgentModalConfig.maxKnowledgeFileBytes = {{ \App\Services\KnowledgeService::MAX_AGENT_FILE_SIZE_KB * 1024 }};
   window.AgentModalConfig.maxKnowledgeTotalBytes = {{ \App\Services\KnowledgeService::MAX_AGENT_TOTAL_SIZE_KB * 1024 }};
+  window.AgentModalConfig.connectionOptionsUrl = @json(route('ai-plus.agent-workspace.agents.connection-options'));
+  window.AgentModalConfig.maxConnections = {{ config('agent_connections.max_connections', 5) }};
 </script>
 <script src="{{ asset('js/agent-modal.js') }}?v={{ filemtime(public_path('js/agent-modal.js')) }}"></script>
 @endpush
 
 @pushOnce('styles')
 <style>
+  #agent-connections-field[hidden]{display:none}.agent-connections-field{border:1px solid var(--line,#ddd);border-radius:10px;padding:12px;color:var(--ink,#22303f)}#agent-connections-list{max-height:240px;overflow-y:auto;margin-top:10px}.agent-connection-row{padding:10px 0;border-bottom:1px solid var(--line,#ddd)}.agent-connection-choice{display:flex;align-items:center;gap:8px}.agent-connection-choice input{width:auto;flex:none}.agent-connection-role{display:block;margin-top:8px;width:100%;box-sizing:border-box}#agent-connections-search{margin-top:10px;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:10px;background:var(--card-bg,#fff);color:var(--ink,#22303f);font:inherit}.agent-connections-field legend{font-weight:600}
   .agent-avatar-editor{display:flex;align-items:center;gap:12px}.agent-avatar-preview{width:56px;height:56px;border-radius:14px;overflow:hidden;background:var(--navy,#1f3864);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;flex:none}.agent-avatar-preview img{width:100%;height:100%;object-fit:cover}#agent-avatar + .form-hint{display:block;margin-top:6px}
 </style>
 @endPushOnce

@@ -18,7 +18,7 @@ class OpenAIClient
      *
      * @throws \Throwable
      */
-    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = []): array
+    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = [], ?int $timeoutSeconds = null): array
     {
         $apiKey = config('openai.api_key');
 
@@ -44,14 +44,14 @@ class OpenAIClient
         }
 
         $response = Http::retry(
-            $this->retryAttempts(),
+            $timeoutSeconds === null ? $this->retryAttempts() : 1,
             $this->retryDelayMilliseconds(),
             function (\Throwable $exception): bool {
                 return $this->shouldRetry($exception);
             },
         )
             ->baseUrl(config('openai.base_url'))
-            ->timeout(config('openai.timeout'))
+            ->timeout($timeoutSeconds ?? config('openai.timeout'))
             ->connectTimeout(5)
             ->withToken($apiKey)
             ->asJson()
@@ -114,7 +114,7 @@ class OpenAIClient
      *
      * @throws \Throwable
      */
-    public function streamChat(array $messages, callable $onDelta, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = []): array
+    public function streamChat(array $messages, callable $onDelta, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = [], ?int $timeoutSeconds = null): array
     {
         $apiKey = config('openai.api_key');
 
@@ -144,7 +144,7 @@ class OpenAIClient
         $requestStartedAt = hrtime(true);
 
         $response = Http::retry(
-            $this->retryAttempts(),
+            $timeoutSeconds === null ? $this->retryAttempts() : 1,
             $this->retryDelayMilliseconds(),
             function (\Throwable $exception): bool {
                 return $this->shouldRetry($exception);
@@ -152,7 +152,7 @@ class OpenAIClient
         )
             ->withOptions(['stream' => true])
             ->baseUrl(config('openai.base_url'))
-            ->timeout(config('openai.timeout'))
+            ->timeout($timeoutSeconds ?? config('openai.timeout'))
             ->connectTimeout(5)
             ->withToken($apiKey)
             ->asJson()

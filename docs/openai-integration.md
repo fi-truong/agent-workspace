@@ -75,4 +75,18 @@ composer types:check
 - `ChatMessageController` giữ nguyên — không cần sửa khi bật API.
 - Nếu key có nhưng gọi thất bại (vd 429 do chưa có credit), controller trả `{ "error": "<message thân thiện>", "retryable": true }` với HTTP 502 thay vì 500 — UI không vỡ.
 
+## 6. Connected Agents
+
+`AgentConnectionService` quản lý các kết nối do chủ Agent chọn; cấu hình được lưu riêng trong `agent_connections`. Chạy migration khi triển khai tính năng. Chưa có bảng này hoặc tắt `AI_PLUS_AGENT_CONNECTIONS_ENABLED` thì chat tiếp tục theo luồng cũ.
+
+`AgentOrchestrationService` bổ sung tool `consult_connected_agent` chỉ khi Agent có kết nối dùng được. Model chọn Agent từ danh sách được phép, backend kiểm tra lại cấu hình và quyền truy cập tại thời điểm thực thi. Lịch sử assistant/tool được trả lại theo `tool_call_id` để Agent chính tổng hợp. Agent con chỉ nhận nhiệm vụ và phần nguồn cần thiết do Agent chính cung cấp, cùng prompt/Knowledge riêng; không nhận toàn bộ lịch sử hoặc công cụ tạo file.
+
+Giới hạn và công tắc nằm trong `config/agent_connections.php`: tối đa 5 Agent, mỗi Agent chạy một lần/lượt, tối đa 5 lần tham khảo, 90 giây và ngưỡng 32.000 token. Mỗi request trong luồng này dùng timeout còn lại và không tự retry; chat thường giữ cách retry cũ. Token đã dùng được ghi ngay để lỗi tổng hợp sau đó không làm mất usage. Tổng token trên message gồm mọi lần gọi, còn usage log chỉ tính mỗi lần một lần.
+
+Tắt khẩn cấp trên server: đặt `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` trong `.env`, chạy `php artisan config:clear` rồi reload PHP-FPM. Giữ bảng kết nối khi quay về release cũ để không mất cấu hình; không chạy migration rollback để tắt tính năng.
+
+Kiểm thử không gọi API thật: `php artisan test --compact tests/Feature/AgentConnectionTest.php tests/Feature/AgentOrchestrationTest.php`.
+
+Kiểm thử giao diện chọn Agent trong Chromium đã cài: `node --test tests/Unit/agent-modal-browser.test.mjs`.
+
 © 2026 CIEC — Lawrence S. Ting School | AI+ Program

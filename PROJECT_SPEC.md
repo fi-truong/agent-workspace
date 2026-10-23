@@ -1,6 +1,6 @@
 # AI Plus — Đặc tả dự án
 
-> **Phiên bản 2.1 · Đối chiếu mã nguồn: 16/10/2026.** Bản tiếng Anh tương ứng: `PROJECT_SPEC_EN.md`. Đây là đặc tả làm việc để rà soát/phê duyệt, không phải xác nhận đã triển khai production. “Hiện có” nghĩa là có mã nguồn/route; “Yêu cầu đích” là tiêu chí cần nghiệm thu; “Kế hoạch” chưa triển khai đầy đủ; “TBD” cần quyết định.
+> **Phiên bản 2.2 · Đối chiếu mã nguồn: 23/10/2026.** Bản tiếng Anh tương ứng: `PROJECT_SPEC_EN.md`. Đây là đặc tả làm việc để rà soát/phê duyệt, không phải xác nhận đã triển khai production. “Hiện có” nghĩa là có mã nguồn/route; “Yêu cầu đích” là tiêu chí cần nghiệm thu; “Kế hoạch” chưa triển khai đầy đủ; “TBD” cần quyết định.
 
 Các mục 1–11 là tóm tắt sản phẩm; mục 12–24 quy định yêu cầu chi tiết, tiêu chí nghiệm thu và các quyết định còn mở.
 
@@ -44,6 +44,10 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 - Gắn Agent với conversation.
 - Knowledge được cắt đoạn, tạo embedding và truy xuất theo độ liên quan; có fallback keyword khi embedding không khả dụng theo cấu hình.
 - Agent có thể được chia sẻ công khai trong trường qua Sharing & Showcase.
+- Chủ Agent có thể kết nối tối đa 5 Agent trong workspace, kèm vai trò cho từng Agent. Agent chính chọn Agent cần tham khảo qua tool calling; mỗi Agent con chạy tối đa một lần/lượt, dùng prompt và Knowledge riêng rồi trả kết quả về. Agent con không gọi tiếp Agent khác và không trực tiếp tạo file.
+- Quyền dùng được kiểm tra cho người đang chat ở mỗi lần gọi; kết nối không cấp quyền dùng Agent riêng tư. Agent chia sẻ chỉ gọi được các Agent con mà người đang chat cũng có quyền dùng. Bản sao không tự sao chép cấu hình kết nối; người nhận thiết lập lại.
+- Token của mọi lần gọi tính vào quota người đang chat, kể cả khi lượt tổng hợp sau đó lỗi. Giới hạn ban đầu: 5 lần tham khảo, ngưỡng 32.000 token và 90 giây/lượt. Khi đạt ngưỡng, không gọi tiếp; usage thực tế từ request đang chạy có thể vượt ngưỡng token. Chỉ Agent chính dùng công cụ tạo file, qua bước xác nhận ý định hiện có.
+- `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` đưa chat về luồng hiện hành, giữ cấu hình và lịch sử. Database chưa có bảng kết nối cũng chạy theo luồng hiện hành.
 
 ### 4.3 Sharing & Showcase
 
@@ -355,6 +359,7 @@ Chuẩn bị Linux, PHP/Composer, Node để build, database production, HTTPS/r
 | 1.x | 18/09/2026 | Bản mô tả ngắn 11 mục |
 | 2.0 | 30/09/2026 | Bổ sung phạm vi, trạng thái, FR/NFR, dữ liệu, tiêu chí nghiệm thu, vận hành, rủi ro và quyết định mở; đồng bộ bản Anh–Việt |
 | 2.1 | 16/10/2026 | Bổ sung tạo và xuất PowerPoint (`.pptx`) |
+| 2.2 | 23/10/2026 | Bổ sung kết nối Agent theo cấu hình chủ sở hữu, giới hạn thực thi, kiểm tra quyền, quota và công tắc rollback |
 
 ## 23. Kịch bản nghiệp vụ đầu cuối
 
