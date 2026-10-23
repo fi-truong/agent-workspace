@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AppSetting;
 use App\Models\Agent;
+use App\Models\AppSetting;
+use App\Models\Conversation;
 use App\Models\ShowcaseUse;
+use App\Services\AgentConnectionService;
 use App\Services\TokenQuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,7 +14,7 @@ use Illuminate\View\View;
 
 class AgentWorkspaceController extends Controller
 {
-    public function index(Request $request, TokenQuotaService $tokenQuotaService): View
+    public function index(Request $request, TokenQuotaService $tokenQuotaService, AgentConnectionService $agentConnections): View
     {
         $user = Auth::user();
 
@@ -35,7 +37,7 @@ class AgentWorkspaceController extends Controller
 
         if ($user) {
             $conversationModels = $user->conversations()
-                ->where('type', \App\Models\Conversation::TYPE_CHAT)
+                ->where('type', Conversation::TYPE_CHAT)
                 ->with('agent:id,title,user_id,avatar_path')
                 ->latest('updated_at')
                 ->get();
@@ -117,7 +119,7 @@ class AgentWorkspaceController extends Controller
 
             // Load history khi mở lại conversation cũ
             if ($activeConversationId) {
-                $conversation = $user->conversations()->where('type', \App\Models\Conversation::TYPE_CHAT)->find($activeConversationId);
+                $conversation = $user->conversations()->where('type', Conversation::TYPE_CHAT)->find($activeConversationId);
 
                 if ($conversation) {
                     $latestUserMessageId = $conversation->messages()
@@ -163,6 +165,33 @@ class AgentWorkspaceController extends Controller
             }
         }
 
+        $agentConnectionSummaries = [];
+        if ($user && $agentConnections->enabled()) {
+            // Include sidebar Agents for selections restored from browser storage,
+            // as well as shared Agents opened directly or through an existing chat.
+            $agentIds = array_column($myAgents, 'id');
+            if ($selectedAgentId !== null) {
+                $agentIds[] = $selectedAgentId;
+            }
+            if ($activeAgent !== null) {
+                $agentIds[] = $activeAgent->id;
+            }
+            $parents = Agent::query()->whereIn('id', $agentIds)
+                ->with('connectedAgents:agents.id,agents.title,agents.user_id,agents.is_shared,agents.sharing_access')
+                ->get(['id', 'user_id', 'is_shared', 'sharing_access']);
+            foreach ($parents as $parent) {
+                if (! $agentConnections->canUse($user, $parent)) {
+                    continue;
+                }
+
+                $agentConnectionSummaries[$parent->id] = $parent->connectedAgents
+                    ->filter(fn (Agent $child): bool => $child->id !== $parent->id && $agentConnections->canUse($user, $child))
+                    ->take((int) config('agent_connections.max_connections', 10))
+                    ->map(fn (Agent $child): array => ['id' => $child->id, 'title' => $child->title])
+                    ->values()->all();
+            }
+        }
+
         $quickActions = [
             ['icon' => '🤖', 'label' => 'Create Agent', 'desc' => 'Build a custom AI assistant'],
         ];
@@ -178,6 +207,7 @@ class AgentWorkspaceController extends Controller
             'userName' => $userName,
             'userInitials' => $userInitials,
             'activeAgent' => $activeAgent,
+            'agentConnectionSummaries' => $agentConnectionSummaries,
             'activeConversationTitle' => $activeConversationTitle,
             'tokenQuota' => $tokenQuota,
             'initialMessages' => $initialMessages,

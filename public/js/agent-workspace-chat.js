@@ -205,8 +205,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
   window.addEventListener('pagehide', saveDraft);
 
+  function syncConnectedAgents(agentId) {
+    const summary = document.querySelector('[data-connected-agents]');
+    if (!summary) return;
+    const children = (window.__AGENT_CONNECTIONS__ || {})[agentId] || [];
+    const names = summary.querySelector('[data-connected-agent-names]');
+    if (names) names.textContent = children.map((agent) => agent.title).join(' · ');
+    summary.hidden = children.length === 0;
+  }
+
   // Hiển thị breadcrumb tên agent ở topbar (từ selectedAgentId hoặc activeAgent server-side).
   function syncAgentBadge() {
+    syncConnectedAgents(urlConversationId ? window.__ACTIVE_AGENT_ID__ : selectedAgentId);
     const topbarLeft = document.querySelector('.topbar-left');
     if (!topbarLeft) return;
 
@@ -309,6 +319,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function clearUnavailableSharedAgent() {
     selectedAgentId = null;
+    syncConnectedAgents(null);
     sessionStorage.removeItem('selectedAgentId');
     const url = new URL(window.location.href);
     url.searchParams.delete('agent_id');

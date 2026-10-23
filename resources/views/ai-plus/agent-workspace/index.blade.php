@@ -9,6 +9,8 @@
   <script>
   window.__INITIAL_MESSAGES__ = @json($initialMessages);
   window.__MY_AGENTS__ = @json($myAgents);
+  window.__AGENT_CONNECTIONS__ = @json($agentConnectionSummaries);
+  window.__ACTIVE_AGENT_ID__ = @json($activeAgent?->id);
   window.__SELECTED_AGENT_ID__ = @json($selectedAgentId);
   window.__SELECTED_AGENT_NAME__ = @json($selectedAgentName);
   window.__AGENT_ACCESS_MESSAGE__ = @json($agentAccessMessage);
@@ -141,6 +143,14 @@
         <div class="model-selector">
           GPT-6 Luna
           <span class="badge">School AI</span>
+        </div>
+        @php
+          $headerAgentId = $activeConversationId ? $activeAgent?->id : $selectedAgentId;
+          $headerConnections = $agentConnectionSummaries[$headerAgentId] ?? [];
+        @endphp
+        <div class="connected-agent-summary" data-connected-agents @if(empty($headerConnections)) hidden @endif tabindex="0" role="group" aria-label="Connected Agents">
+          <span class="connected-agent-label">Connected Agents:</span>
+          <span data-connected-agent-names>{{ implode(' · ', array_column($headerConnections, 'title')) }}</span>
         </div>
         @if($activeConversationTitle)
         <div class="active-agent-breadcrumb">
@@ -311,7 +321,11 @@
   .ws-type-badge{padding:4px 10px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:6px;font-size:11px;font-family:'IBM Plex Mono', monospace;color: var(--text-soft);}
   .model-selector{padding:8px 12px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:8px;font-size:13px;color: var(--input-text);cursor:pointer;display:flex;align-items:center;gap:8px;}
   .model-selector .badge{background: var(--navy);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-family:'IBM Plex Mono', monospace;}
-  .topbar-left{display:flex;flex-direction:column;align-items:flex-start;gap:6px;}
+  .topbar-left{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;flex:1;}
+  .connected-agent-summary{max-width:100%;box-sizing:border-box;white-space:nowrap;overflow-x:auto;scrollbar-width:thin;color:var(--text-main);font-size:12px;line-height:1.6;}
+  .connected-agent-summary[hidden]{display:none;}
+  .connected-agent-label{color:var(--text-soft);font-weight:600;margin-right:4px;}
+  .connected-agent-summary:focus-visible{outline:2px solid var(--navy);outline-offset:2px;border-radius:3px;}
   .active-agent-breadcrumb{display:flex;align-items:center;gap:8px;max-width:100%;}
   .agent-breadcrumb-name{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background: linear-gradient(135deg, var(--gold) 0%, #E5AB45 100%);color:#fff;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;}
   .agent-exit-btn{width:22px;height:22px;padding:0;border:0;border-radius:50%;background:var(--chip-bg);color:var(--text-soft);font-size:16px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;}
@@ -319,7 +333,7 @@
   .agent-breadcrumb-sep{color:var(--text-soft,#5B6B7C);font-size:14px;}
   .agent-breadcrumb-prompt{color:var(--text-main);font-size:13px;white-space:nowrap;}
   .conversation-breadcrumb-name{display:inline-block;padding:6px 12px;background:var(--input-bg);border:1px solid var(--input-border);color:var(--text-main);border-radius:8px;font-size:13px;white-space:nowrap;}
-  .topbar-right{display:flex;align-items:center;gap:8px;}
+  .topbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:16px;}
   .icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--topbar-border);background: var(--topbar-bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color: var(--topbar-crumb);font-size:16px;transition: background 0.15s;}
   .icon-btn:hover{background: var(--surface);color: var(--topbar-link);}
   .move-conversation-btn{font-size:20px;font-weight:600;line-height:1;}

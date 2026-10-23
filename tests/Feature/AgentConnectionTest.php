@@ -127,3 +127,73 @@ it('disables setup without deleting connections and tolerates an unmigrated data
     $this->getJson(route('ai-plus.agent-workspace.agents.connection-options'))->assertJsonPath('enabled', false);
     $this->getJson(route('ai-plus.agent-workspace.agents.show', $parent))->assertOk();
 });
+
+it('shows accessible connected Agent names below the model without exposing their configuration', function () {
+    $parent = $this->user->agents()->create(['title' => 'Coordinator']);
+    $child = $this->user->agents()->create(['title' => 'Writer & Reviewer', 'system_prompt' => 'CHILD_PRIVATE_CONFIGURATION']);
+    $parent->connectedAgents()->attach($child, ['role' => 'PRIVATE_CONNECTION_ROLE']);
+
+    $this->get(route('ai-plus.agent-workspace.index', ['agent_id' => $parent->id]))
+        ->assertOk()
+        ->assertViewHas('agentConnectionSummaries', [$parent->id => [['id' => $child->id, 'title' => $child->title]], $child->id => []])
+        ->assertSeeInOrder(['GPT-6 Luna', 'data-connected-agents', 'Connected Agents:', 'Writer &amp; Reviewer'], false)
+        ->assertDontSee('CHILD_PRIVATE_CONFIGURATION')
+        ->assertDontSee('PRIVATE_CONNECTION_ROLE');
+});
+
+it('uses the conversation Agent connections when reopening a chat', function () {
+    $parent = $this->user->agents()->create(['title' => 'Coordinator']);
+    $child = $this->user->agents()->create(['title' => 'Lesson reviewer']);
+    $parent->connectedAgents()->attach($child);
+    $conversation = $this->user->conversations()->create(['title' => 'Lesson chat', 'agent_id' => $parent->id, 'type' => Conversation::TYPE_CHAT]);
+
+    $this->get(route('ai-plus.agent-workspace.index', ['conversation_id' => $conversation->id]))
+        ->assertOk()
+        ->assertSeeInOrder(['GPT-6 Luna', 'data-connected-agents', 'Lesson reviewer', 'active-agent-breadcrumb', 'Coordinator'], false);
+});
+
+it('hides inaccessible connections of a shared coordinator from the header and browser data', function () {
+    $owner = User::factory()->create();
+    $parent = $owner->agents()->create(['title' => 'Shared coordinator', 'is_shared' => true, 'sharing_access' => 'use_only']);
+    $private = $owner->agents()->create(['title' => 'SECRET_CHILD_TITLE']);
+    $copy = $owner->agents()->create(['title' => 'COPY_ONLY_CHILD_TITLE', 'is_shared' => true, 'sharing_access' => 'copy']);
+    $shared = $owner->agents()->create(['title' => 'Shared reviewer', 'is_shared' => true, 'sharing_access' => 'use_only']);
+    $parent->connectedAgents()->attach([$private->id, $copy->id, $shared->id]);
+
+    $this->get(route('ai-plus.agent-workspace.index', ['agent_id' => $parent->id]))
+        ->assertOk()
+        ->assertViewHas('agentConnectionSummaries', [$parent->id => [['id' => $shared->id, 'title' => $shared->title]]])
+        ->assertSeeInOrder(['GPT-6 Luna', 'data-connected-agents', 'Shared reviewer'], false)
+        ->assertDontSee('SECRET_CHILD_TITLE')->assertDontSee('COPY_ONLY_CHILD_TITLE');
+
+    $shared->update(['is_shared' => false]);
+    $this->get(route('ai-plus.agent-workspace.index', ['agent_id' => $parent->id]))
+        ->assertOk()->assertViewHas('agentConnectionSummaries', [$parent->id => []])
+        ->assertDontSee('Shared reviewer');
+});
+
+it('does not expose connections through a coordinator whose shared access was revoked', function () {
+    $owner = User::factory()->create();
+    $parent = $owner->agents()->create(['title' => 'Former shared coordinator']);
+    $child = $owner->agents()->create(['title' => 'HIDDEN_CHILD_TITLE', 'is_shared' => true, 'sharing_access' => 'use_only']);
+    $parent->connectedAgents()->attach($child);
+    $conversation = $this->user->conversations()->create(['title' => 'Previous chat', 'agent_id' => $parent->id, 'type' => Conversation::TYPE_CHAT]);
+
+    $this->get(route('ai-plus.agent-workspace.index', ['conversation_id' => $conversation->id]))
+        ->assertOk()->assertViewHas('agentConnectionSummaries', [])
+        ->assertDontSee('HIDDEN_CHILD_TITLE');
+});
+
+it('keeps the header safe when connections are disabled or the table is not migrated', function () {
+    $parent = $this->user->agents()->create(['title' => 'Coordinator']);
+    $child = $this->user->agents()->create(['title' => 'Reviewer']);
+    $parent->connectedAgents()->attach($child);
+    config(['agent_connections.enabled' => false]);
+    $this->get(route('ai-plus.agent-workspace.index', ['agent_id' => $parent->id]))
+        ->assertOk()->assertViewHas('agentConnectionSummaries', []);
+
+    Schema::drop('agent_connections');
+    config(['agent_connections.enabled' => true]);
+    $this->get(route('ai-plus.agent-workspace.index', ['agent_id' => $parent->id]))
+        ->assertOk()->assertViewHas('agentConnectionSummaries', []);
+});
