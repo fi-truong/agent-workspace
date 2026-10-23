@@ -81,7 +81,9 @@ composer types:check
 
 `AgentOrchestrationService` bổ sung tool `consult_connected_agent` chỉ khi Agent có kết nối dùng được. Model chọn Agent từ danh sách được phép, backend kiểm tra lại cấu hình và quyền truy cập tại thời điểm thực thi. Lịch sử assistant/tool được trả lại theo `tool_call_id` để Agent chính tổng hợp. Agent con chỉ nhận nhiệm vụ và phần nguồn cần thiết do Agent chính cung cấp, cùng prompt/Knowledge riêng; không nhận toàn bộ lịch sử hoặc công cụ tạo file.
 
-Giới hạn và công tắc nằm trong `config/agent_connections.php`: tối đa 5 Agent, mỗi Agent chạy một lần/lượt, tối đa 5 lần tham khảo, 90 giây và ngưỡng 32.000 token. Mỗi request trong luồng này dùng timeout còn lại và không tự retry; chat thường giữ cách retry cũ. Token đã dùng được ghi ngay để lỗi tổng hợp sau đó không làm mất usage. Tổng token trên message gồm mọi lần gọi, còn usage log chỉ tính mỗi lần một lần.
+Giới hạn và công tắc nằm trong `config/agent_connections.php`: tối đa 10 Agent, mỗi Agent chạy một lần/lượt, tối đa 10 lần tham khảo, 300 giây (5 phút) cho phần phối hợp và ngưỡng 32.000 token. Mỗi lần gọi dùng giá trị nhỏ hơn giữa `openai.timeout` và thời gian phối hợp còn lại, không tự retry; chat thường giữ cách retry cũ. Token đã dùng được ghi ngay để lỗi tổng hợp sau đó không làm mất usage. Tổng token trên message gồm mọi lần gọi, còn usage log chỉ tính mỗi lần một lần.
+
+Controller chỉ tăng mốc PHP cho chat có Agent kết nối: thời gian phối hợp cộng một timeout model để hoàn tất đầu ra, mặc định `300 + 120 = 420` giây. Chat thường vẫn đặt 120 giây. Trình duyệt không đặt timeout hủy request chat; PHP-FPM và Nginx bên ngoài cần cấu hình tương ứng (đề xuất 450 giây với mặc định trên; xem Deployment Checklist). Nếu có ngrok/CDN/proxy khác ở phía trước, phải kiểm tra giới hạn của lớp đó qua domain thật. Đây vẫn là xử lý trong request, chưa chuyển sang job chạy nền.
 
 Tắt khẩn cấp trên server: đặt `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` trong `.env`, chạy `php artisan config:clear` rồi reload PHP-FPM. Giữ bảng kết nối khi quay về release cũ để không mất cấu hình; không chạy migration rollback để tắt tính năng.
 

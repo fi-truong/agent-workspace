@@ -122,7 +122,11 @@ class ChatMessageController extends Controller
         $ctx = $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy);
 
         try {
-            $completion = $agentConnections->forAgent($ctx['conversation']->agent, $ctx['user'])->isNotEmpty()
+            $usesConnectedAgents = $agentConnections->forAgent($ctx['conversation']->agent, $ctx['user'])->isNotEmpty();
+            if ($usesConnectedAgents) {
+                set_time_limit($orchestration->requestTimeoutSeconds());
+            }
+            $completion = $usesConnectedAgents
                 ? $orchestration->complete($ctx['user'], $ctx['conversation'], $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'])
                 : $chatService->complete($ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools']);
         } catch (\RuntimeException $e) {
@@ -312,7 +316,11 @@ class ChatMessageController extends Controller
                         $send('delta', ['text' => $delta]);
                     }
                 };
-                $completion = $agentConnections->forAgent($ctx['conversation']->agent, $ctx['user'])->isNotEmpty()
+                $usesConnectedAgents = $agentConnections->forAgent($ctx['conversation']->agent, $ctx['user'])->isNotEmpty();
+                if ($usesConnectedAgents) {
+                    set_time_limit($orchestration->requestTimeoutSeconds());
+                }
+                $completion = $usesConnectedAgents
                     ? $orchestration->complete(
                         $ctx['user'], $ctx['conversation'], $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'],
                         $onDelta, fn (string $message) => $send('progress', ['message' => $message]),

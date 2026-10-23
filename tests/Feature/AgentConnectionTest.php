@@ -51,7 +51,7 @@ it('rejects private foreign Agents self links duplicates and oversized setups be
         [['agent_id' => $foreign->id]],
         [['agent_id' => $parent->id]],
         [['agent_id' => $foreign->id], ['agent_id' => $foreign->id]],
-        array_fill(0, 6, ['agent_id' => $foreign->id]),
+        array_fill(0, 11, ['agent_id' => $foreign->id]),
     ] as $connections) {
         $this->putJson(route('ai-plus.agent-workspace.agents.update', $parent), ['title' => 'Changed', 'connections' => $connections])->assertUnprocessable();
     }
@@ -63,6 +63,30 @@ it('does not let another user edit or read connection setup', function () {
     $parent = User::factory()->create()->agents()->create(['title' => 'Private coordinator']);
     $this->getJson(route('ai-plus.agent-workspace.agents.show', $parent))->assertForbidden();
     $this->putJson(route('ai-plus.agent-workspace.agents.update', $parent), ['title' => 'Changed', 'connections' => []])->assertForbidden();
+});
+
+it('allows ten connected Agents on creation and edit but rejects an eleventh', function () {
+    $connections = collect(range(1, 11))->map(function (int $index): array {
+        $child = $this->user->agents()->create(['title' => 'Specialist '.$index]);
+
+        return ['agent_id' => $child->id, 'role' => 'Specialist role '.$index];
+    })->all();
+    $response = $this->postJson(route('ai-plus.agent-workspace.agents.store'), [
+        'title' => 'Ten-Agent coordinator', 'connections' => array_slice($connections, 0, 10),
+    ])->assertCreated();
+    $parent = $this->user->agents()->findOrFail($response->json('id'));
+    expect(app(AgentConnectionService::class)->forAgent($parent, $this->user))->toHaveCount(10);
+    $this->putJson(route('ai-plus.agent-workspace.agents.update', $parent), [
+        'title' => 'Updated coordinator', 'connections' => array_slice($connections, 0, 10),
+    ])->assertOk();
+    $this->postJson(route('ai-plus.agent-workspace.agents.store'), [
+        'title' => 'Too many connections', 'connections' => $connections,
+    ])->assertUnprocessable()->assertJsonValidationErrors('connections');
+    $this->putJson(route('ai-plus.agent-workspace.agents.update', $parent), [
+        'title' => 'Too many connections', 'connections' => $connections,
+    ])->assertUnprocessable()->assertJsonValidationErrors('connections');
+    expect($parent->connectedAgents()->count())->toBe(10)
+        ->and($parent->fresh()->title)->toBe('Updated coordinator');
 });
 
 it('rechecks sharing permissions for the person running a shared coordinator', function () {

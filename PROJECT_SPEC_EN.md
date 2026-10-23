@@ -44,9 +44,9 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 - Attach an Agent to a conversation.
 - Knowledge is chunked, embedded and retrieved by relevance; a configurable keyword fallback is used when embeddings are unavailable.
 - Agents can be shared school-wide through Sharing and Showcase.
-- Owners may connect up to five workspace Agents and describe their roles. The coordinator selects useful specialists through tool calling; each runs at most once per user turn using its own prompt and Knowledge, then returns findings. Specialists cannot call further Agents or create files directly.
+- Owners may connect up to ten workspace Agents and describe their roles. The coordinator selects useful specialists through tool calling; each runs at most once per user turn using its own prompt and Knowledge, then returns findings. Specialists cannot call further Agents or create files directly.
 - Permission is checked for the person chatting at every invocation. Connections do not grant access to private Agents. Shared coordinators may use only specialists their current user may also use. Copies do not inherit connection settings; recipients configure their own connections.
-- All model calls count toward the chatting user's quota, including calls completed before a later synthesis failure. Initial limits are five consultations, a 32,000-token threshold and 90 seconds per turn. No further calls start after a limit is reached; usage from an in-flight request may exceed the token threshold. Only the coordinator executes file tools after the existing user-intent confirmation.
+- All model calls count toward the chatting user's quota, including calls completed before a later synthesis failure. Limits are ten consultations, a 32,000-token threshold and 300 seconds (five minutes) for coordination per turn. Each call is bounded by the current model timeout and the remaining coordination time. No further calls start after a limit is reached; usage from an in-flight request may exceed the token threshold. Only the coordinator executes file tools after the existing user-intent confirmation.
 - Setting `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` restores the existing chat flow without deleting connections or history. An unmigrated connection table also leaves the existing flow available.
 
 ### 4.3 Sharing and Showcase
@@ -314,7 +314,7 @@ Target error convention: 401/login redirect for unauthenticated requests; 403/40
 | ID | Requirement | Verification/status |
 | --- | --- | --- |
 | NFR-01 | Site-wide HTTPS, secrets outside Git, least privilege, private disks inaccessible via the web server. | Production configuration and direct-URL checks |
-| NFR-02 | UI shows processing state; proxy does not buffer SSE; timeout accommodates requests up to approximately 120 seconds. | Smoke test through real domain on slow networks |
+| NFR-02 | UI shows processing state; proxy does not buffer SSE. Ordinary chat retains its 120-second PHP setting; connected Agents receive 300 seconds for coordination plus one model timeout for output completion (420-second PHP setting by default). Configure suitable outer PHP-FPM/proxy limits; 450 seconds is recommended for these defaults. | Smoke test through real domain on slow networks |
 | NFR-03 | Clear failures when OpenAI/Poppler/OCR/Playwright is unavailable; fallback only where semantically valid. | Dependency-failure tests; uptime/SLO TBD |
 | NFR-04 | Move heavy tasks to queue with controlled retries/idempotency before scaling; some work currently runs in the chat request. | Pilot load test; trigger threshold TBD |
 | NFR-05 | Monitor errors, latency, failed jobs, disk, usage and API cost without logging sensitive data. | Dashboard/alerts/on-call owner TBD |

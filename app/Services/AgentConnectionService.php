@@ -58,7 +58,7 @@ class AgentConnectionService
 
         return $agent->connectedAgents()->where('agents.id', '!=', $agent->id)->get()
             ->filter(fn (Agent $child): bool => $this->canUse($user, $child))
-            ->take((int) config('agent_connections.max_connections', 5))->values();
+            ->take((int) config('agent_connections.max_connections', 10))->values();
     }
 
     /** @return array<int, array{agent_id: int, role: ?string}> */

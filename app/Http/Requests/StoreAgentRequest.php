@@ -25,7 +25,7 @@ class StoreAgentRequest extends FormRequest
             'avatar' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'is_shared' => 'nullable|boolean',
             'sharing_access' => [Rule::requiredIf(fn (): bool => $this->boolean('is_shared')), 'nullable', 'in:use_only,copy'],
-            'connections' => ['sometimes', 'array', 'max:'.config('agent_connections.max_connections', 5)],
+            'connections' => ['sometimes', 'array', 'max:'.config('agent_connections.max_connections', 10)],
             'connections_configured' => ['sometimes', 'boolean'],
             'connections.*' => ['array:agent_id,role'],
             'connections.*.agent_id' => ['required', 'integer', 'distinct'],

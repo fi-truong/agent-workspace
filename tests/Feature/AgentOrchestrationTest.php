@@ -87,6 +87,30 @@ it('uses child Knowledge without passing unrelated conversation history', functi
         && ! str_contains(json_encode($request['messages']), 'UNRELATED_HISTORY_MARKER'));
 });
 
+it('consults ten configured specialists sequentially and synthesizes after the tenth', function () {
+    $children = collect([$this->childAgent]);
+    foreach (range(2, 10) as $index) {
+        $child = $this->user->agents()->create(['title' => 'Specialist '.$index]);
+        $this->parentAgent->connectedAgents()->attach($child);
+        $children->push($child);
+    }
+    $sequence = Http::sequence();
+    foreach ($children as $index => $child) {
+        $sequence->push(connectedAgentResponse('', [connectedAgentCall($child->id, 'Review school planning section '.($index + 1), 'call-specialist-'.$index)]));
+        $sequence->push(connectedAgentResponse('Findings from specialist '.($index + 1)));
+    }
+    $sequence->push(connectedAgentResponse('TEN_AGENT_FINAL_ANSWER'));
+    Http::fake(['https://api.openai.com/*' => $sequence]);
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id, 'message' => 'Create a personalized school lesson using all ten specialists',
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'TEN_AGENT_FINAL_ANSWER') && str_contains($reply, 'Specialist 10'));
+    Http::assertSentCount(21);
+    expect(AdminAuditLog::where('event', 'agent.consulted')->count())->toBe(10)
+        ->and(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(315);
+    Http::assertSent(fn (Request $request): bool => collect($request['messages'])->where('role', 'tool')->count() === 10
+        && ! collect($request['tools'] ?? [])->contains(fn (array $tool): bool => $tool['function']['name'] === 'consult_connected_agent'));
+});
+
 it('rejects unconfigured Agent calls without reading their private prompts', function () {
     $foreign = User::factory()->create()->agents()->create(['title' => 'Private', 'system_prompt' => 'NEVER_SEND_THIS']);
     Http::fake(['https://api.openai.com/*' => Http::sequence()
@@ -226,6 +250,87 @@ it('does not start a request when the coordination time or token budget has been
     Http::assertNothingSent();
     expect(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(0);
 })->with(['agent_connections.timeout_seconds', 'agent_connections.max_turn_tokens']);
+
+it('allows coordination past ninety seconds and bounds each call by the time remaining', function (bool $streaming) {
+    config(['openai.timeout' => 120]);
+    $this->travelTo(now()->startOfSecond());
+    $timeouts = [];
+    $phpLimits = [];
+    Http::fake(['https://api.openai.com/*' => function (Request $request, array $options) use (&$timeouts, &$phpLimits) {
+        $timeouts[] = $options['timeout'];
+        $phpLimits[] = (int) ini_get('max_execution_time');
+        $callNumber = count($timeouts);
+        if ($callNumber <= 2) {
+            $this->travel(100)->seconds();
+        }
+        $payload = match ($callNumber) {
+            1 => connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]),
+            2 => connectedAgentResponse('Findings after two hundred seconds'),
+            default => connectedAgentResponse('LONG_COORDINATION_COMPLETE'),
+        };
+
+        return ($request['stream'] ?? false)
+            ? Http::response(connectedAgentStream($payload), 200, ['Content-Type' => 'text/event-stream'])
+            : Http::response($payload);
+    }]);
+    try {
+        $data = ['conversation_id' => $this->conversation->id, 'message' => 'Review the school plan'];
+        $response = $streaming
+            ? $this->post(route('ai-plus.agent-workspace.send-stream'), $data)
+            : $this->postJson(route('ai-plus.agent-workspace.send'), $data);
+        $response->assertOk();
+        if ($streaming) {
+            $bufferLevel = ob_get_level();
+            $response->baseResponse->getCallback()();
+            while (ob_get_level() < $bufferLevel) {
+                ob_start();
+            }
+        }
+    } finally {
+        $this->travelBack();
+    }
+    expect($timeouts)->toBe([120, 120, 100])->and($phpLimits)->toBe([420, 420, 420]);
+    expect($this->conversation->messages()->where('role', 'assistant')->first()->content)->toContain('LONG_COORDINATION_COMPLETE');
+    expect(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(45);
+})->with(['JSON chat' => false, 'streaming chat' => true]);
+
+it('stops new calls after the five minute coordination deadline without losing usage', function () {
+    $this->travelTo(now()->startOfSecond());
+    Http::fake(['https://api.openai.com/*' => function () {
+        $this->travel(301)->seconds();
+
+        return Http::response(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]));
+    }]);
+    try {
+        $this->postJson(route('ai-plus.agent-workspace.send'), ['conversation_id' => $this->conversation->id, 'message' => 'Review the school plan'])
+            ->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'time or token limit'));
+    } finally {
+        $this->travelBack();
+    }
+    Http::assertSentCount(1);
+    expect(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(15);
+});
+
+it('preserves ordinary PHP and model timeouts when collaboration is not used', function (string $mode) {
+    config(['openai.timeout' => 37]);
+    if ($mode === 'disabled') {
+        config(['agent_connections.enabled' => false]);
+    } elseif ($mode === 'quick chat') {
+        $this->conversation->update(['agent_id' => null]);
+    } else {
+        $this->parentAgent->connectedAgents()->detach();
+    }
+    $timeouts = [];
+    $phpLimits = [];
+    Http::fake(['https://api.openai.com/*' => function (Request $request, array $options) use (&$timeouts, &$phpLimits) {
+        $timeouts[] = $options['timeout'];
+        $phpLimits[] = (int) ini_get('max_execution_time');
+
+        return Http::response(connectedAgentResponse('Ordinary answer'));
+    }]);
+    $this->postJson(route('ai-plus.agent-workspace.send'), ['conversation_id' => $this->conversation->id, 'message' => 'Review the school plan'])->assertOk();
+    expect($timeouts)->toBe([37])->and($phpLimits)->toBe([120]);
+})->with(['disabled', 'quick chat', 'no connections']);
 
 it('does not call a specialist after the turn token threshold is reached by the coordinator', function () {
     config(['agent_connections.max_turn_tokens' => 15]);

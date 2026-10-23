@@ -27,7 +27,7 @@ const fixture = `<!doctype html><html><head><meta name="csrf-token" content="tes
 
 async function setup(
     t,
-    { optionsFail = false, enabled = true, saved = [] } = {},
+    { optionsFail = false, enabled = true, saved = [], agents = null } = {},
 ) {
     const browser = await chromium.launch({ headless: true });
     t.after(() => browser.close());
@@ -44,7 +44,7 @@ async function setup(
                 status: optionsFail ? 503 : 200,
                 json: {
                     enabled,
-                    agents: [
+                    agents: agents ?? [
                         { id: 10, title: 'Coordinator' },
                         { id: 20, title: 'Reviewer' },
                         { id: 30, title: 'Writer <script>bad()</script>' },
@@ -71,7 +71,7 @@ async function setup(
         window.AgentModalConfig = {
             connectionOptionsUrl:
                 '/ai-plus/agent-workspace/agents/connection-options',
-            maxConnections: 5,
+            maxConnections: 10,
         };
     });
     await page.addScriptTag({ content: script });
@@ -87,7 +87,7 @@ test('selects Agents, keeps roles during search, and submits multipart edit usin
         saved: [{ agent_id: 20, role: 'Review objectives' }],
     });
     await page.locator('.edit-agent').click();
-    await page.getByText('1 / 5 Agents connected').waitFor();
+    await page.getByText('1 / 10 Agents connected').waitFor();
     assert.equal(await page.locator('.agent-connection-row').count(), 2);
     assert.equal(
         await page.locator('.agent-connection-role').inputValue(),
@@ -130,7 +130,7 @@ test('hides connection controls when the emergency switch is off even with form 
 test('submits explicit clearing when all connections are unchecked', async (t) => {
     const page = await setup(t, { saved: [{ agent_id: 20, role: 'Review' }] });
     await page.locator('.edit-agent').click();
-    await page.getByText('1 / 5 Agents connected').waitFor();
+    await page.getByText('1 / 10 Agents connected').waitFor();
     await page
         .locator('#agent-connections-list input[type=checkbox]')
         .first()
@@ -161,4 +161,41 @@ test('preserves existing connections if loading the choices fails', async (t) =>
         (await requestPromise).postData(),
         /connections_configured|name="connections\[/,
     );
+});
+
+test('accepts ten selected Agents and prevents selecting an eleventh', async (t) => {
+    const agents = Array.from({ length: 11 }, (_, index) => ({
+        id: 100 + index,
+        title: `Specialist ${index + 1}`,
+    }));
+    const page = await setup(t, { agents });
+    await page.locator('.edit-agent').click();
+    await page.getByText('0 / 10 Agents connected').waitFor();
+
+    for (let index = 0; index < 10; index++) {
+        await page
+            .locator('#agent-connections-list input[type=checkbox]')
+            .nth(index)
+            .check();
+    }
+
+    await page.getByText('10 / 10 Agents connected').waitFor();
+    await page
+        .locator('#agent-connections-list input[type=checkbox]')
+        .nth(10)
+        .click();
+    assert.equal(
+        await page
+            .locator('#agent-connections-list input[type=checkbox]:checked')
+            .count(),
+        10,
+    );
+    await page.getByText('Choose up to 10 connected Agents.').waitFor();
+    const requestPromise = page.waitForRequest(
+        (request) => request.method() === 'POST',
+    );
+    await page.locator('#modal-submit').click();
+    const body = (await requestPromise).postData();
+    assert.match(body, /name="connections\[9\]\[agent_id\]"/);
+    assert.doesNotMatch(body, /name="connections\[10\]\[agent_id\]"/);
 });

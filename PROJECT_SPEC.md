@@ -44,9 +44,9 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 - Gắn Agent với conversation.
 - Knowledge được cắt đoạn, tạo embedding và truy xuất theo độ liên quan; có fallback keyword khi embedding không khả dụng theo cấu hình.
 - Agent có thể được chia sẻ công khai trong trường qua Sharing & Showcase.
-- Chủ Agent có thể kết nối tối đa 5 Agent trong workspace, kèm vai trò cho từng Agent. Agent chính chọn Agent cần tham khảo qua tool calling; mỗi Agent con chạy tối đa một lần/lượt, dùng prompt và Knowledge riêng rồi trả kết quả về. Agent con không gọi tiếp Agent khác và không trực tiếp tạo file.
+- Chủ Agent có thể kết nối tối đa 10 Agent trong workspace, kèm vai trò cho từng Agent. Agent chính chọn Agent cần tham khảo qua tool calling; mỗi Agent con chạy tối đa một lần/lượt, dùng prompt và Knowledge riêng rồi trả kết quả về. Agent con không gọi tiếp Agent khác và không trực tiếp tạo file.
 - Quyền dùng được kiểm tra cho người đang chat ở mỗi lần gọi; kết nối không cấp quyền dùng Agent riêng tư. Agent chia sẻ chỉ gọi được các Agent con mà người đang chat cũng có quyền dùng. Bản sao không tự sao chép cấu hình kết nối; người nhận thiết lập lại.
-- Token của mọi lần gọi tính vào quota người đang chat, kể cả khi lượt tổng hợp sau đó lỗi. Giới hạn ban đầu: 5 lần tham khảo, ngưỡng 32.000 token và 90 giây/lượt. Khi đạt ngưỡng, không gọi tiếp; usage thực tế từ request đang chạy có thể vượt ngưỡng token. Chỉ Agent chính dùng công cụ tạo file, qua bước xác nhận ý định hiện có.
+- Token của mọi lần gọi tính vào quota người đang chat, kể cả khi lượt tổng hợp sau đó lỗi. Giới hạn: 10 lần tham khảo, ngưỡng 32.000 token và 300 giây (5 phút) cho phần phối hợp/lượt. Từng lần gọi không vượt timeout model hiện hành hoặc thời gian phối hợp còn lại. Khi đạt ngưỡng, không gọi tiếp; usage thực tế từ request đang chạy có thể vượt ngưỡng token. Chỉ Agent chính dùng công cụ tạo file, qua bước xác nhận ý định hiện có.
 - `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` đưa chat về luồng hiện hành, giữ cấu hình và lịch sử. Database chưa có bảng kết nối cũng chạy theo luồng hiện hành.
 
 ### 4.3 Sharing & Showcase
@@ -314,7 +314,7 @@ Quy ước lỗi đích: 401/chuyển login cho chưa xác thực; 403/404 cho t
 | ID | Yêu cầu | Cách xác nhận / trạng thái |
 | --- | --- | --- |
 | NFR-01 | HTTPS, secret ngoài Git, quyền tối thiểu, private disk không public qua web server. | Kiểm tra production và URL trực tiếp |
-| NFR-02 | UI báo trạng thái khi chat/tệp đang xử lý; reverse proxy không buffer SSE; timeout phù hợp với request tối đa khoảng 120 giây. | Smoke test qua domain thật, mạng chậm |
+| NFR-02 | UI báo trạng thái khi chat/tệp đang xử lý; reverse proxy không buffer SSE. Chat thường giữ mốc PHP 120 giây; Agent có kết nối có 300 giây phối hợp và thêm một timeout model để hoàn tất đầu ra (mặc định mốc PHP 420 giây). PHP-FPM/proxy cần giới hạn ngoài phù hợp, mặc định đề xuất 450 giây. | Smoke test qua domain thật, mạng chậm |
 | NFR-03 | Báo lỗi rõ khi OpenAI/Poppler/OCR/Playwright không sẵn sàng; fallback chỉ khi đúng ngữ nghĩa. | Dependency-failure test; uptime/SLO TBD |
 | NFR-04 | Tác vụ nặng chuyển queue, retry và idempotency trước khi tăng tải; trạng thái hiện tại vẫn có tác vụ chạy trong chat request. | Đo tải pilot; ngưỡng kích hoạt TBD |
 | NFR-05 | Theo dõi lỗi, latency, failed jobs, disk, usage và chi phí API, không log dữ liệu nhạy cảm. | Dashboard/alert/owner trực TBD |

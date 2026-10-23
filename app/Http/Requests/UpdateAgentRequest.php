@@ -28,7 +28,7 @@ class UpdateAgentRequest extends FormRequest
             'sharing_access' => [Rule::requiredIf(fn (): bool => $this->boolean('is_shared')), 'nullable', 'in:use_only,copy'],
             'knowledge_remove' => 'nullable|array',
             'knowledge_remove.*' => 'string',
-            'connections' => ['sometimes', 'array', 'max:'.config('agent_connections.max_connections', 5)],
+            'connections' => ['sometimes', 'array', 'max:'.config('agent_connections.max_connections', 10)],
             'connections_configured' => ['sometimes', 'boolean'],
             'connections.*' => ['array:agent_id,role'],
             'connections.*.agent_id' => ['required', 'integer', 'distinct'],

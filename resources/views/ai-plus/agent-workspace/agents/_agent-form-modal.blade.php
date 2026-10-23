@@ -48,7 +48,7 @@
       </div>
       <fieldset class="form-group agent-connections-field" id="agent-connections-field" hidden>
         <legend>Connected Agents <span class="form-hint">(optional)</span></legend>
-        <small class="form-hint">Choose up to {{ config('agent_connections.max_connections', 5) }} Agents this Agent may consult, and describe their roles. It chooses which help is needed for each request. All calls use your token quota. Connected Agents do not call further Agents.</small>
+        <small class="form-hint">Choose up to {{ config('agent_connections.max_connections', 10) }} Agents this Agent may consult, and describe their roles. It chooses which help is needed for each request. All calls use your token quota. Connected Agents do not call further Agents.</small>
         <input type="search" id="agent-connections-search" aria-label="Find an Agent to connect" placeholder="Find an Agent…">
         <div id="agent-connections-list" aria-label="Agents available to connect"></div>
         <div id="agent-connections-status" class="form-hint" role="status"></div>
@@ -78,7 +78,7 @@
   window.AgentModalConfig.maxKnowledgeFileBytes = {{ \App\Services\KnowledgeService::MAX_AGENT_FILE_SIZE_KB * 1024 }};
   window.AgentModalConfig.maxKnowledgeTotalBytes = {{ \App\Services\KnowledgeService::MAX_AGENT_TOTAL_SIZE_KB * 1024 }};
   window.AgentModalConfig.connectionOptionsUrl = @json(route('ai-plus.agent-workspace.agents.connection-options'));
-  window.AgentModalConfig.maxConnections = {{ config('agent_connections.max_connections', 5) }};
+  window.AgentModalConfig.maxConnections = {{ config('agent_connections.max_connections', 10) }};
 </script>
 <script src="{{ asset('js/agent-modal.js') }}?v={{ filemtime(public_path('js/agent-modal.js')) }}"></script>
 @endpush
