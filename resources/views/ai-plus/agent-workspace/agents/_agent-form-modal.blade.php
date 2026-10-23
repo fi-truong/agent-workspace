@@ -43,7 +43,7 @@
         </div>
         <div class="knowledge-file-chips" id="knowledge-file-chips" aria-live="polite"></div>
         <div class="knowledge-saved-list" id="knowledge-saved-list" aria-live="polite"></div>
-        <small class="form-hint">Up to 10 files per Agent · 15 MB per file · 50 MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) or images (JPG, PNG, GIF, WebP). Text in images is read with OCR and added to the agent’s Knowledge.</small>
+        <small class="form-hint">Up to {{ \App\Services\KnowledgeService::MAX_AGENT_FILES }} files per Agent · {{ \App\Services\KnowledgeService::MAX_AGENT_FILE_SIZE_MB }} MB per file · {{ \App\Services\KnowledgeService::MAX_AGENT_TOTAL_SIZE_MB }} MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) or images (JPG, PNG, GIF, WebP). Text in images is read with OCR and added to the agent’s Knowledge.</small>
         <div class="form-hint" id="knowledge-limit-status" aria-live="polite"></div>
       </div>
       <div class="form-group checkbox-group">
@@ -67,6 +67,9 @@
 <script>
   window.AgentModalConfig = window.AgentModalConfig || {};
   window.AgentModalConfig.baseKnowledgeRoute = '{{ route("ai-plus.agent-workspace.agents.index") }}';
+  window.AgentModalConfig.maxKnowledgeFiles = {{ \App\Services\KnowledgeService::MAX_AGENT_FILES }};
+  window.AgentModalConfig.maxKnowledgeFileBytes = {{ \App\Services\KnowledgeService::MAX_AGENT_FILE_SIZE_KB * 1024 }};
+  window.AgentModalConfig.maxKnowledgeTotalBytes = {{ \App\Services\KnowledgeService::MAX_AGENT_TOTAL_SIZE_KB * 1024 }};
 </script>
 <script src="{{ asset('js/agent-modal.js') }}?v={{ filemtime(public_path('js/agent-modal.js')) }}"></script>
 @endpush

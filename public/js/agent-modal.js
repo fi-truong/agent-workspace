@@ -27,9 +27,9 @@ document.addEventListener('DOMContentLoaded', function () {
   const chipsContainer = document.getElementById('knowledge-file-chips');
   const savedList = document.getElementById('knowledge-saved-list');
   const limitStatus = document.getElementById('knowledge-limit-status');
-  const MAX_KNOWLEDGE_FILES = 10;
-  const MAX_KNOWLEDGE_FILE_BYTES = 5 * 1024 * 1024;
-  const MAX_KNOWLEDGE_TOTAL_BYTES = 25 * 1024 * 1024;
+  const MAX_KNOWLEDGE_FILES = Number(window.AgentModalConfig.maxKnowledgeFiles);
+  const MAX_KNOWLEDGE_FILE_BYTES = Number(window.AgentModalConfig.maxKnowledgeFileBytes);
+  const MAX_KNOWLEDGE_TOTAL_BYTES = Number(window.AgentModalConfig.maxKnowledgeTotalBytes);
 
   // Danh sách file đã lưu khi edit (path), để gửi knowledge_remove
   let savedFiles = [];
@@ -228,12 +228,12 @@ document.addEventListener('DOMContentLoaded', function () {
           return;
         }
         if (f.size > MAX_KNOWLEDGE_FILE_BYTES) {
-          showToast('⚠️ "' + f.name + '" exceeds the 5 MB per-file limit');
+          showToast('⚠️ "' + f.name + '" exceeds the ' + Math.round(MAX_KNOWLEDGE_FILE_BYTES / 1024 / 1024) + ' MB per-file limit');
           return;
         }
         const newBytes = prospectiveFiles.reduce((total, file) => total + file.size, 0);
         if (newBytes > MAX_KNOWLEDGE_TOTAL_BYTES) {
-          showToast('⚠️ New Knowledge files exceed the 25 MB total limit');
+          showToast('⚠️ New Knowledge files exceed the ' + Math.round(MAX_KNOWLEDGE_TOTAL_BYTES / 1024 / 1024) + ' MB total limit');
           return;
         }
 
@@ -507,9 +507,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const isEdit = formMethod.value === 'PUT';
     const agentId = agentIdInput.value;
     const url = isEdit ? `/ai-plus/agent-workspace/agents/${agentId}` : '/ai-plus/agent-workspace/agents';
-    const method = isEdit ? 'PUT' : 'POST';
+    const method = 'POST';
 
     const formData = new FormData(form);
+    formData.set('_method', isEdit ? 'PUT' : 'POST');
     formData.set('is_shared', sharedInput && sharedInput.checked ? '1' : '0');
 
     // Gửi danh sách paths sẽ xóa (mỗi path 1 entry)

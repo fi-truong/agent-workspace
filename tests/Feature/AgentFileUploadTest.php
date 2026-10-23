@@ -76,6 +76,27 @@ it('accepts an HTML file as Agent Knowledge', function () {
     expect(Agent::first()->knowledge_files[0]['original_name'])->toBe('saved-page.html');
 });
 
+it('renders Agent Knowledge upload limits from the backend configuration', function () {
+    $this->get('/ai-plus/agent-workspace/agents')
+        ->assertOk()
+        ->assertSee('maxKnowledgeFiles = 10;', false)
+        ->assertSee('maxKnowledgeFileBytes = 15728640;', false)
+        ->assertSee('maxKnowledgeTotalBytes = 52428800;', false)
+        ->assertSee('Up to 10 files per Agent · 15 MB per file · 50 MB total.');
+});
+
+it('accepts Agent Knowledge files larger than the previous client-side five MB limit', function () {
+    $file = UploadedFile::fake()->create('large-reference.txt', 6000, 'text/plain');
+
+    $this->post('/ai-plus/agent-workspace/agents', [
+        'title' => 'Large Knowledge Agent',
+        'knowledge' => [$file],
+    ], ['Accept' => 'application/json'])
+        ->assertStatus(201);
+
+    expect(Agent::firstOrFail()->knowledge_files)->toHaveCount(1);
+});
+
 it('stores a normalized private avatar for an Agent and allows the owner to view it', function () {
     $avatar = UploadedFile::fake()->image('agent-avatar.png', 640, 400);
 
@@ -206,6 +227,22 @@ it('keeps existing files and adds new files on update', function () {
     $savedNew = collect($saved)->firstWhere('original_name', 'moi.txt');
     expect($savedNew)->not->toBeNull();
     Storage::disk('knowledge')->assertExists($savedNew['path']);
+});
+
+it('updates an Agent from multipart form data using method spoofing', function () {
+    $agent = $this->user->agents()->create(['title' => 'Agent before edit']);
+    $newFile = UploadedFile::fake()->create('updated-knowledge.txt', 10, 'text/plain');
+
+    $this->post("/ai-plus/agent-workspace/agents/{$agent->id}", [
+        '_method' => 'PUT',
+        'title' => 'Agent after edit',
+        'knowledge' => [$newFile],
+    ], ['Accept' => 'application/json'])
+        ->assertOk();
+
+    $agent->refresh();
+    expect($agent->title)->toBe('Agent after edit')
+        ->and($agent->knowledge_files)->toHaveCount(1);
 });
 
 it('removes file when knowledge_remove sent', function () {

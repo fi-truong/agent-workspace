@@ -46,9 +46,13 @@ class KnowledgeService
 
     // Agent Knowledge is persistent and intended to accommodate a textbook or
     // other substantial teaching reference.
-    public const MAX_AGENT_FILE_SIZE_KB = 15_360;
+    public const MAX_AGENT_FILE_SIZE_MB = 15;
 
-    public const MAX_AGENT_TOTAL_SIZE_KB = 51_200;
+    public const MAX_AGENT_FILE_SIZE_KB = self::MAX_AGENT_FILE_SIZE_MB * 1024;
+
+    public const MAX_AGENT_TOTAL_SIZE_MB = 50;
+
+    public const MAX_AGENT_TOTAL_SIZE_KB = self::MAX_AGENT_TOTAL_SIZE_MB * 1024;
 
     public const MAX_HTML_CODE_CONTEXT_CHARS = 20_000;
 
@@ -386,6 +390,7 @@ class KnowledgeService
             foreach ($scopeTokens as $scopeToken) {
                 if ($queryToken === $scopeToken) {
                     $matches[$queryToken] = true;
+
                     continue;
                 }
 

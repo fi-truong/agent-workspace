@@ -27,7 +27,9 @@ Checklist này dùng khi chuyển AI+ từ máy local lên server. Thực hiện
 - [ ] `npm ci` rồi `npm run build`.
 - [ ] `php artisan optimize` sau khi `.env` đã hoàn chỉnh.
 - [ ] Khi thay đổi `.env`, luôn chạy `php artisan config:clear` trước khi cache lại config.
-- [ ] Thiết lập PHP `upload_max_filesize` và `post_max_size` lớn hơn 15 MB (khuyến nghị tối thiểu 25 MB) để hỗ trợ upload file chat.
+- [ ] Thiết lập PHP-FPM `upload_max_filesize` tối thiểu 15 MB và `post_max_size` tối thiểu 55 MB để hỗ trợ Agent Knowledge tối đa 15 MB/file, 50 MB/Agent (cộng overhead multipart form).
+- [ ] Thiết lập Nginx `client_max_body_size` tối thiểu 60 MB trong virtual host AI+; giới hạn request body phải cao hơn tổng dung lượng Knowledge được phép tải lên.
+- [ ] Chat attachment có giới hạn riêng tối đa 5 MB/file và 15 MB tổng; kiểm tra PHP/Nginx vẫn cho phép request ở mức phù hợp.
 - [ ] Thiết lập timeout phù hợp cho PHP-FPM/Nginx vì chat streaming và đọc file có thể kéo dài đến 120 giây.
 
 ## 4. Session, đăng nhập và HTTPS
