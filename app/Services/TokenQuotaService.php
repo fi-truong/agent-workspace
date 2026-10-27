@@ -7,8 +7,10 @@ use Carbon\Carbon;
 
 class TokenQuotaService
 {
+    public const USAGE_UNITS_SQL = 'COALESCE(quota_units, prompt_tokens + completion_tokens)';
+
     /**
-     * @return array{phase: string, used: int, limit: int, remaining: int, percentage: float, cycle_started_at: string, month_name: string}
+     * @return array{phase: string, used: int, limit: int, remaining: int, credits_used: float, credits_limit: float, credits_remaining: float, percentage: float, cycle_started_at: string, month_name: string}
      */
     public function summary(User $user): array
     {
@@ -25,7 +27,7 @@ class TokenQuotaService
 
         $used = (int) $user->usageLogs()
             ->where('created_at', '>=', $cycleStartedAt)
-            ->selectRaw('COALESCE(SUM(prompt_tokens + completion_tokens), 0) as total')
+            ->selectRaw('COALESCE(SUM('.self::USAGE_UNITS_SQL.'), 0) as total')
             ->value('total');
 
         return [
@@ -33,6 +35,9 @@ class TokenQuotaService
             'used' => $used,
             'limit' => $limit,
             'remaining' => max($limit - $used, 0),
+            'credits_used' => ChatModelService::credits($used),
+            'credits_limit' => ChatModelService::credits($limit),
+            'credits_remaining' => ChatModelService::credits(max($limit - $used, 0)),
             'percentage' => min(($used / $limit) * 100, 100),
             'cycle_started_at' => $cycleStartedAt->toDateTimeString(),
             'month_name' => now()->format('F'),
@@ -44,5 +49,10 @@ class TokenQuotaService
         $summary = $this->summary($user);
 
         return $summary['used'] >= $summary['limit'];
+    }
+
+    public function remainingTokens(User $user, ?string $model): int
+    {
+        return intdiv($this->summary($user)['remaining'], ChatModelService::multiplier($model));
     }
 }

@@ -9,6 +9,7 @@ return [
     'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
 
     'model' => env('OPENAI_MODEL', 'gpt-6-luna'),
+    'sol_enabled' => (bool) env('AI_PLUS_SOL_ENABLED', true),
 
     // Kept separate from chat: image generation uses an image model and has its
     // own usage/cost profile.

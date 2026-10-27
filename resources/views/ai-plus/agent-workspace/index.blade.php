@@ -118,7 +118,7 @@
           <div class="user-name">{{ $userName }}</div>
           <div class="user-quota" data-token-quota>
             @if($tokenQuota)
-            <span data-token-quota-text>{{ number_format($tokenQuota['used']) }} / {{ number_format($tokenQuota['limit']) }} tokens (in {{ $tokenQuota['month_name'] }})</span>
+            <span data-token-quota-text>{{ \App\Services\ChatModelService::formatCredits($tokenQuota['used']) }} / {{ \App\Services\ChatModelService::formatCredits($tokenQuota['limit']) }} credits used (in {{ $tokenQuota['month_name'] }})</span>
             <div class="quota-bar"><div class="quota-fill" data-token-quota-fill style="width: {{ $tokenQuota['percentage'] }}%"></div></div>
             @endif
           </div>
@@ -141,7 +141,11 @@
       </div> -->
       <div class="topbar-left">
         <div class="model-selector">
-          GPT-6 Luna
+          <select id="chat-model" aria-label="Chat model" title="1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. Applies to your next message and connected Agents.">
+            @foreach($chatModels as $modelId => $details)
+            <option value="{{ $modelId }}" @selected($activeChatModel === $modelId)>{{ $details['label'] }} · {{ $details['multiplier'] }}× credits</option>
+            @endforeach
+          </select>
           <span class="badge">School AI</span>
         </div>
         @php
@@ -321,6 +325,10 @@
   .ws-type-badge{padding:4px 10px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:6px;font-size:11px;font-family:'IBM Plex Mono', monospace;color: var(--text-soft);}
   .model-selector{padding:8px 12px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:8px;font-size:13px;color: var(--input-text);cursor:pointer;display:flex;align-items:center;gap:8px;}
   .model-selector .badge{background: var(--navy);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-family:'IBM Plex Mono', monospace;}
+  .model-selector select{min-width:0;max-width:100%;border:0;background:var(--input-bg);color:var(--input-text);font:inherit;cursor:pointer;}
+  .model-selector{max-width:100%;box-sizing:border-box;}
+  .model-selector select:focus-visible{outline:2px solid var(--navy);outline-offset:2px;}
+  .model-selector select:disabled{cursor:wait;opacity:.7;}
   .topbar-left{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;flex:1;}
   .connected-agent-summary{max-width:100%;box-sizing:border-box;white-space:nowrap;overflow-x:auto;scrollbar-width:thin;color:var(--text-main);font-size:12px;line-height:1.6;}
   .connected-agent-summary[hidden]{display:none;}

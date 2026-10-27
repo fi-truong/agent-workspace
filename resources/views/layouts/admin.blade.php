@@ -80,7 +80,7 @@
         </a>
         <a href="{{ route('admin.usage.index') }}" class="nav-item {{ request()->routeIs('admin.usage.*') ? 'active' : '' }}">
           <span class="nav-icon">📈</span>
-          <span>Token Usage</span>
+          <span>Credit Usage</span>
         </a>
         <a href="{{ route('admin.ai-plus-guide.index') }}" class="nav-item {{ request()->routeIs('admin.ai-plus-guide.*') ? 'active' : '' }}">
           <span class="nav-icon">🤖</span>

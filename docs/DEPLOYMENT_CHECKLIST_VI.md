@@ -43,6 +43,9 @@ Checklist này dùng khi chuyển AI+ từ máy local lên server. Thực hiện
 ## 5. OpenAI và quota
 
 - [ ] Đặt `OPENAI_API_KEY` production bằng secret an toàn; xác nhận bằng `php artisan openai:test-key`.
+- [ ] Credits/Sol: backup DB, pull code rồi chạy `php artisan migrate --force --path=database/migrations/2026_10_27_131210_add_chat_model_and_quota_units.php`. Không chia các giá trị `AI_*_TOKEN_LIMIT` hoặc `users.token_quota_limit` cũ cho 1.000 trong DB/env; UI tự quy đổi. Clear config/views và restart `ai-plus.service` nếu domain đi qua port 8000; reload PHP-FPM nếu dùng FPM. Không chạy migration rollback để tắt Sol.
+- [ ] Cho phép `gpt-6-sol` trong đúng OpenAI Project; giữ Luna mặc định. Test JSON/SSE, đổi Luna/Sol, file Word/Excel/PPTX, Agent con, credits trong admin/My Usage và số dư cũ trước khi mở user dùng. Tắt riêng Sol bằng `AI_PLUS_SOL_ENABLED=false` khi cần, giữ ledger để vẫn tính usage Sol đã ghi. Chưa có kiểm tra entitlement thật nếu chỉ chạy test giả lập.
+- [ ] Sau deploy, có thể chạy `php artisan openai:test-key --live --model=gpt-6-sol` để xác nhận inference, streaming và function calling trên chính server. Cờ `--live` có tiêu token API; chỉ dùng nội dung giả và không ghi vào tài khoản user. Lệnh mặc định không có cờ vẫn chỉ kiểm tra key bằng GET `/models`.
 - [ ] Kiểm tra model chat, embeddings/RAG và các image model được cấp quyền trong OpenAI Project.
 - [ ] Xác nhận các quota: `AI_USAGE_PHASE`, `AI_TESTING_TOKEN_LIMIT`, `AI_TRAINING_TOKEN_LIMIT`, và `AI_USAGE_PHASE_STARTED_AT`.
 - [ ] Kiểm tra token usage, reset theo tháng, Image Studio và giới hạn quota với một user test.

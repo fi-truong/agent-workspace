@@ -26,7 +26,7 @@ test('my usage only displays the authenticated users activity', function () {
         ->assertSee('Viewer activity')
         ->assertDontSee('Other activity')
         ->assertDontSee('Time Saved')
-        ->assertSee('20,000,000 of 20,000,000 tokens remaining');
+        ->assertSee('20,000 of 20,000 credits remaining');
 });
 
 test('an activity opens its existing conversation in the agent workspace', function () {

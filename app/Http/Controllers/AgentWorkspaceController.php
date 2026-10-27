@@ -7,6 +7,7 @@ use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\ShowcaseUse;
 use App\Services\AgentConnectionService;
+use App\Services\ChatModelService;
 use App\Services\TokenQuotaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,6 +30,7 @@ class AgentWorkspaceController extends Controller
         // Tin nhắn initial nếu mở lại conversation cũ qua ?conversation_id=
         $initialMessages = [];
         $activeAgent = null;
+        $activeChatModel = ChatModelService::defaultModel();
         $activeConversationTitle = null;
         $activeConversationId = $request->query('conversation_id');
         $selectedAgentId = null;
@@ -122,6 +124,7 @@ class AgentWorkspaceController extends Controller
                 $conversation = $user->conversations()->where('type', Conversation::TYPE_CHAT)->find($activeConversationId);
 
                 if ($conversation) {
+                    $activeChatModel = ChatModelService::resolve($conversation->chat_model);
                     $latestUserMessageId = $conversation->messages()
                         ->where('role', 'user')
                         ->max('id');
@@ -207,6 +210,8 @@ class AgentWorkspaceController extends Controller
             'userName' => $userName,
             'userInitials' => $userInitials,
             'activeAgent' => $activeAgent,
+            'chatModels' => ChatModelService::options(),
+            'activeChatModel' => $activeChatModel,
             'agentConnectionSummaries' => $agentConnectionSummaries,
             'activeConversationTitle' => $activeConversationTitle,
             'tokenQuota' => $tokenQuota,

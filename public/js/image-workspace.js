@@ -303,6 +303,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Image generation failed. Please try again.');
 
+      const quota = data.token_quota;
+      const quotaText = document.querySelector('[data-token-quota]');
+      if (quota && quotaText) {
+        const format = (units) => (Number(units) / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
+        quotaText.textContent = `${format(quota.used)} / ${format(quota.limit)} credits used`;
+      }
+
       conversationId = data.conversation_id;
       appendImage({url: data.image_url, prompt: data.prompt, messageId: data.image_message_id, downloadUrl: data.download_url, isLatest: true});
       promptInput.value = '';

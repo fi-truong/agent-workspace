@@ -29,7 +29,7 @@ class AiPlusGuideController extends Controller
 
         if ($tokenQuota->isExhausted($user)) {
             return response()->json([
-                'error' => 'Bạn đã dùng hết hạn mức token của tháng này. Vui lòng quay lại vào chu kỳ tiếp theo.',
+                'error' => 'Bạn đã dùng hết AI+ Credits của tháng này. Vui lòng quay lại vào chu kỳ tiếp theo.',
                 'token_quota' => $tokenQuota->summary($user),
             ], 429);
         }
@@ -55,6 +55,7 @@ class AiPlusGuideController extends Controller
             'user_id' => $user->id,
             'activity_title' => 'AI Plus Guide',
             'source' => 'ai_plus_guide',
+            'model' => $completion['model'] ?? null,
             'prompt_tokens' => $completion['prompt_tokens'],
             'completion_tokens' => $completion['completion_tokens'],
         ]);
@@ -75,7 +76,7 @@ Bạn có thể hướng dẫn về:
 - Prompt Library: tìm và dùng prompt mẫu; đường dẫn /ai-plus/prompt-library.
 - Agent Templates: dùng hoặc tùy biến agent mẫu; đường dẫn /ai-plus/agent-templates.
 - Sharing & Showcase: xem các sản phẩm được chia sẻ; đường dẫn /ai-plus/sharing-showcase.
-- My Usage: xem mức dùng token; đường dẫn /ai-plus/my-usage.
+- My Usage: xem AI+ Credits còn lại và token thực tế; đường dẫn /ai-plus/my-usage.
 - AI Policy & Guidelines: quy định dùng AI an toàn; đường dẫn /ai-plus/ai-policy.
 - Support: gửi yêu cầu hỗ trợ; đường dẫn /ai-plus/support.
 

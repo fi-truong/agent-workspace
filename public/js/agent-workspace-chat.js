@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   const sendBtn = document.querySelector('.send-btn');
+  const modelSelector = document.querySelector('#chat-model');
   const textarea = document.querySelector('.input-box textarea');
   const emptyState = document.querySelector('.empty-state');
   const main = document.querySelector('main.main');
@@ -345,7 +346,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const quotaText = document.querySelector('[data-token-quota-text]');
     const quotaFill = document.querySelector('[data-token-quota-fill]');
     if (quotaText) {
-      quotaText.textContent = `${Number(quota.used).toLocaleString()} / ${Number(quota.limit).toLocaleString()} tokens (in ${quota.month_name})`;
+      const format = (units) => (Number(units) / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
+      quotaText.textContent = `${format(quota.used)} / ${format(quota.limit)} credits used (in ${quota.month_name})`;
     }
     if (quotaFill) quotaFill.style.width = `${quota.percentage}%`;
   }
@@ -1089,6 +1091,7 @@ document.addEventListener('DOMContentLoaded', function () {
     storePendingSend(sentDraft);
 
     sending = true;
+    if (modelSelector) modelSelector.disabled = true;
     if (sendBtn) {
       sendBtn.disabled = true;
       sendBtn.setAttribute('aria-busy', 'true');
@@ -1172,6 +1175,7 @@ document.addEventListener('DOMContentLoaded', function () {
           message: message,
           conversation_id: activeConversationId,
           agent_id: selectedAgentId,
+          model: modelSelector?.value || undefined,
           edit_message_id: activeEdit?.messageId || null,
           images: images,
           documents: documents,
@@ -1381,6 +1385,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     } finally {
       sending = false;
+      if (modelSelector) modelSelector.disabled = false;
       if (committedUserMessageId && userWrap?.isConnected) {
         userWrap.dataset.messageId = String(committedUserMessageId);
         const userBubble = userWrap.querySelector('.chat-bubble');
@@ -1701,7 +1706,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const response = await fetch(`/ai-plus/agent-workspace/conversations/${encodeURIComponent(conversationId)}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-        body: JSON.stringify(Object.fromEntries(form.entries())),
+        body: JSON.stringify({ ...Object.fromEntries(form.entries()), model: modelSelector?.value || undefined }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || data.message || 'Could not create the file.');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\UsageLog;
 use App\Models\User;
 use App\Services\ImageGenerationService;
+use App\Services\TokenQuotaService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -42,14 +43,16 @@ class UsageController extends Controller
 
         $baseQuery = User::query()
             ->select('users.*')
-            ->selectSub($usageTotal, 'used_tokens');
+            ->selectSub($usageTotal, 'used_tokens')
+            ->selectSub((clone $usageTotal)->select([])->selectRaw('COALESCE(SUM('.TokenQuotaService::USAGE_UNITS_SQL.'), 0)'), 'used_quota_units');
 
         $allUsage = (clone $baseQuery)->get();
         $summary = [
             'users' => $allUsage->count(),
             'active_users' => $allUsage->where('is_active', true)->count(),
             'total_tokens' => $allUsage->sum(fn (User $user) => (int) $user->used_tokens),
-            'near_limit' => $allUsage->filter(fn (User $user) => ((int) $user->used_tokens / max((int) ($user->token_quota_limit ?? $limit), 1)) >= 0.85)->count(),
+            'total_quota_units' => $allUsage->sum(fn (User $user) => (int) $user->getAttribute('used_quota_units')),
+            'near_limit' => $allUsage->filter(fn (User $user) => ((int) $user->getAttribute('used_quota_units') / max((int) ($user->token_quota_limit ?? $limit), 1)) >= 0.85)->count(),
         ];
 
         $users = $baseQuery
@@ -57,7 +60,7 @@ class UsageController extends Controller
                 $query->where('name', 'like', '%'.$request->search.'%')
                     ->orWhere('email', 'like', '%'.$request->search.'%');
             }))
-            ->orderByDesc('used_tokens')
+            ->orderByDesc('used_quota_units')
             ->orderBy('name')
             ->paginate(20)
             ->withQueryString();

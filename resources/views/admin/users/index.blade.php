@@ -26,15 +26,16 @@
 
 <form action="{{ route('admin.users.token-quota.update') }}" method="POST" class="token-quota-bulk" id="tokenQuotaBulkForm">
     @csrf
-    <div><p class="token-quota-eyebrow">MONTHLY TOKEN QUOTA</p><h2>Set quota for one or more users</h2><p>Custom quotas override the current phase default of {{ number_format($defaultTokenQuota) }} tokens. Reset restores the default.</p></div>
+    <div><p class="token-quota-eyebrow">MONTHLY AI+ CREDITS</p><h2>Set quota for one or more users</h2><p>Custom quotas override the current phase default of {{ \App\Services\ChatModelService::formatCredits($defaultTokenQuota) }} credits. Reset restores the default.</p></div>
     <div class="token-quota-selected" id="tokenQuotaSelected" aria-live="polite"><span>No users selected. Tick users in the list below.</span></div>
-    <label>Monthly tokens<input type="number" name="token_quota_limit" min="1" max="1000000000" step="1" placeholder="e.g. 10000000"></label>
+    <label>Monthly credits<input type="number" name="credit_quota_limit" min="0.001" max="1000000" step="0.001" placeholder="e.g. 10000"></label>
     <div class="token-quota-actions"><button type="submit" name="action" value="set" class="btn-primary">Set custom quota</button><button type="submit" name="action" value="reset" class="btn-secondary">Use phase default</button></div>
 </form>
 @if($errors->has('token_quota_limit'))<p class="text-danger" style="margin:0 0 16px;">{{ $errors->first('token_quota_limit') }}</p>@endif
+@if($errors->has('credit_quota_limit'))<p class="text-danger" style="margin:0 0 16px;">{{ $errors->first('credit_quota_limit') }}</p>@endif
 
 @include('admin.partials.table', [
-    'headers' => ['Select', 'Name', 'Email', 'Role', 'Last sign-in', 'Department', 'Token quota', 'Active', 'Created', 'Actions'],
+    'headers' => ['Select', 'Name', 'Email', 'Role', 'Last sign-in', 'Department', 'Credit quota', 'Active', 'Created', 'Actions'],
     'rows' => $users,
     'renderRow' => function($user) use ($defaultTokenQuota) {
         $roleBadge = match($user->role) {
@@ -73,7 +74,7 @@
                 ? e($user->last_login_at->timezone(config('app.timezone'))->format('d M Y, H:i'))
                 : '<span class="text-muted">Never</span>',
             $user->department ? e($user->department) : '<span class="text-muted">—</span>',
-            '<strong>'.number_format($quota).'</strong><br><span class="text-muted">'.($user->token_quota_limit ? 'Custom' : 'Default').'</span>',
+            '<strong>'.\App\Services\ChatModelService::formatCredits($quota).'</strong><br><span class="text-muted">'.($user->token_quota_limit ? 'Custom' : 'Default').' credits</span>',
             '<span class="badge ' . ($user->is_active ? 'published' : 'draft') . '">' . ($user->is_active ? 'Active' : 'Inactive') . '</span>',
             $user->created_at?->format('d/m/Y') ?? '—',
             '<div class="action-group">

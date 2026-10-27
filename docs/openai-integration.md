@@ -9,7 +9,7 @@ Mở file `.env` (không commit) và thêm:
 ```
 OPENAI_API_KEY=sk-...
 OPENAI_ORGANIZATION=                          # bỏ trống nếu không dùng organization
-OPENAI_MODEL=gpt-5.6-luna
+OPENAI_MODEL=gpt-6-luna
 OPENAI_MAX_TOKENS=2048
 OPENAI_TEMPERATURE=0.7
 OPENAI_TIMEOUT=30
@@ -90,5 +90,19 @@ Tắt khẩn cấp trên server: đặt `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false
 Kiểm thử không gọi API thật: `php artisan test --compact tests/Feature/AgentConnectionTest.php tests/Feature/AgentOrchestrationTest.php`.
 
 Kiểm thử giao diện chọn Agent trong Chromium đã cài: `node --test tests/Unit/agent-modal-browser.test.mjs`.
+
+## 7. Luna / Sol và AI+ Credits
+
+User chọn `gpt-6-luna` hoặc `gpt-6-sol` ở đầu trang chat. Lựa chọn được lưu trong `conversations.chat_model`, không đổi model toàn cục hoặc model tạo ảnh/embeddings. Các bước phối hợp, Agent con và tạo/xác nhận file dùng model của lượt chat. Chat Completions có tool calling dùng `reasoning_effort=none`, theo [tài liệu GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol). Chưa hỗ trợ `gpt-6.1-sol` ở luồng này.
+
+Cho phép `gpt-6-sol` trong model permissions của đúng Project đang cấp API key, đồng thời giữ quyền Chat Completions. Không cần key mới nếu key hiện tại có quyền. Không gửi key vào chat/log/Git. Credits do AI+ quản lý, không cấu hình trên OpenAI Platform. Không tự chuyển Luna nếu Sol bị 403; user nhận lỗi provider và có thể chủ động chọn lại.
+
+Migration `2026_10_27_131210_add_chat_model_and_quota_units.php` chỉ thêm hai cột nullable, không sửa lịch sử, quota override hoặc nội dung chat. `usage_logs.quota_units` lưu snapshot nguyên: tổng token Luna nhân 1, Sol nhân 20; 1.000 units = 1 credit. Null ở log cũ được tính bằng tổng token cũ. Các nguồn khác, bao gồm ảnh, giữ tỷ lệ quota cũ (1.000 token = 1 credit), không quy thành tiền. Mức 20M/10M token và override cũ hiển thị thành 20K/10K credits; giữ nguyên tên/đơn vị env token để tránh giảm quota 1.000 lần. Admin nhập credits với tối đa ba chữ số thập phân. JSON `token_quota.used/limit/remaining` vẫn là integer units để tương thích; thêm các trường `credits_used/credits_limit/credits_remaining`. Token thật vẫn lưu riêng.
+
+Tỷ lệ 20× là chính sách quy đổi quota được chấp thuận dựa trên giá Standard Luna/Sol tại ngày 27/10/2026, không tự thay đổi khi bảng giá OpenAI đổi. Không phải hard spending cap: một request đang chạy có thể vượt quota; chưa có reservation ngân sách cho các request đồng thời. Giá input/output, cache, tier, model ảnh và các phí khác vẫn khác nhau.
+
+Kiểm tra quyền inference thật bằng `php artisan openai:test-key --live --model=gpt-6-sol`. Khác với lệnh mặc định chỉ GET `/models`, `--live` gửi ba request nhỏ có tính phí (chat, streaming, function calling với `reasoning_effort=none`), chỉ dùng marker giả và không đọc/ghi dữ liệu user. Mỗi request giới hạn 256 output token và 40 giây, không tự retry. Kết quả kiểm tra metadata model/usage cùng marker, không dựa vào lời tự nhận của AI. Credits tương đương chỉ là số liệu chẩn đoán, không bị trừ vào quota user. Không in key hoặc nội dung lỗi provider ra terminal. Test trên Mac ngày 27/10/2026 đã qua cả ba bước với `gpt-6-sol`, tổng 282 token; chưa phải xác nhận end-to-end trên test server.
+
+Rollback tính năng chọn Sol: đặt `AI_PLUS_SOL_ENABLED=false`, clear config rồi restart service đang phục vụ AI+. Picker chỉ còn Luna, không xóa lịch sử và vẫn tính snapshot Sol đã ghi. Ưu tiên giữ code ledger khi tắt Sol; rollback toàn bộ code về bản cũ sẽ không hiểu khoản credits Sol, cần kế hoạch riêng để tránh bỏ sót quota. Không rollback migration để tắt tính năng.
 
 © 2026 CIEC — Lawrence S. Ting School | AI+ Program

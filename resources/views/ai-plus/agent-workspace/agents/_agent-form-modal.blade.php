@@ -48,7 +48,7 @@
       </div>
       <fieldset class="form-group agent-connections-field" id="agent-connections-field" hidden>
         <legend>Connected Agents <span class="form-hint">(optional)</span></legend>
-        <small class="form-hint">Choose up to {{ config('agent_connections.max_connections', 10) }} Agents this Agent may consult, and describe their roles. It chooses which help is needed for each request. All calls use your token quota. Connected Agents do not call further Agents.</small>
+        <small class="form-hint">Choose up to {{ config('agent_connections.max_connections', 10) }} Agents this Agent may consult, and describe their roles. It chooses which help is needed for each request. All calls use the chat's selected model and your AI+ Credits. Connected Agents do not call further Agents.</small>
         <input type="search" id="agent-connections-search" aria-label="Find an Agent to connect" placeholder="Find an Agent…">
         <div id="agent-connections-list" aria-label="Agents available to connect"></div>
         <div id="agent-connections-status" class="form-hint" role="status"></div>

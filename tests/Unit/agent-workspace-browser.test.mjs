@@ -17,6 +17,10 @@ const template = await readFile(
 const styles = [...template.matchAll(/<style>([\s\S]*?)<\/style>/g)]
     .map((match) => match[1])
     .join('\n');
+const themeStyles = await readFile(
+    new URL('../../public/css/ai-plus.css', import.meta.url),
+    'utf8',
+);
 const summary = template
     .match(/<div class="connected-agent-summary"[\s\S]*?<\/div>/)[0]
     .replace(/@if\(empty\(\$headerConnections\)\) hidden @endif/, 'hidden')
@@ -37,18 +41,40 @@ async function setup(
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     t.after(() => assert.deepEqual(errors, []));
-    await page.route('http://workspace.test/**', (route) =>
-        route.fulfill({
+    await page.route('http://workspace.test/**', async (route) => {
+        if (route.request().method() === 'POST') {
+            const request = route.request().postDataJSON();
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            await route.fulfill({
+                json: {
+                    conversation_id: 9,
+                    reply: 'School planning answer',
+                    title: 'School planning',
+                    user_message_id: 1,
+                    token_quota: {
+                        used: request.model === 'gpt-6-sol' ? 20000 : 1000,
+                        limit: 20000000,
+                        percentage: 0.1,
+                        month_name: 'October',
+                    },
+                },
+            });
+
+            return;
+        }
+
+        await route.fulfill({
             contentType: 'text/html',
-            body: `<!doctype html><html><head><style>body{margin:0}${styles}</style></head><body>
+            body: `<!doctype html><html><head><style>${themeStyles}body{margin:0}${styles}</style></head><body>
 <div class="app"><main class="main"><div class="topbar"><div class="topbar-left">
-<div class="model-selector">GPT-6 Luna<span class="badge">School AI</span></div>${summary}
+<div class="model-selector"><select id="chat-model" aria-label="Chat model"><option value="gpt-6-luna">GPT-6 Luna · 1× credits</option><option value="gpt-6-sol">GPT-6 Sol · 20× credits</option></select><span class="badge">School AI</span></div>${summary}
 ${conversation ? `<div class="active-agent-breadcrumb">${active ? '<span class="agent-breadcrumb-name">Coordinator</span>' : '<span class="conversation-breadcrumb-name">Quick chat</span>'}</div>` : ''}
 </div><div class="topbar-right"><button class="icon-btn">📎</button><button class="icon-btn">🤖</button><button class="icon-btn">↓</button></div></div>
 <div class="empty-state"></div><div class="input-area"><div class="input-box"><textarea></textarea><button class="send-btn">Send</button></div></div>
+<span data-token-quota-text></span>
 </main></div></body></html>`,
-        }),
-    );
+        });
+    });
     await page.goto(
         `http://workspace.test/ai-plus/agent-workspace${conversation ? '?conversation_id=9' : ''}`,
     );
@@ -160,5 +186,58 @@ test('keeps long connection lists on one scrollable line without displacing tool
         assert.ok(layout.right <= layout.actionsLeft);
         assert.ok(layout.left >= 0);
         assert.ok(layout.right <= width);
+    }
+});
+
+test('sends the selected model, locks the picker while sending and displays credits', async (t) => {
+    const page = await setup(t);
+    await page.locator('#chat-model').selectOption('gpt-6-sol');
+    await page.locator('textarea').fill('Review the school plan');
+    const requestPromise = page.waitForRequest(
+        (request) => request.method() === 'POST',
+    );
+    await page.locator('.send-btn').click();
+    const request = await requestPromise;
+    assert.equal(request.postDataJSON().model, 'gpt-6-sol');
+    assert.equal(await page.locator('#chat-model').isDisabled(), true);
+    await page.getByText('School planning answer', { exact: true }).waitFor();
+    assert.equal(await page.locator('#chat-model').isEnabled(), true);
+    assert.match(
+        await page.locator('[data-token-quota-text]').textContent(),
+        /20 \/ 20,000 credits used/,
+    );
+    await page.locator('#chat-model').selectOption('gpt-6-luna');
+    await page.locator('textarea').fill('Shorten the school plan');
+    const nextRequest = page.waitForRequest(
+        (request) => request.method() === 'POST',
+    );
+    await page.locator('.send-btn').click();
+    assert.equal((await nextRequest).postDataJSON().model, 'gpt-6-luna');
+});
+
+test('keeps the model picker visible and readable in all four themes', async (t) => {
+    const page = await setup(t);
+
+    for (const theme of ['', 'teal', 'orange', 'burgundy']) {
+        await page.evaluate((theme) => {
+            document.documentElement.setAttribute('data-theme', theme);
+        }, theme);
+
+        for (const width of [390, 1280]) {
+            await page.setViewportSize({ width, height: 800 });
+            const layout = await page
+                .locator('#chat-model')
+                .evaluate((element) => ({
+                    right: element.getBoundingClientRect().right,
+                    actionsLeft: document
+                        .querySelector('.topbar-right')
+                        .getBoundingClientRect().left,
+                    text: getComputedStyle(element).color,
+                    background: getComputedStyle(element).backgroundColor,
+                }));
+            assert.notEqual(layout.text, layout.background);
+            assert.ok(layout.right <= layout.actionsLeft);
+            assert.ok(layout.right <= width);
+        }
     }
 });

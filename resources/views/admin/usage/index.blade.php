@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('page-title', 'Token Usage')
+@section('page-title', 'Credit Usage')
 @section('page-desc', "Usage per user for {$monthName} · ".ucfirst($phase).' quota')
 
 @section('content')
@@ -8,15 +8,15 @@
 <section class="usage-hero">
   <div>
     <p class="eyebrow">MONTHLY OVERVIEW</p>
-    <h2>{{ $monthName }} token usage</h2>
-    <p>The default {{ $phase }} allowance is {{ number_format($limit) }} tokens per user. Individual overrides appear in the table below.</p>
+    <h2>{{ $monthName }} credit usage</h2>
+    <p>The default {{ $phase }} allowance is {{ \App\Services\ChatModelService::formatCredits($limit) }} AI+ Credits per user. 1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. Individual overrides appear below.</p>
     @unless($isCurrentMonth)<p class="usage-history-note">Historical usage is shown for this month. Quotas and remaining balances use current user settings.</p>@endunless
   </div>
-  <div class="quota-pill"><span>Default allowance</span><strong>{{ number_format($limit) }}</strong><small>tokens</small></div>
+  <div class="quota-pill"><span>Default allowance</span><strong>{{ \App\Services\ChatModelService::formatCredits($limit) }}</strong><small>credits</small></div>
 </section>
 
 <section class="image-usage-card" aria-label="Image Studio usage">
-  <div class="image-usage-heading"><div><p class="eyebrow">IMAGE STUDIO</p><h2>Image generation by model</h2><p>Usage for {{ $monthName }}. Image tokens are included in the monthly token totals above.</p></div></div>
+  <div class="image-usage-heading"><div><p class="eyebrow">IMAGE STUDIO</p><h2>Image generation by model</h2><p>Usage for {{ $monthName }}. Image-token charges retain their previous allowance value: 1,000 image tokens = 1 credit. This is not an image-price conversion.</p></div></div>
   <div class="image-usage-grid">
     @foreach($imageUsage as $model)
     <article><span class="image-usage-label">{{ $model['label'] }}</span><strong>{{ number_format($model['images']) }}</strong><small>images · {{ number_format($model['tokens']) }} tokens</small></article>
@@ -27,7 +27,7 @@
 
 <section class="usage-stats" aria-label="Usage summary">
   <article><span class="stat-icon mint">👥</span><div><span class="stat-label">Users tracked</span><strong>{{ number_format($summary['users']) }}</strong><small>{{ number_format($summary['active_users']) }} active accounts</small></div></article>
-  <article><span class="stat-icon blue">◒</span><div><span class="stat-label">Tokens used</span><strong>{{ number_format($summary['total_tokens']) }}</strong><small>Across all users in {{ $monthName }}</small></div></article>
+  <article><span class="stat-icon blue">◒</span><div><span class="stat-label">Credits used</span><strong>{{ \App\Services\ChatModelService::formatCredits($summary['total_quota_units']) }}</strong><small>{{ number_format($summary['total_tokens']) }} actual tokens in {{ $monthName }}</small></div></article>
   <article><span class="stat-icon {{ $summary['near_limit'] ? 'amber' : 'mint' }}">⚠</span><div><span class="stat-label">Need attention</span><strong>{{ number_format($summary['near_limit']) }}</strong><small>At or above 85% of quota</small></div></article>
 </section>
 
@@ -50,7 +50,7 @@
   </tr></thead><tbody>
   @forelse($users as $user)
     @php
-      $used = (int) $user->used_tokens;
+      $used = (int) $user->used_quota_units;
       $userLimit = max((int) ($user->token_quota_limit ?? $limit), 1);
       $percentage = min(($used / $userLimit) * 100, 100);
       $remaining = max($userLimit - $used, 0);
@@ -59,8 +59,8 @@
     <tr>
       <td><div class="item-title">{{ $user->name }}</div><div class="item-sub">{{ $user->email }}</div></td>
       <td>{{ ucfirst($user->role) }}</td>
-      <td class="usage-cell"><div><strong>{{ number_format($used) }}</strong> <span>{{ number_format($percentage, 1) }}%</span></div><div class="usage-bar {{ $status[2] }}"><span style="width:{{ $percentage }}%"></span></div></td>
-      <td>{{ number_format($userLimit) }}<span class="token-caption">tokens · {{ $user->token_quota_limit ? 'custom' : 'default' }}</span></td><td>{{ number_format($remaining) }}<span class="token-caption">tokens left</span></td>
+      <td class="usage-cell"><div><strong>{{ \App\Services\ChatModelService::formatCredits($used) }}</strong> <span>{{ number_format($percentage, 1) }}%</span></div><div class="usage-bar {{ $status[2] }}"><span style="width:{{ $percentage }}%"></span></div><span class="token-caption">{{ number_format($user->used_tokens) }} actual tokens</span></td>
+      <td>{{ \App\Services\ChatModelService::formatCredits($userLimit) }}<span class="token-caption">credits · {{ $user->token_quota_limit ? 'custom' : 'default' }}</span></td><td>{{ \App\Services\ChatModelService::formatCredits($remaining) }}<span class="token-caption">credits left</span></td>
       <td><span class="badge {{ $status[1] }}">{{ $status[0] }}</span></td>
       <td><a href="{{ route('admin.users.edit', $user) }}" class="action-btn">View user</a></td>
     </tr>

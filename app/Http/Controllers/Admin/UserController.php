@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AdminAuditLog;
 use App\Models\User;
+use App\Services\ChatModelService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -68,6 +69,7 @@ class UserController extends Controller
         $departments = User::distinct()->pluck('department')->filter()->all();
 
         $activeStatuses = ['1' => 'Active', '0' => 'Inactive'];
+
         return view('admin.users.index', compact('users', 'roles', 'departments', 'activeStatuses', 'defaultTokenQuota'));
     }
 
@@ -80,6 +82,7 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        $this->normaliseCreditQuota($request);
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email',
@@ -113,6 +116,7 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
+        $this->normaliseCreditQuota($request);
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email,'.$user->id,
@@ -154,6 +158,7 @@ class UserController extends Controller
     /** Apply a custom monthly quota or restore the phase default for selected users. */
     public function updateTokenQuota(Request $request)
     {
+        $this->normaliseCreditQuota($request);
         $data = $request->validate([
             'user_ids' => ['required', 'array', 'min:1'],
             'user_ids.*' => ['integer', 'exists:users,id'],
@@ -161,7 +166,7 @@ class UserController extends Controller
             'token_quota_limit' => ['nullable', 'integer', 'min:1', 'max:1000000000'],
         ]);
         if ($data['action'] === 'set' && empty($data['token_quota_limit'])) {
-            return back()->withErrors(['token_quota_limit' => 'Enter a token quota to apply.'])->withInput();
+            return back()->withErrors(['credit_quota_limit' => 'Enter a credit quota to apply.'])->withInput();
         }
 
         $limit = $data['action'] === 'set' ? (int) $data['token_quota_limit'] : null;
@@ -176,10 +181,25 @@ class UserController extends Controller
         }
 
         $message = $limit === null
-            ? 'Restored the default token quota for '.$selectedUsers->count().' user(s).'
-            : 'Set '.number_format($limit).' monthly tokens for '.$selectedUsers->count().' user(s).';
+            ? 'Restored the default credit quota for '.$selectedUsers->count().' user(s).'
+            : 'Set '.ChatModelService::formatCredits($limit).' monthly credits for '.$selectedUsers->count().' user(s).';
 
         return redirect()->route('admin.users.index')->with('success', $message);
+    }
+
+    private function normaliseCreditQuota(Request $request): void
+    {
+        if (! $request->exists('credit_quota_limit')) {
+            return;
+        }
+        $data = $request->validate([
+            'credit_quota_limit' => ['nullable', 'numeric', 'decimal:0,3', 'min:0.001', 'max:1000000'],
+        ]);
+        // Keep existing integer storage and legacy API compatibility; one unit
+        // is 0.001 credit. Existing overrides need no data rewrite.
+        $request->merge(['token_quota_limit' => isset($data['credit_quota_limit'])
+            ? (int) round((float) $data['credit_quota_limit'] * ChatModelService::UNITS_PER_CREDIT)
+            : null]);
     }
 
     public function destroy(User $user)

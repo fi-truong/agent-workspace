@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
  * @property int $user_id
  * @property int|null $agent_id
  * @property string $title
+ * @property string|null $chat_model
  * @property-read Agent|null $agent
  * @property-read Collection<int, Message> $messages
  * @property Carbon|null $created_at
@@ -24,7 +25,7 @@ class Conversation extends Model
 
     public const TYPE_IMAGE = 'image';
 
-    protected $fillable = ['user_id', 'agent_id', 'title', 'type'];
+    protected $fillable = ['user_id', 'agent_id', 'title', 'type', 'chat_model'];
 
     /**
      * @return BelongsTo<User, $this>

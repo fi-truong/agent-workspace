@@ -29,7 +29,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-value">{{ $stats['tokens'] }}</div>
-        <div class="stat-label">Tokens Used</div>
+        <div class="stat-label">Actual Tokens Used</div>
         <div class="stat-change {{ $stats['tokensChange']['direction'] }}">{{ $stats['tokensChange']['label'] }}</div>
       </div>
       <div class="stat-card">
@@ -46,16 +46,17 @@
     <!-- Quota Section -->
     <div class="quota-section">
       <div class="quota-header">
-        <h2 class="quota-title">Token quota · {{ ucfirst($tokenQuota['phase']) }} · {{ $tokenQuota['month_name'] }}</h2>
-        <span class="quota-remaining">{{ number_format($tokenQuota['remaining']) }} of {{ number_format($tokenQuota['limit']) }} tokens remaining (in {{ $tokenQuota['month_name'] }})</span>
+        <h2 class="quota-title">AI+ Credits · {{ ucfirst($tokenQuota['phase']) }} · {{ $tokenQuota['month_name'] }}</h2>
+        <span class="quota-remaining">{{ \App\Services\ChatModelService::formatCredits($tokenQuota['remaining']) }} of {{ \App\Services\ChatModelService::formatCredits($tokenQuota['limit']) }} credits remaining (in {{ $tokenQuota['month_name'] }})</span>
       </div>
       <div class="quota-bar">
         <div class="quota-fill" style="width: {{ $tokenQuota['percentage'] }}%"></div>
       </div>
       <div class="quota-details">
-        <span>{{ number_format($tokenQuota['used']) }} tokens used in {{ $tokenQuota['month_name'] }} · Resets on the 1st</span>
+        <span>{{ \App\Services\ChatModelService::formatCredits($tokenQuota['used']) }} credits used in {{ $tokenQuota['month_name'] }} · Resets on the 1st</span>
         <span>{{ round($tokenQuota['percentage'], 2) }}% used in this phase</span>
       </div>
+      <p>1,000 Luna tokens = 1 credit · 1,000 Sol tokens = 20 credits. Credits are an AI+ allowance, not money or OpenAI credits. Earlier usage and image-token charges retain their previous allowance value.</p>
     </div>
 
     <!-- Two Column -->

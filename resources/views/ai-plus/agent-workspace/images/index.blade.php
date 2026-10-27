@@ -24,7 +24,7 @@ window.__IMAGE_CONVERSATION_ID__ = @json($activeConversationId);
       <p class="image-history-empty">Your generated images will appear here.</p>
       @endforelse
     </div>
-    <div class="image-sidebar-footer"><div class="image-user-avatar">{{ $userInitials }}</div><div><strong>{{ $userName }}</strong>@if($tokenQuota)<small data-token-quota>{{ number_format($tokenQuota['used']) }} / {{ number_format($tokenQuota['limit']) }} tokens</small>@endif</div></div>
+    <div class="image-sidebar-footer"><div class="image-user-avatar">{{ $userInitials }}</div><div><strong>{{ $userName }}</strong>@if($tokenQuota)<small data-token-quota>{{ \App\Services\ChatModelService::formatCredits($tokenQuota['used']) }} / {{ \App\Services\ChatModelService::formatCredits($tokenQuota['limit']) }} credits used</small>@endif</div></div>
   </aside>
   <main class="image-main">
     <header class="image-topbar"><div><span class="image-model">GPT Image <b>School AI</b></span><h1>Image Studio</h1></div>@if($activeConversationTitle)<span class="image-session-title">{{ $activeConversationTitle }}</span>@endif</header>

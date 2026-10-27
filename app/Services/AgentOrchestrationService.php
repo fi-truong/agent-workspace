@@ -51,11 +51,12 @@ class AgentOrchestrationService
      */
     public function complete(User $user, Conversation $conversation, array $history, string $systemPrompt, string $safetyIdentifier, array $tools, ?callable $onDelta = null, ?callable $onProgress = null): array
     {
+        $model = ChatModelService::resolve($conversation->chat_model);
         $available = $this->connections->forAgent($conversation->agent, $user)->keyBy('id');
         if ($available->isEmpty()) {
             return $onDelta
-                ? $this->chat->streamComplete($history, $systemPrompt, $onDelta, $safetyIdentifier, $tools)
-                : $this->chat->complete($history, $systemPrompt, $safetyIdentifier, $tools);
+                ? $this->chat->streamComplete($history, $systemPrompt, $onDelta, $safetyIdentifier, $tools, model: $model)
+                : $this->chat->complete($history, $systemPrompt, $safetyIdentifier, $tools, model: $model);
         }
         $catalog = $available->map(fn (Agent $agent): array => [
             'agent_id' => $agent->id,
@@ -90,12 +91,12 @@ class AgentOrchestrationService
             }
             // ChatCompletionService retains its existing short/long input
             // selection; this upper bound must not reduce long-file output.
-            $maxOutput = min(max((int) config('openai.max_tokens', 8192), (int) config('openai.long_max_tokens', 16384)), max(1, $this->quota->summary($user)['remaining']));
+            $maxOutput = min(max((int) config('openai.max_tokens', 8192), (int) config('openai.long_max_tokens', 16384)), max(1, $this->quota->remainingTokens($user, $model)));
             $maxOutput = min($maxOutput, max(1, (int) config('agent_connections.max_turn_tokens', 32000) - $promptTokens - $completionTokens));
             $callTimeout = $this->callTimeoutSeconds($secondsLeft);
             $completion = $onDelta
-                ? $this->chat->streamComplete($history, $systemPrompt, $onDelta, $safetyIdentifier, $roundTools, $maxOutput, $callTimeout)
-                : $this->chat->complete($history, $systemPrompt, $safetyIdentifier, $roundTools, $maxOutput, $callTimeout);
+                ? $this->chat->streamComplete($history, $systemPrompt, $onDelta, $safetyIdentifier, $roundTools, $maxOutput, $callTimeout, $model)
+                : $this->chat->complete($history, $systemPrompt, $safetyIdentifier, $roundTools, $maxOutput, $callTimeout, $model);
             $this->recordUsage($user, $conversation, $completion, 'Agent coordination');
             $promptTokens += $completion['prompt_tokens'];
             $completionTokens += $completion['completion_tokens'];
@@ -188,7 +189,7 @@ class AgentOrchestrationService
             }
             $completion = $this->chat->complete([
                 ['role' => 'user', 'content' => $task],
-            ], $prompt, $safetyIdentifier, [], max(1, min((int) config('agent_connections.delegate_max_tokens', 2048), $this->quota->summary($user)['remaining'], $tokenBudget)), $this->callTimeoutSeconds($secondsLeft));
+            ], $prompt, $safetyIdentifier, [], max(1, min((int) config('agent_connections.delegate_max_tokens', 2048), $this->quota->remainingTokens($user, ChatModelService::resolve($conversation->chat_model)), $tokenBudget)), $this->callTimeoutSeconds($secondsLeft), ChatModelService::resolve($conversation->chat_model));
             $this->recordUsage($user, $conversation, $completion, 'Connected Agent consultation');
             try {
                 AdminAuditLog::record('agent.consulted', $conversation, ['agent_id' => $agent->id, 'status' => 'completed']);
@@ -244,6 +245,7 @@ class AgentOrchestrationService
         UsageLog::create([
             'user_id' => $user->id, 'related_conversation_id' => $conversation->id,
             'activity_title' => $title, 'source' => 'agent_workspace',
+            'model' => $completion['model'] ?? ChatModelService::resolve($conversation->chat_model),
             'prompt_tokens' => $completion['prompt_tokens'], 'completion_tokens' => $completion['completion_tokens'],
         ]);
     }

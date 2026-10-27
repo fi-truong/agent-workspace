@@ -163,5 +163,5 @@ test('deleting a conversation hides its activity but retains its token accountin
         ->get(route('ai-plus.my-usage.index'))
         ->assertOk()
         ->assertDontSee('Deleted conversation activity')
-        ->assertSee('150 tokens used');
+        ->assertSee('0.15 credits used');
 });

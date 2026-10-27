@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Conversation;
 use App\Models\User;
+use App\Services\ChatModelService;
 use App\Services\TokenQuotaService;
 use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
@@ -50,11 +52,11 @@ class MyUsageController extends Controller
                 'title' => $log->activity_title,
                 'source' => $log->source === 'template_used' ? 'Template used' : 'Agent Workspace',
                 'time' => $this->formatRelativeTime($log->created_at),
-                'tokens' => number_format($log->prompt_tokens + $log->completion_tokens).' tok',
+                'tokens' => ChatModelService::formatCredits((int) ($log->quota_units ?? ($log->prompt_tokens + $log->completion_tokens))).' credits · '.number_format($log->prompt_tokens + $log->completion_tokens).' tokens'.($log->model ? ' · '.$log->model : ''),
                 'isTemplate' => $log->source === 'template_used',
                 'workspaceUrl' => $log->related_conversation_id
                     ? route(
-                        $log->conversation?->type === \App\Models\Conversation::TYPE_IMAGE
+                        $log->conversation?->type === Conversation::TYPE_IMAGE
                             ? 'ai-plus.agent-workspace.images.index'
                             : 'ai-plus.agent-workspace.index',
                         ['conversation_id' => $log->related_conversation_id],

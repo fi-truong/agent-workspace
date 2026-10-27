@@ -18,16 +18,16 @@ class ChatCompletionService
      *
      * @throws \RuntimeException
      */
-    public function complete(array $messages, ?string $systemPrompt = null, ?string $safetyIdentifier = null, array $tools = [], ?int $maxCompletionTokens = null, ?int $timeoutSeconds = null): array
+    public function complete(array $messages, ?string $systemPrompt = null, ?string $safetyIdentifier = null, array $tools = [], ?int $maxCompletionTokens = null, ?int $timeoutSeconds = null, ?string $model = null): array
     {
         [$payload, $filtered] = $this->buildPayload($messages, $systemPrompt);
 
         if (! config('openai.api_key')) {
-            return $this->mockCompletion($filtered);
+            return [...$this->mockCompletion($filtered), 'model' => $model ?? ChatModelService::defaultModel()];
         }
 
         try {
-            return $this->client->chat($payload, $safetyIdentifier, $maxCompletionTokens === null ? $this->outputTokenLimit($payload) : min($maxCompletionTokens, $this->outputTokenLimit($payload)), $tools, $timeoutSeconds);
+            return $this->client->chat($payload, $safetyIdentifier, $maxCompletionTokens === null ? $this->outputTokenLimit($payload) : min($maxCompletionTokens, $this->outputTokenLimit($payload)), $tools, $timeoutSeconds, $model);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }
@@ -43,16 +43,16 @@ class ChatCompletionService
      *
      * @throws \RuntimeException
      */
-    public function streamComplete(array $messages, ?string $systemPrompt, callable $onDelta, ?string $safetyIdentifier = null, array $tools = [], ?int $maxCompletionTokens = null, ?int $timeoutSeconds = null): array
+    public function streamComplete(array $messages, ?string $systemPrompt, callable $onDelta, ?string $safetyIdentifier = null, array $tools = [], ?int $maxCompletionTokens = null, ?int $timeoutSeconds = null, ?string $model = null): array
     {
         [$payload, $filtered] = $this->buildPayload($messages, $systemPrompt);
 
         if (! config('openai.api_key')) {
-            return $this->mockStreamCompletion($filtered, $onDelta);
+            return [...$this->mockStreamCompletion($filtered, $onDelta), 'model' => $model ?? ChatModelService::defaultModel()];
         }
 
         try {
-            return $this->client->streamChat($payload, $onDelta, $safetyIdentifier, $maxCompletionTokens === null ? $this->outputTokenLimit($payload) : min($maxCompletionTokens, $this->outputTokenLimit($payload)), $tools, $timeoutSeconds);
+            return $this->client->streamChat($payload, $onDelta, $safetyIdentifier, $maxCompletionTokens === null ? $this->outputTokenLimit($payload) : min($maxCompletionTokens, $this->outputTokenLimit($payload)), $tools, $timeoutSeconds, $model);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }
@@ -147,7 +147,7 @@ class ChatCompletionService
 
         $reply = 'Đây là phản hồi giả lập (chưa kết nối OpenAI API thật). '
             ."Bạn vừa hỏi: \"{$lastUser}\". "
-            .'Khi có API key, phần này sẽ được thay bằng câu trả lời thật từ GPT-6 Luna.';
+            .'Khi có API key, phần này sẽ được thay bằng câu trả lời thật từ model được chọn.';
 
         return [
             'content' => $reply,

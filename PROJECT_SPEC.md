@@ -1,6 +1,6 @@
 # AI Plus — Đặc tả dự án
 
-> **Phiên bản 2.2 · Đối chiếu mã nguồn: 23/10/2026.** Bản tiếng Anh tương ứng: `PROJECT_SPEC_EN.md`. Đây là đặc tả làm việc để rà soát/phê duyệt, không phải xác nhận đã triển khai production. “Hiện có” nghĩa là có mã nguồn/route; “Yêu cầu đích” là tiêu chí cần nghiệm thu; “Kế hoạch” chưa triển khai đầy đủ; “TBD” cần quyết định.
+> **Phiên bản 2.3 · Đối chiếu mã nguồn: 27/10/2026.** Bản tiếng Anh tương ứng: `PROJECT_SPEC_EN.md`. Đây là đặc tả làm việc để rà soát/phê duyệt, không phải xác nhận đã triển khai production. “Hiện có” nghĩa là có mã nguồn/route; “Yêu cầu đích” là tiêu chí cần nghiệm thu; “Kế hoạch” chưa triển khai đầy đủ; “TBD” cần quyết định.
 
 Các mục 1–11 là tóm tắt sản phẩm; mục 12–24 quy định yêu cầu chi tiết, tiêu chí nghiệm thu và các quyết định còn mở.
 
@@ -30,6 +30,7 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 ### 4.1 AI Chat
 
 - Chat riêng hoặc chat với Agent.
+- User chọn GPT-6 Luna (mặc định) hoặc GPT-6 Sol cho lượt tiếp theo; lựa chọn được nhớ theo cuộc chat, áp dụng cả các Agent con và thao tác tạo file trong lượt đó. Không tự đổi model khi provider từ chối truy cập.
 - Lưu conversation và message history.
 - Streaming phản hồi theo thời gian thực.
 - Tự tạo tiêu đề conversation.
@@ -65,10 +66,12 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 
 ### 4.5 Usage quota
 
-- Theo dõi prompt, token usage và hoạt động gần đây.
+- Theo dõi prompt, token thực tế, AI+ Credits và hoạt động gần đây.
 - Quota được tính theo chu kỳ tháng bắt đầu từ ngày đầu tháng hoặc ngày bắt đầu phase muộn hơn; không cần xóa usage log để “reset”.
-- Testing: 20 triệu tokens/user/tháng.
-- Training: 10 triệu tokens/user/tháng.
+- Testing: 20.000 credits/user/tháng (quy đổi từ quota 20 triệu token cũ).
+- Training: 10.000 credits/user/tháng (quy đổi từ quota 10 triệu token cũ).
+- 1.000 token Luna = 1 credit; 1.000 token GPT-6 Sol = 20 credits, tính cả input và output. Đây là đơn vị quota nội bộ, không phải tiền hay OpenAI credits. Lưu bằng đơn vị nguyên 0,001 credit, không làm tròn lên mỗi lượt. Token ảnh giữ giá trị quota cũ, không áp bảng giá tạo ảnh vào hệ số Sol.
+- Lịch sử cũ không bị tính lại; log cũ chưa có `quota_units` dùng tổng token cũ. Log mới lưu model và snapshot `quota_units`; tắt Sol không thay đổi usage đã ghi. Quota override và biến môi trường token cũ giữ đơn vị lưu trữ để bảo toàn số dư. Admin nhập/hiển thị credits; thống kê token thật vẫn được giữ riêng.
 - Conversation đã xóa không hiển thị trong Recent Activity.
 
 ### 4.6 Image Workspace
@@ -261,10 +264,10 @@ Các ID dưới đây bổ sung phần mô tả chức năng ở mục 4–7. �
 | FR-12 | Tạo file tạo artifact mới trên disk private, gắn user/conversation, không ghi đè file nguồn; hỗ trợ DOCX/XLSX/PPTX/PDF/HTML và file mã nguồn văn bản giữ phần mở rộng. PowerPoint phải là gói `.pptx` hợp lệ, chia nội dung thành slide và hiển thị tiêu đề/gạch đầu dòng; không chỉ trả văn bản trong chat. Yêu cầu tạo trang HTML phải tạo tài liệu HTML độc lập đầy đủ; không lưu câu trả lời dạng văn xuôi thành file HTML. Export conversation hỗ trợ PPTX/HTML, ngôn ngữ nguồn/VI/EN và kiểu standard/report/lesson plan/meeting minutes/budget. | Hiện có |
 | FR-13 | Download/xóa artifact và xem attachment/ảnh kiểm tra ownership ở backend; file thiếu trả 404, truy cập chéo bị từ chối. | Hiện có |
 | FR-14 | “Soạn email nháp” chỉ lưu subject/body gắn user/conversation; không gửi, không đọc mailbox; recipient/attachment chưa được xác nhận tự động. | Hiện có |
-| FR-15 | My Usage chỉ hiển thị dữ liệu của user; quota tính `prompt_tokens + completion_tokens` trong chu kỳ tháng/phase, có override từng user; hết quota trả 429. | Hiện có |
+| FR-15 | My Usage chỉ hiển thị dữ liệu của user; quota Credits dùng `SUM(COALESCE(quota_units, prompt_tokens + completion_tokens))/1000` trong chu kỳ tháng/phase, có override từng user; hết quota trả 429. | Hiện có |
 | FR-16 | User gửi/theo dõi support ticket, có thể đính kèm tối đa 5 ảnh/tệp được hỗ trợ (10 MiB/tệp, 15 MiB tổng); chỉ user sở hữu ticket và admin được tải tệp từ private storage. Admin có thể đăng public reply kèm tối đa 4 ảnh JPG/PNG/WebP (4 MiB/ảnh, 16 MiB tổng), dán ảnh vào ô trả lời hoặc chọn tệp; ảnh chỉ hiển thị cho user sở hữu ticket và admin, không gửi email, và bị xóa khi ticket bị xóa. Tệp yêu cầu ban đầu không gửi qua email; khi xóa ticket, tệp đính kèm cũng bị xóa. Admin thấy badge “New” tự cập nhật cho ticket Pending; badge hết nhấp nháy khi ticket được chuyển sang trạng thái khác Pending. Phản hồi của admin là public reply trong lịch sử ticket, không gửi email. | Hiện có một phần; cần QA trên local |
 
-**Quota mặc định hiện có:** Testing 20 triệu, Training 10 triệu tokens/user/tháng; chu kỳ từ đầu tháng hoặc ngày bắt đầu phase nếu muộn hơn. Đây là quota token, **không phải** giới hạn chi phí tiền tệ hay số ảnh. Phase production, ngân sách và cảnh báo chi phí: **TBD**.
+**Quota mặc định hiện có:** Testing 20.000, Training 10.000 credits/user/tháng; chu kỳ từ đầu tháng hoặc ngày bắt đầu phase nếu muộn hơn. Đây là quota nội bộ, **không phải** giới hạn chi phí tiền tệ hay số ảnh. Input/output và ảnh có giá khác nhau; một request đang chạy có thể vượt số dư, không có reservation ngân sách đồng thời. Phase production, ngân sách và cảnh báo chi phí: **TBD**.
 
 ## 15. Dữ liệu, sở hữu và vòng đời
 
@@ -361,6 +364,7 @@ Chuẩn bị Linux, PHP/Composer, Node để build, database production, HTTPS/r
 | 2.0 | 30/09/2026 | Bổ sung phạm vi, trạng thái, FR/NFR, dữ liệu, tiêu chí nghiệm thu, vận hành, rủi ro và quyết định mở; đồng bộ bản Anh–Việt |
 | 2.1 | 16/10/2026 | Bổ sung tạo và xuất PowerPoint (`.pptx`) |
 | 2.2 | 23/10/2026 | Bổ sung kết nối Agent theo cấu hình chủ sở hữu, giới hạn thực thi, kiểm tra quyền, quota và công tắc rollback |
+| 2.3 | 27/10/2026 | Thêm chọn Luna/Sol, AI+ Credits, giữ số dư/lịch sử cũ và lưu snapshot mức trừ quota |
 
 ## 23. Kịch bản nghiệp vụ đầu cuối
 

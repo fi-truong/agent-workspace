@@ -18,7 +18,7 @@ class OpenAIClient
      *
      * @throws \Throwable
      */
-    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = [], ?int $timeoutSeconds = null): array
+    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = [], ?int $timeoutSeconds = null, ?string $model = null): array
     {
         $apiKey = config('openai.api_key');
 
@@ -29,7 +29,7 @@ class OpenAIClient
         }
 
         $payload = [
-            'model' => config('openai.model'),
+            'model' => $model ?? config('openai.model'),
             'messages' => $messages,
             'max_completion_tokens' => $maxCompletionTokens ?? config('openai.max_tokens'),
             'reasoning_effort' => $tools !== [] ? 'none' : config('openai.reasoning_effort'),
@@ -97,7 +97,7 @@ class OpenAIClient
             'content' => $content,
             'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
             'completion_tokens' => (int) ($usage['completion_tokens'] ?? 0),
-            'model' => $data['model'] ?? config('openai.model'),
+            'model' => $data['model'] ?? $model ?? config('openai.model'),
             'tool_calls' => $toolCalls,
         ];
     }
@@ -114,7 +114,7 @@ class OpenAIClient
      *
      * @throws \Throwable
      */
-    public function streamChat(array $messages, callable $onDelta, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = [], ?int $timeoutSeconds = null): array
+    public function streamChat(array $messages, callable $onDelta, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = [], ?int $timeoutSeconds = null, ?string $model = null): array
     {
         $apiKey = config('openai.api_key');
 
@@ -125,7 +125,7 @@ class OpenAIClient
         }
 
         $payload = [
-            'model' => config('openai.model'),
+            'model' => $model ?? config('openai.model'),
             'messages' => $messages,
             'max_completion_tokens' => $maxCompletionTokens ?? config('openai.max_tokens'),
             'reasoning_effort' => $tools !== [] ? 'none' : config('openai.reasoning_effort'),
@@ -175,7 +175,7 @@ class OpenAIClient
         $lastDeltaAt = null;
         $deltaGapTotalMs = 0.0;
         $deltaGapMaxMs = 0.0;
-        $model = config('openai.model');
+        $model = $model ?? config('openai.model');
         $streamDone = false;
 
         while (! $body->eof() && ! $streamDone) {

@@ -60,10 +60,11 @@
             @include('admin.partials.field-error', ['field' => 'employee_id'])
         </div>
         <div class="form-group">
-            <label>Monthly token quota</label>
-            <input type="number" name="token_quota_limit" class="form-input" min="1" max="1000000000" step="1" placeholder="Use phase default" value="{{ old('token_quota_limit') }}">
+            <label>Monthly credit quota</label>
+            <input type="number" name="credit_quota_limit" class="form-input" min="0.001" max="1000000" step="0.001" placeholder="Use phase default" value="{{ old('credit_quota_limit') }}">
             <p class="form-hint">Optional. Leave blank to use the default quota for the current phase.</p>
             @include('admin.partials.field-error', ['field' => 'token_quota_limit'])
+            @include('admin.partials.field-error', ['field' => 'credit_quota_limit'])
         </div>
         <div class="form-group">
             <label style="display:flex;align-items:center;gap:8px;">

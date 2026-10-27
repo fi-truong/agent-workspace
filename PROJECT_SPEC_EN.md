@@ -1,6 +1,6 @@
 # AI Plus Project Specification
 
-> **Version 2.2 · Code reviewed: 23 October 2026.** Corresponding Vietnamese document: `PROJECT_SPEC.md`. This is a working specification for review and approval, not a claim that production deployment is complete. “Existing” means a route/implementation is present; “Target requirement” requires acceptance testing; “Planned” is not fully implemented; “TBD” needs an authorized decision.
+> **Version 2.3 · Code reviewed: 27 October 2026.** Corresponding Vietnamese document: `PROJECT_SPEC.md`. This is a working specification for review and approval, not a claim that production deployment is complete. “Existing” means a route/implementation is present; “Target requirement” requires acceptance testing; “Planned” is not fully implemented; “TBD” needs an authorized decision.
 
 Sections 1–11 summarize the product; Sections 12–24 provide detailed requirements, acceptance criteria and open decisions.
 
@@ -30,6 +30,7 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 ### 4.1 AI Chat
 
 - Standalone chat or chat with an Agent.
+- Users select GPT-6 Luna (default) or GPT-6 Sol for the next turn; the choice is remembered per conversation and applies to connected specialists and file actions within that turn. Provider access errors never silently switch models.
 - Persisted conversations and message history.
 - Real-time streaming responses.
 - Automatic conversation title generation.
@@ -65,10 +66,12 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 
 ### 4.5 Usage quota
 
-- Prompt, token-usage and recent-activity tracking.
+- Prompt, actual-token, AI+ Credits and recent-activity tracking.
 - Quota is calculated over a monthly cycle beginning on the first day or a later phase start date; usage logs do not have to be erased to “reset” it.
-- Testing: 20 million tokens per user per month.
-- Training: 10 million tokens per user per month.
+- Testing: 20,000 credits per user per month, converted from the previous 20-million-token allowance.
+- Training: 10,000 credits per user per month, converted from the previous 10-million-token allowance.
+- 1,000 Luna tokens = 1 credit; 1,000 GPT-6 Sol tokens = 20 credits, including input and output. Credits are an internal allowance, not money or OpenAI credits. Integer units preserve 0.001-credit precision without rounding up each turn. Image tokens retain their former allowance value; Sol multipliers are not image-pricing conversion rates.
+- Legacy usage is not repriced: rows without `quota_units` retain their original token total. New rows record the model and a `quota_units` snapshot; disabling Sol does not change recorded charges. Existing quota overrides and token environment settings retain their storage units to preserve balances. Admin forms display/accept credits; actual-token statistics remain separate.
 - Deleted conversations do not appear in Recent Activity.
 
 ### 4.6 Image Workspace
@@ -261,10 +264,10 @@ These IDs supplement the feature descriptions in Sections 4–7. “Existing” 
 | FR-12 | File creation produces a new private artifact linked to user/conversation without overwriting the source; DOCX/XLSX/PPTX/PDF/HTML and source-code files with their original extension are supported. PowerPoint must be a valid `.pptx` package with content organized into slides, titles and bullets, not only text in chat. HTML webpage requests must produce a complete standalone HTML document; prose must not be saved as an HTML file. Conversation export also supports PPTX/HTML, source/VI/EN language and standard/report/lesson plan/meeting minutes/budget styles. | Existing |
 | FR-13 | Artifact downloads/deletion and attachment/image access enforce ownership on the server; missing files return 404 and cross-user access is denied. | Existing |
 | FR-14 | “Draft an email” only saves AI-generated subject/body linked to the user/conversation; it neither sends mail nor reads a mailbox. Recipients/attachments are not automatically verified. | Existing |
-| FR-15 | My Usage shows only the user's data; quota sums `prompt_tokens + completion_tokens` in the monthly/phase cycle with a per-user override; exhausted quota returns 429. | Existing |
+| FR-15 | My Usage shows only the user's data; Credits sum `SUM(COALESCE(quota_units, prompt_tokens + completion_tokens))/1000` in the monthly/phase cycle with a per-user override; exhausted quota returns 429. | Existing |
 | FR-16 | Users submit/track support tickets and may attach up to 5 supported images/files (10 MiB per file, 15 MiB total); only the ticket owner and admins can download them from private storage. Admins can post public replies with up to 4 JPG/PNG/WebP images (4 MiB each, 16 MiB total), pasted into the reply box or selected as files; images are viewable only by the ticket owner and admins, are not emailed, and are deleted with the ticket. Initial request files are not emailed; deleting a ticket also deletes its attachments. Admins see an automatically refreshed “New” badge for Pending tickets; it stops when a ticket moves out of Pending. Admin replies are public replies in ticket history and are not emailed. | Partially implemented; local QA required |
 
-**Current default quotas:** Testing 20 million and Training 10 million tokens per user per month; the cycle begins at month start or later phase start. A token quota is **not** a monetary or image-generation spending cap. Production phase, budget and cost alerts: **TBD**.
+**Current default quotas:** Testing 20,000 and Training 10,000 credits per user per month; the cycle begins at month start or later phase start. Credits are **not** a monetary or image-generation spending cap. Input/output and images have different prices; an in-flight request may exceed the balance, with no concurrent budget reservation. Production phase, budget and cost alerts: **TBD**.
 
 ## 15. Data, ownership and lifecycle
 
@@ -361,6 +364,7 @@ Prepare Linux, PHP/Composer, Node for builds, production DB, HTTPS/reverse proxy
 | 2.0 | 30 Sep 2026 | Added scope/status, FR/NFR, data, acceptance, operations, risks and open decisions; aligned English and Vietnamese versions |
 | 2.1 | 16 Oct 2026 | Added PowerPoint (`.pptx`) generation and conversation export |
 | 2.2 | 23 Oct 2026 | Added owner-configured Agent connections, execution limits, permission checks, usage accounting and rollback switch |
+| 2.3 | 27 Oct 2026 | Added Luna/Sol selection, AI+ Credits, preserved legacy balances/history and snapshotted quota charges |
 
 ## 23. End-to-end business scenarios
 

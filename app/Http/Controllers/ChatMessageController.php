@@ -13,6 +13,7 @@ use App\Services\AgentConnectionService;
 use App\Services\AgentOrchestrationService;
 use App\Services\ArtifactService;
 use App\Services\ChatCompletionService;
+use App\Services\ChatModelService;
 use App\Services\EmailDraftService;
 use App\Services\ImageGenerationService;
 use App\Services\KnowledgeService;
@@ -29,6 +30,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ChatMessageController extends Controller
@@ -128,7 +130,7 @@ class ChatMessageController extends Controller
             }
             $completion = $usesConnectedAgents
                 ? $orchestration->complete($ctx['user'], $ctx['conversation'], $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'])
-                : $chatService->complete($ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools']);
+                : $chatService->complete($ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'], model: $ctx['model']);
         } catch (\RuntimeException $e) {
             return response()->json([
                 'blocked' => false,
@@ -172,6 +174,7 @@ class ChatMessageController extends Controller
             'filename' => ['nullable', 'string', 'max:120'],
             'language' => ['required', 'in:source,vi,en'],
             'template' => ['required', 'in:standard,report,lesson_plan,meeting_minutes,budget'],
+            'model' => ['nullable', 'string', Rule::in(array_keys(ChatModelService::options()))],
         ]);
         /** @var User $user */
         $user = $request->user();
@@ -184,6 +187,10 @@ class ChatMessageController extends Controller
             return response()->json(['error' => 'There is no AI response in this conversation to export.'], 422);
         }
         $source = $this->conversationExportTranscript($conversation, $messages);
+        $exportModel = ChatModelService::resolve($data['model'] ?? $conversation->chat_model);
+        if ($conversation->chat_model !== $exportModel) {
+            $conversation->update(['chat_model' => $exportModel]);
+        }
 
         $language = match ($data['language']) {
             'vi' => 'Write the entire document in Vietnamese.',
@@ -209,7 +216,7 @@ class ChatMessageController extends Controller
             try {
                 $completion = $chatService->complete([
                     ['role' => 'user', 'content' => "Complete chat transcript:\n\n{$source}"],
-                ], "You format a complete AI+ chat transcript for file export. Return only the complete document in Markdown. {$language} Use a {$template}. Keep every User and AI+ turn in its original order. Do not summarize, omit, or replace any turn; only improve headings, spacing, lists, and tables. Preserve all factual information and do not invent people, amounts, dates, policy, or sources.", $workUsePolicy->safetyIdentifier($user));
+                ], "You format a complete AI+ chat transcript for file export. Return only the complete document in Markdown. {$language} Use a {$template}. Keep every User and AI+ turn in its original order. Do not summarize, omit, or replace any turn; only improve headings, spacing, lists, and tables. Preserve all factual information and do not invent people, amounts, dates, policy, or sources.", $workUsePolicy->safetyIdentifier($user), model: $exportModel);
             } catch (\RuntimeException $exception) {
                 return response()->json(['error' => $exception->getMessage()], 502);
             }
@@ -221,6 +228,7 @@ class ChatMessageController extends Controller
                 'user_id' => $user->id,
                 'activity_title' => 'Export '.$data['format'].' file: '.$artifact->name,
                 'source' => 'agent_workspace_export',
+                'model' => $completion['model'] ?? null,
                 'related_conversation_id' => $conversation->id,
                 'prompt_tokens' => $completion['prompt_tokens'],
                 'completion_tokens' => $completion['completion_tokens'],
@@ -331,6 +339,7 @@ class ChatMessageController extends Controller
                         $onDelta,
                         $ctx['safetyIdentifier'],
                         $ctx['tools'],
+                        model: $ctx['model'],
                     );
 
                 $send('progress', ['message' => 'Đang hoàn tất phản hồi…']);
@@ -473,6 +482,7 @@ class ChatMessageController extends Controller
             'prompt' => $data['prompt'],
             'image_url' => $url,
             'image_message_id' => $imageMessage->id,
+            'token_quota' => $tokenQuotaService->summary($user),
             'download_url' => route('ai-plus.agent-workspace.images.download', $imageMessage),
             'model' => $model,
         ]);
@@ -488,6 +498,7 @@ class ChatMessageController extends Controller
             'conversation_id' => 'nullable|integer|exists:conversations,id',
             'edit_message_id' => 'nullable|integer',
             'agent_id' => 'nullable|integer|exists:agents,id',
+            'model' => ['nullable', 'string', Rule::in(array_keys(ChatModelService::options()))],
             'images' => 'nullable|array|max:4',
             'images.*' => 'string',
             'documents' => 'nullable|array|max:5',
@@ -658,7 +669,7 @@ class ChatMessageController extends Controller
     /**
      * Chuẩn bị conversation + history + system prompt — logic dùng chung cho store() và stream().
      *
-     * @return array{conversation: Conversation, history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, user: User, createdNew: bool, userMessageId: int, safetyIdentifier: string, agentKnowledgeOutOfScope: bool, autoDocumentTranslation: bool, hasAttachedDocuments: bool, hasCurrentTurnAttachments: bool, sourceCodeToolAvailable: bool, sourceCodeTools: array<int, array<string, mixed>>, tools: array<int, array<string, mixed>>}
+     * @return array{conversation: Conversation, model: string, history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, user: User, createdNew: bool, userMessageId: int, safetyIdentifier: string, agentKnowledgeOutOfScope: bool, autoDocumentTranslation: bool, hasAttachedDocuments: bool, hasCurrentTurnAttachments: bool, sourceCodeToolAvailable: bool, sourceCodeTools: array<int, array<string, mixed>>, tools: array<int, array<string, mixed>>}
      */
     private function prepareTurn(Request $request, KnowledgeService $knowledgeService, SchoolKnowledgeService $schoolKnowledgeService, WebPageReaderService $webPageReader, WorkUsePolicyService $workUsePolicy): array
     {
@@ -721,6 +732,11 @@ class ChatMessageController extends Controller
             if ($canView) {
                 $conversation->update(['agent_id' => $agent->id]);
             }
+        }
+
+        $model = ChatModelService::resolve($request->input('model') ?? $conversation->chat_model);
+        if ($conversation->chat_model !== $model) {
+            $conversation->update(['chat_model' => $model]);
         }
 
         // Lưu ảnh kèm thành file (để hiện lại trong lịch sử chat) + nối path vào content.
@@ -850,6 +866,7 @@ class ChatMessageController extends Controller
 
         return [
             'conversation' => $conversation,
+            'model' => $model,
             'history' => $history,
             'systemPrompt' => $systemPrompt,
             'user' => $user,
@@ -907,7 +924,7 @@ class ChatMessageController extends Controller
     }
 
     /**
-     * @param  array{content: string, prompt_tokens: int, completion_tokens: int}  $completion
+     * @param  array{content: string, prompt_tokens: int, completion_tokens: int, model?: string, recorded_prompt_tokens?: int, recorded_completion_tokens?: int}  $completion
      */
     private function persistAssistantReply(Conversation $conversation, User $user, Request $request, array $completion, bool $createdNew = false): void
     {
@@ -935,6 +952,7 @@ class ChatMessageController extends Controller
             'activity_title' => Str::limit($request->message, 100),
             'source' => 'agent_workspace',
             'related_conversation_id' => $conversation->id,
+            'model' => $completion['model'] ?? ChatModelService::resolve($conversation->chat_model),
             'prompt_tokens' => $unrecordedPromptTokens,
             'completion_tokens' => $unrecordedCompletionTokens,
         ]);
@@ -973,7 +991,8 @@ class ChatMessageController extends Controller
             : $policyPrompt;
 
         $systemPrompt .= "\n\nAI+ creates downloadable DOCX (Word), XLSX (Excel), PPTX (PowerPoint), PDF, and HTML files through the create_ai_artifact tool. For an explicit file request, call that tool with the complete deliverable content. For PowerPoint, provide a complete Markdown slide outline with a concise # deck title, one ## heading per slide, and concise bullets under each slide. A normal text answer does not create a file. Never claim that you cannot create, attach, or export those files, that a generated download is invalid, or that the user must manually copy the content. Do not invent a download URL.";
-        $systemPrompt .= "\n\nAI+ is powered by GPT-6 Luna. If a user asks which model is being used, answer clearly that this AI+ workspace currently uses GPT-6 Luna; do not say that the model name is unavailable.";
+        $modelName = ChatModelService::options()[ChatModelService::resolve($conversation->chat_model)]['label'];
+        $systemPrompt .= "\n\nAI+ is powered by {$modelName} for this turn. If a user asks which model is being used, answer clearly that this AI+ workspace currently uses {$modelName}; do not say that the model name is unavailable.";
         $systemPrompt .= "\n\nWhen an attachment block says a document was received, the user has already uploaded that original file. You have its safely extracted text (or scan pages) as the reference material for this conversation. Never ask the user to upload the original file again merely to translate, summarize, revise, or create a new document from it. Complete the requested work from the supplied material. You cannot directly edit the source binary or promise pixel-perfect preservation of complex source layouts, embedded objects, or damaged images; mention that limitation only if the user explicitly requires exact preservation.";
         $systemPrompt .= "\n\nFor mathematics, calculations, and budgets: verify that every substituted value matches the values stated earlier in the answer and never silently change a variable or denominator. Before giving a final result, check units, arithmetic, and consistency. Use valid LaTex only: write fractions as \\frac{numerator}{denominator}, and delimit inline/display equations with \\(...\\) or \\[...\\].";
 
@@ -1430,7 +1449,7 @@ class ChatMessageController extends Controller
     {
         return response()->json([
             'blocked' => false,
-            'error' => 'Bạn đã dùng hết quota token cho giai đoạn hiện tại. Vui lòng liên hệ quản trị viên.',
+            'error' => 'Bạn đã dùng hết AI+ Credits cho chu kỳ hiện tại. Vui lòng liên hệ quản trị viên.',
             'retryable' => false,
         ], 429);
     }
@@ -1562,7 +1581,7 @@ class ChatMessageController extends Controller
 
     /**
      * @param  array{content: string, prompt_tokens: int, completion_tokens: int, tool_calls?: array<int, array{id: string, name: string, arguments: string}>}  $completion
-     * @param  array{history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, safetyIdentifier: string, sourceCodeTools: array<int, array<string, mixed>>, hasAttachedDocuments?: bool, hasCurrentTurnAttachments?: bool, fullDocumentCoverage?: bool, fullDocumentContextTruncated?: bool}|null  $chatContext
+     * @param  array{model: string, history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, safetyIdentifier: string, sourceCodeTools: array<int, array<string, mixed>>, hasAttachedDocuments?: bool, hasCurrentTurnAttachments?: bool, fullDocumentCoverage?: bool, fullDocumentContextTruncated?: bool}|null  $chatContext
      * @return array{artifacts: array<int, array{name: string, url: string}>, email_draft: mixed, code_patch_error?: string, code_patch_summary?: string, artifact_error?: string, upload_request?: string}
      */
     private function createRequestedOutputs(array &$completion, Conversation $conversation, User $user, ArtifactService $artifacts, EmailDraftService $drafts, KnowledgeService $knowledgeService, ?ChatCompletionService $chatService = null, ?array $chatContext = null): array
@@ -1611,6 +1630,7 @@ class ChatMessageController extends Controller
                             ($chatContext['systemPrompt'] ?? '').$repairPrompt,
                             $chatContext['safetyIdentifier'],
                             $chatContext['sourceCodeTools'],
+                            model: $chatContext['model'],
                         );
                         $completion['prompt_tokens'] += $retry['prompt_tokens'];
                         $completion['completion_tokens'] += $retry['completion_tokens'];
@@ -1713,6 +1733,7 @@ class ChatMessageController extends Controller
                     $canReuseStoredArtifact
                         ? [$this->artifactCreationTool(), $this->sourceUploadRequestTool()]
                         : [$this->artifactCreationTool()],
+                    model: $chatContext['model'],
                 );
                 $completion['prompt_tokens'] += $revisionCompletion['prompt_tokens'];
                 $completion['completion_tokens'] += $revisionCompletion['completion_tokens'];
@@ -1831,7 +1852,7 @@ class ChatMessageController extends Controller
      * Confirm the intent through OpenAI itself; never infer it from prompt keywords.
      *
      * @param  array{content: string, prompt_tokens: int, completion_tokens: int, tool_calls?: array<int, array{id: string, name: string, arguments: string}>}  $completion
-     * @param  array{history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, safetyIdentifier: string}|null  $chatContext
+     * @param  array{model: string, history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, safetyIdentifier: string}|null  $chatContext
      */
     private function confirmRequestedFileAction(array &$completion, string $toolName, Conversation $conversation, ?ChatCompletionService $chatService, ?array $chatContext): bool
     {
@@ -1857,6 +1878,7 @@ class ChatMessageController extends Controller
                 $chatContext['history'],
                 trim(($chatContext['systemPrompt'] ?? '').$confirmationPrompt),
                 $chatContext['safetyIdentifier'],
+                model: $chatContext['model'],
             );
             $completion['prompt_tokens'] += $verification['prompt_tokens'];
             $completion['completion_tokens'] += $verification['completion_tokens'];

@@ -88,7 +88,7 @@ test('administrators can filter token and image usage by a previous month', func
     $this->actingAs($admin)
         ->get(route('admin.usage.index', ['month' => '2026-09', 'search' => 'September']))
         ->assertOk()
-        ->assertSee('September 2026 token usage')
+        ->assertSee('September 2026 credit usage')
         ->assertSee('value="2026-09"', false)
         ->assertViewHas('summary', fn (array $summary) => $summary['total_tokens'] === 1010)
         ->assertViewHas('users', fn ($users) => (int) $users->first()->used_tokens === 1010)
