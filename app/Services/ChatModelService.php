@@ -24,9 +24,19 @@ class ChatModelService
         return isset(self::options()[$model]) ? $model : 'gpt-6-luna';
     }
 
+    public static function defaultSpecialistModel(): string
+    {
+        return 'gpt-6-luna';
+    }
+
     public static function resolve(?string $model): string
     {
         return isset(self::options()[$model]) ? $model : self::defaultModel();
+    }
+
+    public static function resolveSpecialist(?string $model): string
+    {
+        return isset(self::options()[$model]) ? $model : self::defaultSpecialistModel();
     }
 
     public static function multiplier(?string $model): int

@@ -30,7 +30,8 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 ### 4.1 AI Chat
 
 - Chat riêng hoặc chat với Agent.
-- User chọn GPT-6 Luna (mặc định) hoặc GPT-6 Sol cho lượt tiếp theo; lựa chọn được nhớ theo cuộc chat, áp dụng cả các Agent con và thao tác tạo file trong lượt đó. Không tự đổi model khi provider từ chối truy cập.
+- Ô chat có prompt ở trên, đính kèm phía dưới bên trái, chọn model và nút gửi chỉ có biểu tượng mũi tên phía dưới bên phải.
+- User chọn GPT-6 Luna (mặc định) hoặc GPT-6 Sol cho Agent điều phối; lựa chọn được nhớ theo cuộc chat và áp dụng cho việc điều phối, câu trả lời chính cùng thao tác tạo file. User chọn riêng GPT-6 Luna (mặc định) hoặc GPT-6 Sol cho tất cả Agent chuyên viên trong cuộc chat. Không tự đổi model khi provider từ chối truy cập.
 - Lưu conversation và message history.
 - Streaming phản hồi theo thời gian thực.
 - Tự tạo tiêu đề conversation.
@@ -45,8 +46,8 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 - Gắn Agent với conversation.
 - Knowledge được cắt đoạn, tạo embedding và truy xuất theo độ liên quan; có fallback keyword khi embedding không khả dụng theo cấu hình.
 - Agent có thể được chia sẻ công khai trong trường qua Sharing & Showcase.
-- Chủ Agent có thể kết nối tối đa 10 Agent trong workspace, kèm vai trò cho từng Agent. Agent chính chọn Agent cần tham khảo qua tool calling; mỗi Agent con chạy tối đa một lần/lượt, dùng prompt và Knowledge riêng rồi trả kết quả về. Agent con không gọi tiếp Agent khác và không trực tiếp tạo file.
-- Trong chat với Agent chính, các Agent kết nối mà người đang chat có quyền dùng được hiển thị trên một dòng ngay dưới nhãn model; danh sách dài có thể cuộn ngang. Đây là danh sách kết nối khả dụng, không phải xác nhận các Agent đã được gọi trong lượt trả lời.
+- Chủ Agent có thể kết nối tối đa 10 Agent trong workspace, kèm vai trò cho từng Agent. Agent điều phối dùng model user chọn để quyết định giao việc và tổng hợp; mỗi Agent chuyên viên được gọi tối đa một lần/lượt bằng model chuyên viên user chọn chung cho cuộc chat (mặc định GPT-6 Luna), dùng prompt và Knowledge riêng rồi trả kết quả về. Agent con không gọi tiếp Agent khác và không trực tiếp tạo file.
+- Trong chat với Agent chính, các Agent kết nối mà người đang chat có quyền dùng được hiển thị trên một dòng ngay dưới tên Agent chính ở đầu trang; danh sách dài có thể cuộn ngang. Đây là danh sách kết nối khả dụng, không phải xác nhận các Agent đã được gọi trong lượt trả lời.
 - Quyền dùng được kiểm tra cho người đang chat ở mỗi lần gọi; kết nối không cấp quyền dùng Agent riêng tư. Agent chia sẻ chỉ gọi được các Agent con mà người đang chat cũng có quyền dùng. Bản sao không tự sao chép cấu hình kết nối; người nhận thiết lập lại.
 - Token của mọi lần gọi tính vào quota người đang chat, kể cả khi lượt tổng hợp sau đó lỗi. Giới hạn: 10 lần tham khảo, ngưỡng 32.000 token và 300 giây (5 phút) cho phần phối hợp/lượt. Từng lần gọi không vượt timeout model hiện hành hoặc thời gian phối hợp còn lại. Khi đạt ngưỡng, không gọi tiếp; usage thực tế từ request đang chạy có thể vượt ngưỡng token. Chỉ Agent chính dùng công cụ tạo file, qua bước xác nhận ý định hiện có.
 - `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` đưa chat về luồng hiện hành, giữ cấu hình và lịch sử. Database chưa có bảng kết nối cũng chạy theo luồng hiện hành.

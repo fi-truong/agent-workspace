@@ -30,7 +30,8 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 ### 4.1 AI Chat
 
 - Standalone chat or chat with an Agent.
-- Users select GPT-6 Luna (default) or GPT-6 Sol for the next turn; the choice is remembered per conversation and applies to connected specialists and file actions within that turn. Provider access errors never silently switch models.
+- The composer places the prompt above a toolbar, with attachments on the left and the model picker and arrow-only send button on the right.
+- Users select GPT-6 Luna (default) or GPT-6 Sol for the coordinator; the choice is remembered per conversation and applies to delegation, the coordinator's answer and file actions. Users separately choose GPT-6 Luna (default) or GPT-6 Sol for all specialists in that conversation. Provider access errors never silently switch models.
 - Persisted conversations and message history.
 - Real-time streaming responses.
 - Automatic conversation title generation.
@@ -45,8 +46,8 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 - Attach an Agent to a conversation.
 - Knowledge is chunked, embedded and retrieved by relevance; a configurable keyword fallback is used when embeddings are unavailable.
 - Agents can be shared school-wide through Sharing and Showcase.
-- Owners may connect up to ten workspace Agents and describe their roles. The coordinator selects useful specialists through tool calling; each runs at most once per user turn using its own prompt and Knowledge, then returns findings. Specialists cannot call further Agents or create files directly.
-- Coordinator chats show the connected Agents accessible to the current user on a single, horizontally scrollable line immediately below the model label. This lists available connections, not Agents confirmed to have been called for a particular reply.
+- Owners may connect up to ten workspace Agents and describe their roles. The coordinator uses the user's selected model to delegate and synthesize; each specialist runs at most once per turn using the specialist model selected for that conversation (GPT-6 Luna by default) and its own prompt and Knowledge, then returns findings. Specialists cannot call further Agents or create files directly.
+- Coordinator chats show the connected Agents accessible to the current user on a single, horizontally scrollable line immediately below the coordinator's name in the page header. This lists available connections, not Agents confirmed to have been called for a particular reply.
 - Permission is checked for the person chatting at every invocation. Connections do not grant access to private Agents. Shared coordinators may use only specialists their current user may also use. Copies do not inherit connection settings; recipients configure their own connections.
 - All model calls count toward the chatting user's quota, including calls completed before a later synthesis failure. Limits are ten consultations, a 32,000-token threshold and 300 seconds (five minutes) for coordination per turn. Each call is bounded by the current model timeout and the remaining coordination time. No further calls start after a limit is reached; usage from an in-flight request may exceed the token threshold. Only the coordinator executes file tools after the existing user-intent confirmation.
 - Setting `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` restores the existing chat flow without deleting connections or history. An unmigrated connection table also leaves the existing flow available.

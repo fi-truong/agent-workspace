@@ -52,6 +52,7 @@ class AgentOrchestrationService
     public function complete(User $user, Conversation $conversation, array $history, string $systemPrompt, string $safetyIdentifier, array $tools, ?callable $onDelta = null, ?callable $onProgress = null): array
     {
         $model = ChatModelService::resolve($conversation->chat_model);
+        $specialistModel = ChatModelService::resolveSpecialist($conversation->specialist_model);
         $available = $this->connections->forAgent($conversation->agent, $user)->keyBy('id');
         if ($available->isEmpty()) {
             return $onDelta
@@ -138,7 +139,7 @@ class AgentOrchestrationService
                         if ($onProgress !== null) {
                             $onProgress('Consulting '.$child->title.'…');
                         }
-                        $output = $this->consult($user, $conversation, $child, $task, $safetyIdentifier, $startedAt, (int) config('agent_connections.max_turn_tokens', 32000) - $promptTokens - $completionTokens);
+                        $output = $this->consult($user, $conversation, $child, $task, $safetyIdentifier, $startedAt, (int) config('agent_connections.max_turn_tokens', 32000) - $promptTokens - $completionTokens, $specialistModel);
                         if (isset($output['prompt_tokens'])) {
                             $promptTokens += $output['prompt_tokens'];
                             $completionTokens += $output['completion_tokens'];
@@ -159,7 +160,7 @@ class AgentOrchestrationService
     }
 
     /** @return array<string, mixed> */
-    private function consult(User $user, Conversation $conversation, Agent $agent, string $task, string $safetyIdentifier, int $startedAt, int $tokenBudget): array
+    private function consult(User $user, Conversation $conversation, Agent $agent, string $task, string $safetyIdentifier, int $startedAt, int $tokenBudget, string $model): array
     {
         if ($this->quota->isExhausted($user)) {
             return ['error' => 'The user token quota has been reached.'];
@@ -189,7 +190,7 @@ class AgentOrchestrationService
             }
             $completion = $this->chat->complete([
                 ['role' => 'user', 'content' => $task],
-            ], $prompt, $safetyIdentifier, [], max(1, min((int) config('agent_connections.delegate_max_tokens', 2048), $this->quota->remainingTokens($user, ChatModelService::resolve($conversation->chat_model)), $tokenBudget)), $this->callTimeoutSeconds($secondsLeft), ChatModelService::resolve($conversation->chat_model));
+            ], $prompt, $safetyIdentifier, [], max(1, min((int) config('agent_connections.delegate_max_tokens', 2048), $this->quota->remainingTokens($user, $model), $tokenBudget)), $this->callTimeoutSeconds($secondsLeft), $model);
             $this->recordUsage($user, $conversation, $completion, 'Connected Agent consultation');
             try {
                 AdminAuditLog::record('agent.consulted', $conversation, ['agent_id' => $agent->id, 'status' => 'completed']);

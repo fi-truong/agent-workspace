@@ -140,22 +140,10 @@
         </div>
       </div> -->
       <div class="topbar-left">
-        <div class="model-selector">
-          <select id="chat-model" aria-label="Chat model" title="1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. Applies to your next message and connected Agents.">
-            @foreach($chatModels as $modelId => $details)
-            <option value="{{ $modelId }}" @selected($activeChatModel === $modelId)>{{ $details['label'] }} · {{ $details['multiplier'] }}× credits</option>
-            @endforeach
-          </select>
-          <span class="badge">School AI</span>
-        </div>
         @php
           $headerAgentId = $activeConversationId ? $activeAgent?->id : $selectedAgentId;
           $headerConnections = $agentConnectionSummaries[$headerAgentId] ?? [];
         @endphp
-        <div class="connected-agent-summary" data-connected-agents @if(empty($headerConnections)) hidden @endif tabindex="0" role="group" aria-label="Connected Agents">
-          <span class="connected-agent-label">Connected Agents:</span>
-          <span data-connected-agent-names>{{ implode(' · ', array_column($headerConnections, 'title')) }}</span>
-        </div>
         @if($activeConversationTitle)
         <div class="active-agent-breadcrumb">
           @if($activeAgent)
@@ -168,6 +156,21 @@
           @endif
         </div>
         @endif
+        <div class="connected-agent-summary" data-connected-agents @if(empty($headerConnections)) hidden @endif tabindex="0" role="group" aria-label="Connected Agents">
+          <span class="connected-agent-label">Connected Agents:</span>
+          <span data-connected-agent-names>{{ implode(' · ', array_column($headerConnections, 'title')) }}</span>
+        </div>
+        <div class="model-routing-summary" data-agent-model-routing hidden aria-label="Models used in this Agent conversation">
+          <span>Coordinator: <strong data-coordinator-model>GPT-6 Luna</strong></span>
+          <span aria-hidden="true">·</span>
+          <label class="specialist-model-control">Specialists use:
+            <select id="specialist-model" aria-label="Model for connected Agents" title="1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. Applies to all connected Agents used in this conversation.">
+              @foreach($chatModels as $modelId => $details)
+              <option value="{{ $modelId }}" @selected($activeSpecialistModel === $modelId)>{{ $details['label'] }} · {{ $details['multiplier'] }}× credits</option>
+              @endforeach
+            </select>
+          </label>
+        </div>
       </div>
       <div class="topbar-right">
         @if($activeConversationId)
@@ -207,8 +210,20 @@
         <div class="input-box">
           <textarea placeholder="Type your message, or describe what you want to build..." rows="1"></textarea>
           <div class="input-actions">
-            <button class="attach-btn" title="Attach files">📎</button>
-            <button class="send-btn">Send →</button>
+            <button type="button" class="attach-btn" title="Attach files" aria-label="Attach files">📎</button>
+            <div class="composer-actions-right">
+              <div class="model-selector">
+                <select id="chat-model" aria-label="Chat model" title="1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. Applies to your next message and connected Agents.">
+                  @foreach($chatModels as $modelId => $details)
+                  <option value="{{ $modelId }}" @selected($activeChatModel === $modelId)>{{ $details['label'] }} · {{ $details['multiplier'] }}× credits</option>
+                  @endforeach
+                </select>
+              </div>
+              <button type="button" class="send-btn" title="Send message" aria-label="Send message">
+                <svg class="send-icon" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m-7 7 7-7 7 7"/></svg>
+                <span class="send-spinner" aria-hidden="true"></span>
+              </button>
+            </div>
           </div>
         </div>
         <input type="file" id="chat-image-input" accept="image/png,image/jpeg,image/gif,image/webp,.html,.js,.jsx,.mjs,.cjs,.css,.ts,.tsx,.json,.xml,.md,.php,.py,.java,.sql,.yaml,.yml,.sh,.bash,.c,.h,.cpp,.hpp,.cs,.go,.rb,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple style="display:none;">
@@ -323,15 +338,20 @@
   .workspace-title{display:flex;align-items:center;gap:10px;}
   .workspace-title h1{font-size:18px;font-weight:600;color: var(--text-main);margin:0;}
   .ws-type-badge{padding:4px 10px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:6px;font-size:11px;font-family:'IBM Plex Mono', monospace;color: var(--text-soft);}
-  .model-selector{padding:8px 12px;background: var(--input-bg);border:1px solid var(--input-border);border-radius:8px;font-size:13px;color: var(--input-text);cursor:pointer;display:flex;align-items:center;gap:8px;}
-  .model-selector .badge{background: var(--navy);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-family:'IBM Plex Mono', monospace;}
-  .model-selector select{min-width:0;max-width:100%;border:0;background:var(--input-bg);color:var(--input-text);font:inherit;cursor:pointer;}
-  .model-selector{max-width:100%;box-sizing:border-box;}
+  .model-selector{min-width:0;max-width:100%;box-sizing:border-box;padding:8px;background:var(--surface);border-radius:8px;font-size:13px;color:var(--text-main);display:flex;align-items:center;}
+  .model-selector select{min-width:0;max-width:100%;border:0;background:var(--surface);color:var(--text-main);font:inherit;cursor:pointer;text-overflow:ellipsis;}
   .model-selector select:focus-visible{outline:2px solid var(--navy);outline-offset:2px;}
   .model-selector select:disabled{cursor:wait;opacity:.7;}
   .topbar-left{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;flex:1;}
   .connected-agent-summary{max-width:100%;box-sizing:border-box;white-space:nowrap;overflow-x:auto;scrollbar-width:thin;color:var(--text-main);font-size:12px;line-height:1.6;}
   .connected-agent-summary[hidden]{display:none;}
+  .model-routing-summary{display:flex;align-items:center;gap:6px;max-width:100%;box-sizing:border-box;white-space:nowrap;overflow-x:auto;scrollbar-width:thin;color:var(--text-soft);font-size:12px;line-height:1.6;}
+  .model-routing-summary[hidden]{display:none;}
+  .model-routing-summary strong{color:var(--text-main);font-weight:600;}
+  .specialist-model-control{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+  .specialist-model-control select{min-width:0;max-width:170px;padding:3px 6px;border:1px solid var(--input-border);border-radius:6px;background:var(--surface);color:var(--text-main);font:inherit;cursor:pointer;text-overflow:ellipsis;}
+  .specialist-model-control select:focus-visible{outline:2px solid var(--navy);outline-offset:2px;}
+  .specialist-model-control select:disabled{cursor:wait;opacity:.7;}
   .connected-agent-label{color:var(--text-soft);font-weight:600;margin-right:4px;}
   .connected-agent-summary:focus-visible{outline:2px solid var(--navy);outline-offset:2px;border-radius:3px;}
   .active-agent-breadcrumb{display:flex;align-items:center;gap:8px;max-width:100%;}
@@ -364,21 +384,28 @@
   /* Input Area */
   .input-area{padding:20px 24px 24px;background: var(--body-bg);flex-shrink:0;position:relative;z-index:10;}
   .input-wrapper{max-width:760px;margin:0 auto;}
-  .input-box{display:flex;align-items:flex-end;gap:12px;background: var(--surface);border:1px solid var(--surface-border);border-radius:14px;padding:12px 16px;transition: border-color 0.15s, box-shadow 0.15s;}
+  .input-box{display:flex;flex-direction:column;align-items:stretch;gap:8px;background: var(--surface);border:1px solid var(--surface-border);border-radius:14px;padding:12px 16px;transition: border-color 0.15s, box-shadow 0.15s;}
   .input-box:focus-within{border-color: var(--navy);box-shadow: 0 0 0 3px rgba(31,56,100,0.1);}
   /* The composer sits at the bottom of a flex layout, so the browser's native
      resize handle appears to grow upward. Content-driven auto-grow is clearer. */
-  .input-box textarea{flex:1;border:none;outline:none;resize:none;font-family: inherit;font-size:15px;line-height:1.5;min-height:40px;max-height:400px;color: var(--text-main);background: transparent;}
+  .input-box textarea{width:100%;min-width:0;box-sizing:border-box;border:none;outline:none;resize:none;font-family: inherit;font-size:15px;line-height:1.5;min-height:40px;max-height:400px;color: var(--text-main);background: transparent;}
   .input-box textarea::placeholder{color: var(--text-soft);}
-  .input-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
-  .attach-btn{width:32px;height:32px;border-radius:8px;border:none;background: transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color: var(--text-soft);font-size:18px;transition: background 0.15s, color 0.15s;}
+  .input-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .composer-actions-right{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;}
+  .attach-btn{width:32px;height:32px;flex-shrink:0;border-radius:8px;border:none;background: transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color: var(--text-soft);font-size:18px;transition: background 0.15s, color 0.15s;}
   .attach-btn:hover{background: var(--input-bg);color: var(--text-main);}
   .image-generate-btn{padding:7px 10px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--text-main);font:600 12px inherit;cursor:pointer;white-space:nowrap;}
   .image-generate-btn:hover{border-color:var(--navy);}
   .image-generate-btn:disabled{opacity:.55;cursor:wait;}
-  .send-btn{padding:8px 16px;background: var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition: background 0.15s;}
+  .send-btn{width:36px;height:36px;padding:0;flex-shrink:0;background: var(--navy);color:#fff;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition: background 0.15s;}
   .send-btn:hover{background: var(--navy-light);}
   .send-btn:disabled{opacity:.6;cursor:wait;}
+  .send-btn:focus-visible,.attach-btn:focus-visible{outline:2px solid var(--navy);outline-offset:3px;}
+  .send-spinner{display:none;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:composer-spin .8s linear infinite;}
+  .send-btn[aria-busy="true"] .send-icon{display:none;}
+  .send-btn[aria-busy="true"] .send-spinner{display:block;}
+  @keyframes composer-spin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){.send-spinner{animation:none;}}
   .input-hint{text-align:center;margin-top:10px;font-size:12px;color: var(--text-soft);}
   .input-hint a{color:var(--navy);font-weight:600;}
   #chat-image-preview img{max-width:100%;}

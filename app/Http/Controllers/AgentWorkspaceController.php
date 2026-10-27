@@ -31,6 +31,7 @@ class AgentWorkspaceController extends Controller
         $initialMessages = [];
         $activeAgent = null;
         $activeChatModel = ChatModelService::defaultModel();
+        $activeSpecialistModel = ChatModelService::defaultSpecialistModel();
         $activeConversationTitle = null;
         $activeConversationId = $request->query('conversation_id');
         $selectedAgentId = null;
@@ -125,6 +126,7 @@ class AgentWorkspaceController extends Controller
 
                 if ($conversation) {
                     $activeChatModel = ChatModelService::resolve($conversation->chat_model);
+                    $activeSpecialistModel = ChatModelService::resolveSpecialist($conversation->specialist_model);
                     $latestUserMessageId = $conversation->messages()
                         ->where('role', 'user')
                         ->max('id');
@@ -212,6 +214,7 @@ class AgentWorkspaceController extends Controller
             'activeAgent' => $activeAgent,
             'chatModels' => ChatModelService::options(),
             'activeChatModel' => $activeChatModel,
+            'activeSpecialistModel' => $activeSpecialistModel,
             'agentConnectionSummaries' => $agentConnectionSummaries,
             'activeConversationTitle' => $activeConversationTitle,
             'tokenQuota' => $tokenQuota,

@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
   const sendBtn = document.querySelector('.send-btn');
   const modelSelector = document.querySelector('#chat-model');
+  const specialistModelSelector = document.querySelector('#specialist-model');
   const textarea = document.querySelector('.input-box textarea');
   const emptyState = document.querySelector('.empty-state');
   const main = document.querySelector('main.main');
@@ -206,6 +207,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
   window.addEventListener('pagehide', saveDraft);
 
+  function updateAgentModelRouting() {
+    const routing = document.querySelector('[data-agent-model-routing]');
+    const connections = document.querySelector('[data-connected-agents]');
+    if (!routing) return;
+
+    routing.hidden = !connections || connections.hidden;
+    const modelLabel = modelSelector?.selectedOptions[0]?.textContent?.split(' · ')[0].trim();
+    const coordinatorModel = routing.querySelector('[data-coordinator-model]');
+    if (coordinatorModel && modelLabel) coordinatorModel.textContent = modelLabel;
+  }
+
   function syncConnectedAgents(agentId) {
     const summary = document.querySelector('[data-connected-agents]');
     if (!summary) return;
@@ -213,7 +225,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const names = summary.querySelector('[data-connected-agent-names]');
     if (names) names.textContent = children.map((agent) => agent.title).join(' · ');
     summary.hidden = children.length === 0;
+    updateAgentModelRouting();
   }
+
+  modelSelector?.addEventListener('change', updateAgentModelRouting);
 
   // Hiển thị breadcrumb tên agent ở topbar (từ selectedAgentId hoặc activeAgent server-side).
   function syncAgentBadge() {
@@ -246,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function () {
     n.append(agent.title);
     crumb.appendChild(n);
     crumb.appendChild(createLeaveAgentButton());
-    topbarLeft.appendChild(crumb);
+    topbarLeft.prepend(crumb);
   }
 
   function createLeaveAgentButton() {
@@ -278,7 +293,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!crumb) {
       crumb = document.createElement('div');
       crumb.className = 'active-agent-breadcrumb';
-      topbarLeft.appendChild(crumb);
+      topbarLeft.prepend(crumb);
     }
 
     let hasAgent = Boolean(crumb.querySelector('.agent-breadcrumb-name'));
@@ -872,11 +887,18 @@ document.addEventListener('DOMContentLoaded', function () {
     gif: 'image/gif', webp: 'image/webp',
   };
 
+  function setSendButtonState(label, busy) {
+    if (!sendBtn) return;
+    sendBtn.disabled = busy;
+    sendBtn.setAttribute('aria-label', label);
+    sendBtn.title = label;
+    if (busy) sendBtn.setAttribute('aria-busy', 'true');
+    else sendBtn.removeAttribute('aria-busy');
+  }
+
   function updateAttachmentReadState() {
     if (!sendBtn || sending) return;
-    sendBtn.disabled = pendingReads > 0;
-    sendBtn.textContent = pendingReads > 0 ? 'Preparing files…' : 'Send →';
-    sendBtn.setAttribute('aria-label', pendingReads > 0 ? 'Preparing attachments' : 'Send message');
+    setSendButtonState(pendingReads > 0 ? 'Preparing attachments' : 'Send message', pendingReads > 0);
   }
 
   function getFileExt(filename) {
@@ -1092,12 +1114,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     sending = true;
     if (modelSelector) modelSelector.disabled = true;
-    if (sendBtn) {
-      sendBtn.disabled = true;
-      sendBtn.setAttribute('aria-busy', 'true');
-      sendBtn.setAttribute('aria-label', 'AI is responding');
-      sendBtn.textContent = 'Sending…';
-    }
+    if (specialistModelSelector) specialistModelSelector.disabled = true;
+    setSendButtonState('AI is responding', true);
 
     if (emptyState) emptyState.style.display = 'none';
 
@@ -1176,6 +1194,7 @@ document.addEventListener('DOMContentLoaded', function () {
           conversation_id: activeConversationId,
           agent_id: selectedAgentId,
           model: modelSelector?.value || undefined,
+          specialist_model: specialistModelSelector?.value || undefined,
           edit_message_id: activeEdit?.messageId || null,
           images: images,
           documents: documents,
@@ -1295,7 +1314,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (parsed.event === 'delta') {
           if (!firstDeltaReceived) {
             firstDeltaReceived = true;
-            if (sendBtn) sendBtn.textContent = 'Generating…';
+            setSendButtonState('AI is responding', true);
             assistantBubble.innerHTML = '';
             assistantBubble.style.whiteSpace = 'pre-wrap';
             streamedTextNode = document.createTextNode('');
@@ -1386,6 +1405,7 @@ document.addEventListener('DOMContentLoaded', function () {
     } finally {
       sending = false;
       if (modelSelector) modelSelector.disabled = false;
+      if (specialistModelSelector) specialistModelSelector.disabled = false;
       if (committedUserMessageId && userWrap?.isConnected) {
         userWrap.dataset.messageId = String(committedUserMessageId);
         const userBubble = userWrap.querySelector('.chat-bubble');
@@ -1394,11 +1414,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const userBubble = userWrap.querySelector('.chat-bubble');
         if (userBubble) addEditButton(userWrap, userBubble, activeEdit.messageId);
       }
-      if (sendBtn) {
-        sendBtn.removeAttribute('aria-busy');
-        sendBtn.setAttribute('aria-label', 'Send message');
-        updateAttachmentReadState();
-      }
+      updateAttachmentReadState();
     }
   }
 

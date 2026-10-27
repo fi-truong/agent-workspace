@@ -499,6 +499,7 @@ class ChatMessageController extends Controller
             'edit_message_id' => 'nullable|integer',
             'agent_id' => 'nullable|integer|exists:agents,id',
             'model' => ['nullable', 'string', Rule::in(array_keys(ChatModelService::options()))],
+            'specialist_model' => ['nullable', 'string', Rule::in(array_keys(ChatModelService::options()))],
             'images' => 'nullable|array|max:4',
             'images.*' => 'string',
             'documents' => 'nullable|array|max:5',
@@ -737,6 +738,10 @@ class ChatMessageController extends Controller
         $model = ChatModelService::resolve($request->input('model') ?? $conversation->chat_model);
         if ($conversation->chat_model !== $model) {
             $conversation->update(['chat_model' => $model]);
+        }
+        $specialistModel = ChatModelService::resolveSpecialist($request->input('specialist_model') ?? $conversation->specialist_model);
+        if ($conversation->specialist_model !== $specialistModel) {
+            $conversation->update(['specialist_model' => $specialistModel]);
         }
 
         // Lưu ảnh kèm thành file (để hiện lại trong lịch sử chat) + nối path vào content.

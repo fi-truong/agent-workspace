@@ -93,7 +93,7 @@ Kiểm thử giao diện chọn Agent trong Chromium đã cài: `node --test tes
 
 ## 7. Luna / Sol và AI+ Credits
 
-User chọn `gpt-6-luna` hoặc `gpt-6-sol` ở đầu trang chat. Lựa chọn được lưu trong `conversations.chat_model`, không đổi model toàn cục hoặc model tạo ảnh/embeddings. Các bước phối hợp, Agent con và tạo/xác nhận file dùng model của lượt chat. Chat Completions có tool calling dùng `reasoning_effort=none`, theo [tài liệu GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol). Chưa hỗ trợ `gpt-6.1-sol` ở luồng này.
+User chọn `gpt-6-luna` hoặc `gpt-6-sol` cho Agent điều phối ngay trong ô chat, cạnh nút gửi mũi tên ở phía dưới bên phải; đính kèm ở phía dưới bên trái. Với Agent có kết nối, user chọn riêng model dùng chung cho mọi Agent chuyên viên trong dòng `Specialists use`. Lựa chọn của điều phối lưu ở `conversations.chat_model`; lựa chọn chuyên viên lưu ở `conversations.specialist_model` (mặc định Luna). Hai lựa chọn không đổi model toàn cục hoặc model tạo ảnh/embeddings. Agent điều phối và thao tác tạo/xác nhận file dùng model điều phối; Agent chuyên viên dùng model chuyên viên. Credits được tính theo model thực tế của từng lời gọi. Chat Completions có tool calling dùng `reasoning_effort=none`, theo [tài liệu GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol). Chưa hỗ trợ `gpt-6.1-sol` ở luồng này.
 
 Cho phép `gpt-6-sol` trong model permissions của đúng Project đang cấp API key, đồng thời giữ quyền Chat Completions. Không cần key mới nếu key hiện tại có quyền. Không gửi key vào chat/log/Git. Credits do AI+ quản lý, không cấu hình trên OpenAI Platform. Không tự chuyển Luna nếu Sol bị 403; user nhận lỗi provider và có thể chủ động chọn lại.
 

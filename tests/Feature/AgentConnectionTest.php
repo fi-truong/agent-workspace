@@ -136,7 +136,7 @@ it('shows accessible connected Agent names below the model without exposing thei
     $this->get(route('ai-plus.agent-workspace.index', ['agent_id' => $parent->id]))
         ->assertOk()
         ->assertViewHas('agentConnectionSummaries', [$parent->id => [['id' => $child->id, 'title' => $child->title]], $child->id => []])
-        ->assertSeeInOrder(['GPT-6 Luna', 'data-connected-agents', 'Connected Agents:', 'Writer &amp; Reviewer'], false)
+        ->assertSeeInOrder(['data-connected-agents', 'Connected Agents:', 'Writer &amp; Reviewer', 'GPT-6 Luna'], false)
         ->assertDontSee('CHILD_PRIVATE_CONFIGURATION')
         ->assertDontSee('PRIVATE_CONNECTION_ROLE');
 });
@@ -149,7 +149,7 @@ it('uses the conversation Agent connections when reopening a chat', function () 
 
     $this->get(route('ai-plus.agent-workspace.index', ['conversation_id' => $conversation->id]))
         ->assertOk()
-        ->assertSeeInOrder(['GPT-6 Luna', 'data-connected-agents', 'Lesson reviewer', 'active-agent-breadcrumb', 'Coordinator'], false);
+        ->assertSeeInOrder(['active-agent-breadcrumb', 'Coordinator', 'data-connected-agents', 'Lesson reviewer', 'GPT-6 Luna'], false);
 });
 
 it('hides inaccessible connections of a shared coordinator from the header and browser data', function () {
@@ -163,7 +163,7 @@ it('hides inaccessible connections of a shared coordinator from the header and b
     $this->get(route('ai-plus.agent-workspace.index', ['agent_id' => $parent->id]))
         ->assertOk()
         ->assertViewHas('agentConnectionSummaries', [$parent->id => [['id' => $shared->id, 'title' => $shared->title]]])
-        ->assertSeeInOrder(['GPT-6 Luna', 'data-connected-agents', 'Shared reviewer'], false)
+        ->assertSeeInOrder(['data-connected-agents', 'Shared reviewer', 'GPT-6 Luna'], false)
         ->assertDontSee('SECRET_CHILD_TITLE')->assertDontSee('COPY_ONLY_CHILD_TITLE');
 
     $shared->update(['is_shared' => false]);

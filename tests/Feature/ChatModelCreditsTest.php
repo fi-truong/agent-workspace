@@ -74,6 +74,8 @@ it('rejects unsupported or disabled models before any prompt or usage is saved',
     config(['openai.sol_enabled' => false]);
     $this->postJson(route('ai-plus.agent-workspace.send'), ['message' => 'School task', 'model' => 'gpt-6-sol'])
         ->assertUnprocessable();
+    $this->postJson(route('ai-plus.agent-workspace.send'), ['message' => 'School task', 'specialist_model' => 'gpt-6-sol'])
+        ->assertUnprocessable()->assertJsonValidationErrors('specialist_model');
     Http::assertNothingSent();
     $this->assertDatabaseCount('conversations', 0);
     $this->assertDatabaseCount('usage_logs', 0);
@@ -99,7 +101,8 @@ it('renders model selection and credits and restores the conversations selected 
     $conversation = $this->user->conversations()->create(['title' => 'Sol chat', 'type' => Conversation::TYPE_CHAT, 'chat_model' => 'gpt-6-sol']);
     $this->get(route('ai-plus.agent-workspace.index', ['conversation_id' => $conversation->id]))
         ->assertOk()->assertViewHas('activeChatModel', 'gpt-6-sol')
-        ->assertSee('id="chat-model"', false)->assertSee('GPT-6 Sol')->assertSee('20,000 credits used');
+        ->assertSee('id="chat-model"', false)->assertSee('id="specialist-model"', false)
+        ->assertViewHas('activeSpecialistModel', 'gpt-6-luna')->assertSee('GPT-6 Sol')->assertSee('20,000 credits used');
     $this->get(route('ai-plus.my-usage.index'))->assertOk()->assertSee('20,000 of 20,000 credits remaining');
 });
 
@@ -165,7 +168,7 @@ it('keeps Sol file creation and confirmation on Sol and bills both once', functi
     Http::assertNotSent(fn (Request $request): bool => $request['model'] !== 'gpt-6-sol');
 })->with(['word', 'excel', 'powerpoint', 'pdf', 'html']);
 
-it('uses Sol for the coordinator and its specialist and counts every call exactly once', function () {
+it('uses Sol for the coordinator and Luna for its specialist and charges each model rate', function () {
     Http::swap(new Factory);
     Http::preventStrayRequests();
     Storage::fake('knowledge');
@@ -173,20 +176,57 @@ it('uses Sol for the coordinator and its specialist and counts every call exactl
     $child = $this->user->agents()->create(['title' => 'Reviewer']);
     $parent->connectedAgents()->attach($child);
     $conversation = $this->user->conversations()->create(['title' => 'School plan', 'agent_id' => $parent->id, 'type' => Conversation::TYPE_CHAT]);
-    $makeResponse = fn (string $content, array $calls = []): array => [
-        'model' => 'gpt-6-sol', 'choices' => [['message' => ['content' => $content, 'tool_calls' => $calls]]],
+    $makeResponse = fn (string $content, array $calls = [], string $model = 'gpt-6-sol'): array => [
+        'model' => $model, 'choices' => [['message' => ['content' => $content, 'tool_calls' => $calls]]],
         'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
     ];
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push($makeResponse('', [['id' => 'consult', 'type' => 'function', 'function' => [
             'name' => 'consult_connected_agent', 'arguments' => json_encode(['agent_id' => $child->id, 'task' => 'Review the school objectives']),
-        ]]]))->push($makeResponse('Specialist findings'))->push($makeResponse('Final school plan'))]);
+        ]]], 'gpt-6-sol'))->push($makeResponse('Specialist findings', [], 'gpt-6-luna'))->push($makeResponse('Final school plan', [], 'gpt-6-sol'))]);
     $this->postJson(route('ai-plus.agent-workspace.send'), ['conversation_id' => $conversation->id, 'message' => 'Review the school plan', 'model' => 'gpt-6-sol'])
-        ->assertOk()->assertJsonPath('token_quota.credits_used', 0.9);
-    expect(UsageLog::count())->toBe(3)->and(UsageLog::sum('quota_units'))->toBe(900)
+        ->assertOk()->assertJsonPath('token_quota.credits_used', 0.615);
+    expect(UsageLog::count())->toBe(3)
+        ->and(UsageLog::orderBy('id')->pluck('model')->all())->toBe(['gpt-6-sol', 'gpt-6-luna', 'gpt-6-sol'])
+        ->and(UsageLog::orderBy('id')->pluck('quota_units')->all())->toBe([300, 15, 300])
+        ->and(UsageLog::sum('quota_units'))->toBe(615)
         ->and($conversation->messages()->where('role', 'assistant')->first()->prompt_tokens)->toBe(30);
     Http::assertSentCount(3);
-    Http::assertNotSent(fn (Request $request): bool => $request['model'] !== 'gpt-6-sol');
+    expect(Http::recorded()->map(fn (array $pair): string => $pair[0]['model'])->all())
+        ->toBe(['gpt-6-sol', 'gpt-6-luna', 'gpt-6-sol']);
+});
+
+it('saves one specialist model per conversation and applies its Sol credit rate', function () {
+    Http::swap(new Factory);
+    Http::preventStrayRequests();
+    Storage::fake('knowledge');
+    $parent = $this->user->agents()->create(['title' => 'Coordinator']);
+    $child = $this->user->agents()->create(['title' => 'Reviewer']);
+    $parent->connectedAgents()->attach($child);
+    $conversation = $this->user->conversations()->create(['title' => 'School plan', 'agent_id' => $parent->id, 'type' => Conversation::TYPE_CHAT]);
+    $makeResponse = fn (string $content, array $calls = [], string $model = 'gpt-6-luna'): array => [
+        'model' => $model, 'choices' => [['message' => ['content' => $content, 'tool_calls' => $calls]]],
+        'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
+    ];
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push($makeResponse('', [['id' => 'consult', 'type' => 'function', 'function' => [
+            'name' => 'consult_connected_agent', 'arguments' => json_encode(['agent_id' => $child->id, 'task' => 'Review the school objectives']),
+        ]]]))
+        ->push($makeResponse('Specialist findings', [], 'gpt-6-sol'))
+        ->push($makeResponse('Final school plan'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $conversation->id,
+        'message' => 'Review the school plan',
+        'model' => 'gpt-6-luna',
+        'specialist_model' => 'gpt-6-sol',
+    ])->assertOk()->assertJsonPath('token_quota.credits_used', 0.33);
+
+    expect($conversation->fresh()->specialist_model)->toBe('gpt-6-sol')
+        ->and(UsageLog::orderBy('id')->pluck('model')->all())->toBe(['gpt-6-luna', 'gpt-6-sol', 'gpt-6-luna'])
+        ->and(UsageLog::orderBy('id')->pluck('quota_units')->all())->toBe([15, 300, 15]);
+    $this->get(route('ai-plus.agent-workspace.index', ['conversation_id' => $conversation->id]))
+        ->assertOk()->assertViewHas('activeSpecialistModel', 'gpt-6-sol');
 });
 
 it('rejects excessive credit precision and lets admins reset credit quotas', function () {
