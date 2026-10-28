@@ -77,7 +77,7 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 
 ### 4.6 Image Workspace
 
-- Tạo và chỉnh ảnh từ prompt/ảnh tham chiếu qua model ảnh được cấu hình riêng.
+- Ảnh mới dùng kích thước tự động theo prompt; khi chỉnh sửa, dùng tỷ lệ khung hình của ảnh tham chiếu đầu tiên. Ảnh kết quả hiển thị theo tỷ lệ tự nhiên.
 - Ảnh kết quả gắn conversation, có route tải và xóa với kiểm tra owner.
 
 ### 4.7 School Knowledge và an toàn sử dụng

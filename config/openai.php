@@ -14,6 +14,7 @@ return [
     // Kept separate from chat: image generation uses an image model and has its
     // own usage/cost profile.
     'image_model' => env('OPENAI_IMAGE_MODEL', 'gpt-image-2.5-flare'),
+    // Used as the edit-resolution pixel budget; new image requests let the model choose.
     'image_size' => env('OPENAI_IMAGE_SIZE', '1024x1024'),
     'image_quality' => env('OPENAI_IMAGE_QUALITY', 'low'),
 

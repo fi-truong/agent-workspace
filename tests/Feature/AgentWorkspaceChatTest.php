@@ -350,16 +350,18 @@ it('generates and stores an image when the administrator enables the feature', f
     ]);
 
     $response = $this->postJson(route('ai-plus.agent-workspace.generate-image'), [
-        'prompt' => 'A friendly robot reading a book',
+        'prompt' => 'A wide landscape illustration of a friendly robot reading a book',
     ]);
 
-    $response->assertOk()->assertJsonPath('prompt', 'A friendly robot reading a book');
+    $response->assertOk()->assertJsonPath('prompt', 'A wide landscape illustration of a friendly robot reading a book');
     $conversation = Conversation::firstOrFail();
     expect($conversation->type)->toBe(Conversation::TYPE_IMAGE)
         ->and($conversation->messages)->toHaveCount(2)
         ->and($conversation->messages->last()->content)->toContain('Generated image');
     Storage::disk('chat-attachments')->assertExists($conversation->id.'/'.basename(parse_url($response->json('image_url'), PHP_URL_PATH)));
     expect(UsageLog::latest('id')->value('completion_tokens'))->toBe(22);
+    Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/images/generations')
+        && str_contains($request->body(), 'auto'));
 });
 
 it('does not expose image generation when an administrator has disabled it', function () {
@@ -378,13 +380,20 @@ it('uses the image edits endpoint when reference images are supplied', function 
         ]),
     ]);
 
+    $sourceImage = imagecreatetruecolor(1200, 800);
+    ob_start();
+    imagepng($sourceImage);
+    $sourceImageBytes = ob_get_clean();
+    imagedestroy($sourceImage);
+
     $this->postJson(route('ai-plus.agent-workspace.generate-image'), [
         'prompt' => 'Replace the background with a library',
-        'reference_images' => ['data:image/png;base64,'.base64_encode('source-png-image')],
+        'reference_images' => ['data:image/png;base64,'.base64_encode($sourceImageBytes)],
     ])->assertOk();
 
     Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/images/edits')
-        && str_contains($request->body(), 'gpt-image-2.5-sunburst'));
+        && str_contains($request->body(), 'gpt-image-2.5-sunburst')
+        && str_contains($request->body(), '1248x832'));
     expect(Message::where('role', 'user')->value('content'))->toStartWith('🖼️ Edit image:');
 });
 

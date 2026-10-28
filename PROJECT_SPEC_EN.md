@@ -77,7 +77,7 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 
 ### 4.6 Image Workspace
 
-- Create and edit images from prompts/reference images using a separately configured image model.
+- New images use automatic sizing based on the prompt; edits use the first reference image's aspect ratio. Results display at their natural aspect ratio.
 - Outputs belong to conversations and have owner-checked download and deletion routes.
 
 ### 4.7 School Knowledge and safe use
