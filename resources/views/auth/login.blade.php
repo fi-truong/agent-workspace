@@ -34,6 +34,10 @@
         <div class="error">{{ session('status') }}</div>
         @endif
 
+        @if(request()->boolean('session_expired'))
+        <div class="error" role="status">Your AI+ session expired after a period of inactivity. Please sign in again.</div>
+        @endif
+
         @if($errors->any())
         <div class="error">{{ $errors->first() }}</div>
         @endif

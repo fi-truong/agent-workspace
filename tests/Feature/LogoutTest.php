@@ -27,6 +27,22 @@ test('authenticated pages cannot be cached after logout', function () {
         ->assertHeader('Cache-Control', 'max-age=0, must-revalidate, no-cache, no-store, private');
 });
 
+test('AI+ workspace redirects to login after the configured idle session lifetime', function () {
+    config(['session.lifetime' => 120]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('ai-plus.agent-workspace.index'))
+        ->assertOk()
+        ->assertSee('name="ai-plus-session-timeout-ms" content="7200000"', false)
+        ->assertSee('session-timeout.js', false);
+});
+
+test('the login page explains when an AI+ session expired', function () {
+    $this->get(route('login.local.form', ['session_expired' => 1]))
+        ->assertOk()
+        ->assertSee('Your AI+ session expired after a period of inactivity. Please sign in again.');
+});
+
 test('agent workspace requires authentication', function () {
     $this->get(route('ai-plus.agent-workspace.index'))
         ->assertRedirect(route('login.local.form'));

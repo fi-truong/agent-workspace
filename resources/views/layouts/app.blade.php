@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 @include('partials.favicon')
 <meta name="csrf-token" content="{{ csrf_token() }}">
+@include('partials.session-timeout-monitor')
 <script>
   // Áp dụng theme đã lưu NGAY LẬP TỨC, tránh nháy màu sai lúc đầu load trang
   (function(){
