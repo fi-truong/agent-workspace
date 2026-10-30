@@ -1872,6 +1872,72 @@ it('reads a real PDF attachment before sending the chat request', function () {
         ->toContain('Exam instructions for teachers.');
 });
 
+it('reads the requested later PDF page instead of using opening-page excerpts', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $pages = [];
+    for ($page = 1; $page <= 116; $page++) {
+        $content = $page === 1 ? 'BOOK_OPENING_PAGE_ONLY' : 'Page content '.$page;
+        if ($page === 116) {
+            $content = 'PAGE_116_REQUESTED_CONTENT';
+        }
+        $pages[] = '<div style="page-break-after: always">'.$content.'</div>';
+    }
+
+    $pdf = new \Dompdf\Dompdf;
+    $pdf->loadHtml('<html><body>'.implode('', $pages).'</body></html>');
+    $pdf->render();
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Đọc trang 116 trong file PDF này',
+        'documents' => [[
+            'name' => 'textbook.pdf',
+            'data_url' => 'data:application/pdf;base64,'.base64_encode($pdf->output()),
+        ]],
+    ])->assertOk();
+
+    $context = Message::where('role', 'user')->sole()->internal_context;
+    expect($context)
+        ->toContain('trang PDF 116')
+        ->toContain('PAGE_116_REQUESTED_CONTENT')
+        ->not->toContain('BOOK_OPENING_PAGE_ONLY');
+});
+
+it('renders the requested PDF page when that page has no extractable text', function () {
+    config(['openai.api_key' => 'sk-test']);
+
+    $pdf = '%PDF-1.4 test fixture';
+    $knowledgeService = \Mockery::mock(KnowledgeService::class);
+    $knowledgeService->shouldReceive('extractTextFromBinary')
+        ->once()
+        ->with($pdf, 'pdf')
+        ->andReturn('BOOK_OPENING_PAGE_ONLY');
+    $knowledgeService->shouldReceive('extractPdfPagesText')
+        ->once()
+        ->with($pdf, 116, 116)
+        ->andReturn('');
+    $knowledgeService->shouldReceive('renderScannedPdfPages')
+        ->once()
+        ->with($pdf, 116, 116)
+        ->andReturn(['data:image/jpeg;base64,VEFSR0VUX1BBR0U=']);
+    app()->instance(KnowledgeService::class, $knowledgeService);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Đọc trang 116 trong file PDF này',
+        'documents' => [[
+            'name' => 'scanned-textbook.pdf',
+            'data_url' => 'data:application/pdf;base64,'.base64_encode($pdf),
+        ]],
+    ])->assertOk();
+
+    $context = Message::where('role', 'user')->sole()->internal_context;
+    expect($context)
+        ->toContain('trang 116')
+        ->not->toContain('BOOK_OPENING_PAGE_ONLY');
+
+    Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request->data()), 'image_url'));
+});
+
 it('reads a real Excel attachment before sending the chat request', function () {
     config(['openai.api_key' => 'sk-test']);
 

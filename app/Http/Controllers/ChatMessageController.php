@@ -1210,6 +1210,8 @@ class ChatMessageController extends Controller
 
             $isSourceCode = $extension === 'html' || in_array($extension, KnowledgeService::CHAT_CODE_EXTENSIONS, true);
             $sourceCodeTruncated = false;
+            $requestedPdfPages = $extension === 'pdf' ? $this->requestedPdfPageRange($query) : null;
+            $requestedPdfPageText = false;
             if ($isSourceCode) {
                 $maximumSourceCharacters = $extension === 'html'
                     ? KnowledgeService::MAX_HTML_CODE_CONTEXT_CHARS
@@ -1217,15 +1219,23 @@ class ChatMessageController extends Controller
                 $source = $knowledgeService->sourceCodeForPiiScan($binary);
                 $sourceCodeTruncated = mb_strlen($source) > $maximumSourceCharacters;
                 $text = $knowledgeService->sourceCodeForEditing($source, $maximumSourceCharacters);
+            } elseif ($requestedPdfPages !== null) {
+                $text = $knowledgeService->extractPdfPagesText($binary, $requestedPdfPages[0], $requestedPdfPages[1]);
+                $requestedPdfPageText = $text !== '';
             } else {
                 $text = $knowledgeService->extractTextFromBinary($binary, $extension);
             }
-            $documentContextLimit = $forTranslation
+            $documentContextLimit = $requestedPdfPages !== null
+                ? self::MAX_TRANSLATION_DOCUMENT_CONTEXT_CHARS
+                : ($forTranslation
                 ? self::MAX_TRANSLATION_DOCUMENT_CONTEXT_CHARS
                 : ($fullDocumentCoverage
                     ? max(0, self::MAX_FULL_DOCUMENT_CONTEXT_CHARS - $fullDocumentChars)
-                    : self::MAX_DOCUMENT_CONTEXT_CHARS);
-            if ($text !== '' && ! $isSourceCode && $fullDocumentCoverage && ! $forTranslation) {
+                    : self::MAX_DOCUMENT_CONTEXT_CHARS));
+            if ($text !== '' && ! $isSourceCode && $requestedPdfPages !== null) {
+                $filteredText = $knowledgeService->filterAndTruncate($text, $documentContextLimit);
+                $text = $filteredText;
+            } elseif ($text !== '' && ! $isSourceCode && $fullDocumentCoverage && ! $forTranslation) {
                 $filteredText = $knowledgeService->filterAndTruncate($text, PHP_INT_MAX);
                 $fullDocumentTruncated = $fullDocumentTruncated || mb_strlen($filteredText) > $documentContextLimit;
                 $text = Str::limit($filteredText, $documentContextLimit);
@@ -1234,7 +1244,11 @@ class ChatMessageController extends Controller
                 $text = $knowledgeService->filterAndTruncate($text, $documentContextLimit);
             }
             $context = $text !== '' && ! $isSourceCode
-                ? (($forTranslation || $fullDocumentCoverage) ? $text : $knowledgeService->retrieveInlineContext($text, $query, $name))
+                ? ($requestedPdfPages !== null
+                    ? "[Nội dung trích xuất riêng từ trang PDF {$requestedPdfPages[0]}"
+                        .($requestedPdfPages[1] > $requestedPdfPages[0] ? '–'.$requestedPdfPages[1] : '')
+                        ." của {$name}. Chỉ dùng các trang được chỉ định; không suy luận từ trích đoạn ở trang khác.]\n{$text}"
+                    : (($forTranslation || $fullDocumentCoverage) ? $text : $knowledgeService->retrieveInlineContext($text, $query, $name)))
                 : '';
 
             if ($isSourceCode && $text !== '') {
@@ -1250,22 +1264,26 @@ class ChatMessageController extends Controller
                 continue;
             }
 
-            if ($text === '' && $extension === 'pdf') {
-                $pageRange = $this->requestedPdfPageRange($query);
+            if ($extension === 'pdf' && $requestedPdfPages !== null && ! $requestedPdfPageText) {
                 $pages = $knowledgeService->renderScannedPdfPages(
                     $binary,
-                    $pageRange[0] ?? 1,
-                    $pageRange[1] ?? null,
+                    $requestedPdfPages[0],
+                    $requestedPdfPages[1],
                 );
                 if ($pages !== []) {
                     $scannedPdfImages = array_merge($scannedPdfImages, $pages);
-                    $pageDescription = $pageRange
-                        ? 'trang '.$pageRange[0].($pageRange[1] > $pageRange[0] ? '–'.$pageRange[1] : '')
-                        : max(1, (int) config('openai.pdf_scan_max_pages', 10)).' trang đầu';
-                    $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(PDF dạng scan: đã gửi {$pageDescription} dưới dạng ảnh để AI đọc. Với PDF dài hơn, hãy nhắc người dùng chỉ định trang cần đọc để tiết kiệm token.)";
+                    $pageDescription = 'trang '.$requestedPdfPages[0]
+                        .($requestedPdfPages[1] > $requestedPdfPages[0] ? '–'.$requestedPdfPages[1] : '');
+                    $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(PDF scan: đã gửi riêng {$pageDescription} dưới dạng ảnh. Chỉ phân tích các trang được yêu cầu.)";
 
                     continue;
                 }
+
+                $pageDescription = 'trang '.$requestedPdfPages[0]
+                    .($requestedPdfPages[1] > $requestedPdfPages[0] ? '–'.$requestedPdfPages[1] : '');
+                $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(Không trích xuất hoặc render được {$pageDescription}. Không dùng trích đoạn từ các trang khác thay thế; hãy báo rõ chưa đọc được trang được yêu cầu.)";
+
+                continue;
             }
 
             $blocks[] = $context !== ''

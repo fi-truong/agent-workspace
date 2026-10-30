@@ -55,7 +55,7 @@ Checklist này dùng khi chuyển AI+ từ máy local lên server. Thực hiện
 
 ## 6. File, RAG, PDF và web reader
 
-- [ ] Cài Poppler (`pdftoppm`) và đặt `PDFTOPPM_BINARY` đúng đường dẫn tuyệt đối, thường là `/usr/bin/pdftoppm` trên Linux.
+- [ ] Cài Poppler (`pdftotext` và `pdftoppm`); đặt `PDFTOTEXT_BINARY` và `PDFTOPPM_BINARY` đúng đường dẫn tuyệt đối khi cần, thường là `/usr/bin/pdftotext` và `/usr/bin/pdftoppm` trên Linux. `pdftotext` trích xuất trang được chỉ định; `pdftoppm` là phương án đọc PDF scan.
 - [ ] Giữ `PDF_SCAN_MAX_PAGES=10`; PDF scan dài cần user chỉ định trang, ví dụ `pages 12–15`.
 - [ ] Test PDF có text, PDF scan, DOCX, XLSX, PPTX, TXT, CSV và HTML trong cả Chat lẫn Agent Knowledge.
 - [ ] Cài Chromium cho Playwright: `npx playwright install chromium` sau khi cài Node dependencies.

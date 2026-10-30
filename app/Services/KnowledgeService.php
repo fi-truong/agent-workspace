@@ -887,6 +887,68 @@ class KnowledgeService
     }
 
     /**
+     * Extract only the requested PDF pages. This avoids handing the model
+     * opening-page excerpts when the user asks about a later page.
+     */
+    public function extractPdfPagesText(string $binary, int $firstPage = 1, ?int $lastPage = null): string
+    {
+        $extractor = $this->pdfTextExtractor();
+        if ($extractor === null) {
+            Log::warning('Requested PDF pages cannot be extracted: pdftotext is unavailable');
+
+            return '';
+        }
+
+        $dir = sys_get_temp_dir().'/chat_pdf_text_'.Str::random(24);
+        if (! @mkdir($dir, 0700, true) && ! is_dir($dir)) {
+            return '';
+        }
+
+        $input = $dir.'/source.pdf';
+
+        try {
+            if (file_put_contents($input, $binary) === false) {
+                return '';
+            }
+
+            $maxPages = max(1, (int) config('openai.pdf_scan_max_pages', 10));
+            $firstPage = max(1, $firstPage);
+            $lastPage = min($lastPage ?? ($firstPage + $maxPages - 1), $firstPage + $maxPages - 1);
+            $process = new Process([
+                $extractor, '-layout', '-enc', 'UTF-8', '-f', (string) $firstPage,
+                '-l', (string) $lastPage, $input, '-',
+            ]);
+            $process->setTimeout(45);
+            $process->run();
+
+            if (! $process->isSuccessful()) {
+                Log::warning('Requested PDF page text extraction failed', [
+                    'exit_code' => $process->getExitCode(),
+                    'first_page' => $firstPage,
+                    'last_page' => $lastPage,
+                ]);
+
+                return '';
+            }
+
+            return trim($process->getOutput());
+        } catch (Throwable $e) {
+            Log::warning('Requested PDF page text extraction failed', [
+                'exception' => get_class($e),
+                'first_page' => $firstPage,
+                'last_page' => $lastPage,
+            ]);
+
+            return '';
+        } finally {
+            foreach (glob($dir.'/*') ?: [] as $file) {
+                @unlink($file);
+            }
+            @rmdir($dir);
+        }
+    }
+
+    /**
      * Render scanned PDF pages as JPEG data URLs for the existing multimodal
      * chat flow. Text PDFs do not need this because their text is extracted
      * directly. Returns an empty array if Poppler is not installed/configured.
@@ -967,6 +1029,25 @@ class KnowledgeService
             '/opt/homebrew/bin/pdftoppm',
             '/usr/local/bin/pdftoppm',
             '/usr/bin/pdftoppm',
+        ]);
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate) && is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function pdfTextExtractor(): ?string
+    {
+        $configured = config('openai.pdf_text_extractor_binary');
+        $candidates = array_filter([
+            is_string($configured) ? $configured : null,
+            '/opt/homebrew/bin/pdftotext',
+            '/usr/local/bin/pdftotext',
+            '/usr/bin/pdftotext',
         ]);
 
         foreach ($candidates as $candidate) {

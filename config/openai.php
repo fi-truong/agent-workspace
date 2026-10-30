@@ -65,6 +65,7 @@ return [
 
     // Fallback cho PDF scan/image-only: Poppler pdftoppm render trang PDF thành ảnh
     // để model vision có thể đọc. Ví dụ Linux: /usr/bin/pdftoppm.
+    'pdf_text_extractor_binary' => env('PDFTOTEXT_BINARY'),
     'pdf_scan_renderer_binary' => env('PDFTOPPM_BINARY'),
     'pdf_scan_max_pages' => (int) env('PDF_SCAN_MAX_PAGES', 10),
     'pdf_scan_max_width' => (int) env('PDF_SCAN_MAX_WIDTH', 1280),
