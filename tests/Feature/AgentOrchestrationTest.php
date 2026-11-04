@@ -7,6 +7,7 @@ use App\Models\ConversationAttachment;
 use App\Models\KnowledgeChunk;
 use App\Models\UsageLog;
 use App\Models\User;
+use App\Services\AgentOrchestrationService;
 use App\Services\ConversationSourceContextService;
 use App\Services\TokenQuotaService;
 use Illuminate\Http\Client\Request;
@@ -85,6 +86,136 @@ it('delegates then synthesizes without creating files or extra conversations and
     });
     Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'CHILD_INSTRUCTIONS') && ! isset($request['tools']) && $request['max_completion_tokens'] === 8192 && $request['reasoning_effort'] === 'none');
     expect(AdminAuditLog::where('event', 'agent.consulted')->first()->metadata)->toBe(['agent_id' => $this->childAgent->id, 'status' => 'completed']);
+});
+
+it('does not synthesize a requested specialist result that was cut off', function () {
+    $this->childAgent->update(['title' => '04 – Evidence reviewer']);
+    $stored = ConversationSourceContextService::encodeResults([[
+        'agent_id' => $this->childAgent->id, 'agent_title' => '04 – Evidence reviewer',
+        'task' => 'Review evidence', 'result' => 'Only the first record was received.',
+        'result_complete' => false, 'source_coverage' => [],
+    ]]);
+    $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Partial result.', 'internal_context' => $stored]);
+    Http::fake();
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Không gọi Agent 04. Dựa trên sáu hồ sơ Agent 04 đã phân tích, soạn bản nháp.',
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, '04 – Evidence reviewer')
+        && str_contains($reply, 'bị cắt') && str_contains($reply, 'chưa hoàn tất'));
+
+    Http::assertNothingSent();
+    expect(AiArtifact::count())->toBe(0);
+});
+
+it('does not export an earlier draft that was produced from a referenced incomplete specialist result', function () {
+    $this->childAgent->update(['title' => '04 – Evidence reviewer']);
+    $stored = ConversationSourceContextService::encodeResults([[
+        'agent_id' => $this->childAgent->id, 'agent_title' => '04 – Evidence reviewer',
+        'task' => 'Review evidence', 'result' => 'Partial findings.', 'result_complete' => false, 'source_coverage' => [],
+    ]]);
+    $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Partial findings.', 'internal_context' => $stored]);
+    $this->conversation->messages()->create(['role' => 'user', 'content' => 'Dựa trên các hồ sơ Agent 04 đã phân tích, soạn bản nháp.']);
+    $this->conversation->messages()->create(['role' => 'assistant', 'content' => '# Draft containing unverified findings']);
+    Http::fake();
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Tôi duyệt bản nháp. Tạo file Word từ toàn bộ bản nháp đó.',
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, '04 – Evidence reviewer')
+        && str_contains($reply, 'bị cắt'))->assertJsonPath('artifacts', []);
+
+    Http::assertNothingSent();
+    expect(AiArtifact::count())->toBe(0);
+});
+
+it('checks specialist completeness at the time the selected draft was written', function () {
+    $this->childAgent->update(['title' => '04 – Evidence reviewer']);
+    foreach ([false, true] as $complete) {
+        if ($complete) {
+            $this->conversation->messages()->create(['role' => 'user', 'content' => 'Dựa trên Agent 04, soạn bản nháp.']);
+            $draft = $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Earlier draft.']);
+        }
+        $stored = ConversationSourceContextService::encodeResults([[
+            'agent_id' => $this->childAgent->id, 'agent_title' => '04 – Evidence reviewer',
+            'task' => 'Review evidence', 'result' => 'Findings.', 'result_complete' => $complete, 'source_coverage' => [],
+        ]]);
+        $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Findings.', 'internal_context' => $stored]);
+    }
+    $this->conversation->messages()->create(['role' => 'user', 'content' => 'Tạo file Word từ bản nháp đã duyệt.']);
+    Http::fake();
+
+    $completion = app(AgentOrchestrationService::class)->complete(
+        $this->user, $this->conversation, [], 'System', 'test-user', [], draftMessageId: $draft->id,
+    );
+
+    expect($completion['blocked_by_incomplete_result'])->toBeTrue()
+        ->and($completion['content'])->toContain('04 – Evidence reviewer')->toContain('bị cắt');
+    Http::assertNothingSent();
+});
+
+it('allows an explicit retry of the specialist whose earlier result was incomplete', function () {
+    $this->childAgent->update(['title' => '04 – Evidence reviewer']);
+    $stored = ConversationSourceContextService::encodeResults([[
+        'agent_id' => $this->childAgent->id, 'agent_title' => '04 – Evidence reviewer',
+        'task' => 'Review evidence', 'result' => 'Partial.', 'result_complete' => false, 'source_coverage' => [],
+    ]]);
+    $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Partial.', 'internal_context' => $stored]);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Review evidence again')]))
+        ->push(connectedAgentResponse('Complete findings.'))
+        ->push(connectedAgentResponse('The findings are complete.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id, 'message' => 'Chỉ gọi lại Agent 04 để phân tích minh chứng.',
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'The findings are complete.'));
+    Http::assertSentCount(3);
+});
+
+it('uses a later complete result rather than blocking on an older incomplete result', function () {
+    $this->childAgent->update(['title' => '04 – Evidence reviewer']);
+    foreach ([false, true] as $complete) {
+        $stored = ConversationSourceContextService::encodeResults([[
+            'agent_id' => $this->childAgent->id, 'agent_title' => '04 – Evidence reviewer',
+            'task' => 'Review evidence', 'result' => 'Findings.', 'result_complete' => $complete, 'source_coverage' => [],
+        ]]);
+        $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Findings.', 'internal_context' => $stored]);
+    }
+    Http::fake(['https://api.openai.com/*' => Http::response(connectedAgentResponse('Combined answer.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id, 'message' => 'Dựa trên kết quả Agent 04, soạn bản nháp.',
+    ])->assertOk()->assertJsonPath('reply', 'Combined answer.');
+    Http::assertSentCount(1);
+});
+
+it('allows an unrelated task after a specialist result was incomplete', function () {
+    $stored = ConversationSourceContextService::encodeResults([[
+        'agent_id' => $this->childAgent->id, 'agent_title' => 'Reviewer',
+        'task' => 'Review evidence', 'result' => 'Partial.', 'result_complete' => false, 'source_coverage' => [],
+    ]]);
+    $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Partial.', 'internal_context' => $stored]);
+    Http::fake(['https://api.openai.com/*' => Http::response(connectedAgentResponse('A separate answer.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id, 'message' => 'Explain the objectives of a different lesson.',
+    ])->assertOk()->assertJsonPath('reply', 'A separate answer.');
+    Http::assertSentCount(1);
+});
+
+it('allows a task that explicitly excludes the incomplete specialist result', function () {
+    $this->childAgent->update(['title' => '04 – Evidence reviewer']);
+    $stored = ConversationSourceContextService::encodeResults([[
+        'agent_id' => $this->childAgent->id, 'agent_title' => '04 – Evidence reviewer',
+        'task' => 'Review evidence', 'result' => 'Partial.', 'result_complete' => false, 'source_coverage' => [],
+    ]]);
+    $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Partial.', 'internal_context' => $stored]);
+    Http::fake(['https://api.openai.com/*' => Http::response(connectedAgentResponse('A separate answer.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id, 'message' => 'Không dùng kết quả Agent 04, hãy giải thích mục tiêu bài học.',
+    ])->assertOk()->assertJsonPath('reply', 'A separate answer.');
+    Http::assertSentCount(1);
 });
 
 it('shows a table mismatch warning even when the coordinator omits it', function () {

@@ -130,7 +130,7 @@ class ChatMessageController extends Controller
                 set_time_limit($orchestration->requestTimeoutSeconds());
             }
             $completion = $usesConnectedAgents
-                ? $orchestration->complete($ctx['user'], $ctx['conversation'], $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'])
+                ? $orchestration->complete($ctx['user'], $ctx['conversation'], $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'], draftMessageId: $ctx['fileExportDraftId'])
                 : $chatService->complete($ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'], model: $ctx['model']);
         } catch (\RuntimeException $e) {
             return response()->json([
@@ -332,7 +332,7 @@ class ChatMessageController extends Controller
                 $completion = $usesConnectedAgents
                     ? $orchestration->complete(
                         $ctx['user'], $ctx['conversation'], $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'],
-                        $onDelta, fn (string $message) => $send('progress', ['message' => $message]),
+                        $onDelta, fn (string $message) => $send('progress', ['message' => $message]), $ctx['fileExportDraftId'],
                     )
                     : $chatService->streamComplete(
                         $ctx['history'],
@@ -674,7 +674,7 @@ class ChatMessageController extends Controller
     /**
      * Chuẩn bị conversation + history + system prompt — logic dùng chung cho store() và stream().
      *
-     * @return array{conversation: Conversation, model: string, history: array<int, array{role: string, content: mixed}>, fileExportDraft: ?string, systemPrompt: ?string, user: User, createdNew: bool, userMessageId: int, safetyIdentifier: string, agentKnowledgeOutOfScope: bool, autoDocumentTranslation: bool, hasAttachedDocuments: bool, hasCurrentTurnAttachments: bool, sourceCodeToolAvailable: bool, sourceCodeTools: array<int, array<string, mixed>>, tools: array<int, array<string, mixed>>}
+     * @return array{conversation: Conversation, model: string, history: array<int, array{role: string, content: mixed}>, fileExportDraft: ?string, fileExportDraftId: ?int, systemPrompt: ?string, user: User, createdNew: bool, userMessageId: int, safetyIdentifier: string, agentKnowledgeOutOfScope: bool, autoDocumentTranslation: bool, hasAttachedDocuments: bool, hasCurrentTurnAttachments: bool, sourceCodeToolAvailable: bool, sourceCodeTools: array<int, array<string, mixed>>, tools: array<int, array<string, mixed>>}
      */
     private function prepareTurn(Request $request, KnowledgeService $knowledgeService, SchoolKnowledgeService $schoolKnowledgeService, WebPageReaderService $webPageReader, WorkUsePolicyService $workUsePolicy, ConversationSourceContextService $conversationSources, AgentConnectionService $agentConnections): array
     {
@@ -921,6 +921,7 @@ class ChatMessageController extends Controller
             'model' => $model,
             'history' => $history,
             'fileExportDraft' => $fileExportDraft?->content,
+            'fileExportDraftId' => $fileExportDraft?->id,
             'systemPrompt' => $systemPrompt,
             'user' => $user,
             'createdNew' => $createdNew,
@@ -1786,13 +1787,16 @@ class ChatMessageController extends Controller
     }
 
     /**
-     * @param  array{content: string, prompt_tokens: int, completion_tokens: int, tool_calls?: array<int, array{id: string, name: string, arguments: string}>, file_confirmation_error?: bool}  $completion
+     * @param  array{content: string, prompt_tokens: int, completion_tokens: int, tool_calls?: array<int, array{id: string, name: string, arguments: string}>, file_confirmation_error?: bool, blocked_by_incomplete_result?: bool}  $completion
      * @param  array{model: string, history: array<int, array{role: string, content: mixed}>, fileExportDraft?: ?string, systemPrompt: ?string, safetyIdentifier: string, sourceCodeTools: array<int, array<string, mixed>>, hasAttachedDocuments?: bool, hasCurrentTurnAttachments?: bool, fullDocumentCoverage?: bool, fullDocumentContextTruncated?: bool}|null  $chatContext
      * @return array{artifacts: array<int, array{name: string, url: string}>, email_draft: mixed, code_patch_error?: string, code_patch_summary?: string, artifact_error?: string, upload_request?: string}
      */
     private function createRequestedOutputs(array &$completion, Conversation $conversation, User $user, ArtifactService $artifacts, EmailDraftService $drafts, KnowledgeService $knowledgeService, ?ChatCompletionService $chatService = null, ?array $chatContext = null): array
     {
         $result = ['artifacts' => [], 'email_draft' => null];
+        if (($completion['blocked_by_incomplete_result'] ?? false) === true) {
+            return $result;
+        }
         $proposedFileAction = collect($completion['tool_calls'] ?? [])
             ->first(fn (array $toolCall): bool => in_array($toolCall['name'], [
                 'apply_code_patch',
@@ -2061,6 +2065,7 @@ class ChatMessageController extends Controller
                     && ($chatContext['hasAttachedDocuments'] ?? false)) {
                     $savedDraft = $chatContext['fileExportDraft'] ?? null;
                     $draftOnly = false;
+                    $draftConfirmation = null;
                     if (! ($chatContext['hasCurrentTurnAttachments'] ?? false)
                         && is_string($savedDraft) && trim($savedDraft) !== ''
                         && mb_strlen($savedDraft) <= self::MAX_CURRENT_TURN_CHARS
@@ -2069,9 +2074,17 @@ class ChatMessageController extends Controller
                         $draftOnly = $this->confirmRequestedFileAction($draftConfirmation, 'export_chat_draft', $conversation, $chatService, $chatContext);
                         $completion['prompt_tokens'] += $draftConfirmation['prompt_tokens'];
                         $completion['completion_tokens'] += $draftConfirmation['completion_tokens'];
+                        Log::info('Draft-only export confirmation completed', [
+                            'conversation_id' => $conversation->id,
+                            'status' => $draftOnly ? 'confirmed' : (($draftConfirmation['file_confirmation_error'] ?? false) ? 'error' : 'not_confirmed'),
+                        ]);
                     }
                     if (! $draftOnly) {
-                        $result['artifact_error'] = 'The attached document is longer than the full-processing limit, so I did not create a partial file. Please split the document or upload the relevant months/sections.';
+                        $result['artifact_error'] = ($draftConfirmation['file_confirmation_error'] ?? false)
+                            ? 'Không tạo được file vì bước xác nhận nguồn xuất gặp lỗi kỹ thuật.'
+                            : ($draftConfirmation !== null
+                                ? 'Chưa tạo file vì chưa xác nhận được yêu cầu chỉ dùng bản nháp đã lưu. Nếu cần cả tài liệu đính kèm, phần nguồn vượt giới hạn xử lý đầy đủ.'
+                                : 'The attached document is longer than the full-processing limit, so I did not create a partial file. Please split the document or upload the relevant months/sections.');
 
                         return $result;
                     }
@@ -2158,10 +2171,13 @@ class ChatMessageController extends Controller
         $actionLabel = match ($toolName) {
             'apply_code_patch' => 'edit the attached source file and return an updated copy',
             'revise_ai_artifact' => 'revise a file previously created in AI+ and return a new copy',
-            'export_chat_draft' => 'export only the complete earlier chat draft as-is; preserve its existing sections, without adding, editing, translating, or using other attached source documents',
+            'export_chat_draft' => 'export only the previously prepared chat draft with its existing content preserved; keeping already separate sections distinct is permitted, but adding new material, translating, substantively editing, or using attached documents is not',
             default => 'create or export a downloadable file',
         };
         $confirmationPrompt = "\n\nAI+ FILE ACTION CONFIRMATION GATE: Decide only whether the latest user message authorizes this file operation: {$actionLabel}. This is an intent check, not a capability check. AI+ has a backend file tool; earlier assistant claims that no file tool exists are irrelevant. A tool call from the previous model response is only a proposal and is not authorization. Confirm only if the latest user clearly requests this operation. A question about whether it is possible, a hypothetical, or a request for advice is not authorization. If ambiguous, do not confirm. When confirmed, output exactly {$confirmedMarker} and nothing else. Otherwise, answer the user's latest request normally in chat, without creating a file and without claiming a file was created.";
+        if ($toolName === 'export_chat_draft') {
+            $confirmationPrompt .= ' A request to keep existing sections separate is compatible with exporting the existing draft; do not reject it solely for that wording. Requests for additional material from attached documents, translation, or substantive edits do not qualify.';
+        }
 
         try {
             $latestUser = $conversation->messages()->where('role', 'user')->latest('id')->first(['id', 'content']);

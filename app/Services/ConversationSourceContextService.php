@@ -457,6 +457,33 @@ class ConversationSourceContextService
         return self::decodeResults($storedContext) !== [];
     }
 
+    /** @return list<array<string, mixed>> */
+    public function latestResultsByAgent(User $user, Conversation $conversation, ?int $beforeMessageId = null): array
+    {
+        abort_unless($conversation->user_id === $user->id && $conversation->type === Conversation::TYPE_CHAT, 404);
+        $latest = [];
+        $messages = $conversation->messages()->where('role', 'assistant');
+        if ($beforeMessageId !== null) {
+            $messages->where('id', '<', $beforeMessageId);
+        }
+        foreach ($messages->orderBy('id')->get(['internal_context']) as $message) {
+            foreach (self::decodeResults($message->internal_context) as $result) {
+                $id = $result['agent_id'] ?? null;
+                $name = trim((string) ($result['agent_title'] ?? ''));
+                if (is_int($id) && $id > 0) {
+                    if ($name !== '') {
+                        unset($latest['name:'.mb_strtolower($name)]);
+                    }
+                    $latest['id:'.$id] = $result;
+                } elseif ($name !== '') {
+                    $latest['name:'.mb_strtolower($name)] = $result;
+                }
+            }
+        }
+
+        return array_values($latest);
+    }
+
     /**
      * @param  Collection<int, Message>  $messages
      * @return array<int, array<string, mixed>>

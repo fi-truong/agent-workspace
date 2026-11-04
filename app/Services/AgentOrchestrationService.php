@@ -60,7 +60,7 @@ class AgentOrchestrationService
      * @param  callable(string): void|null  $onProgress
      * @return array<string, mixed>
      */
-    public function complete(User $user, Conversation $conversation, array $history, string $systemPrompt, string $safetyIdentifier, array $tools, ?callable $onDelta = null, ?callable $onProgress = null): array
+    public function complete(User $user, Conversation $conversation, array $history, string $systemPrompt, string $safetyIdentifier, array $tools, ?callable $onDelta = null, ?callable $onProgress = null, ?int $draftMessageId = null): array
     {
         $model = ChatModelService::resolve($conversation->chat_model);
         $specialistModel = ChatModelService::resolveSpecialist($conversation->specialist_model);
@@ -69,6 +69,22 @@ class AgentOrchestrationService
             return $onDelta
                 ? $this->chat->streamComplete($history, $systemPrompt, $onDelta, $safetyIdentifier, $tools, model: $model)
                 : $this->chat->complete($history, $systemPrompt, $safetyIdentifier, $tools, model: $model);
+        }
+        $latestUserText = (string) $conversation->messages()->where('role', 'user')->latest('id')->value('content');
+        $incomplete = $this->mentionedIncompleteResults($user, $conversation, $latestUserText);
+        if ($incomplete === [] && $draftMessageId !== null) {
+            $draftRequest = (string) $conversation->messages()->where('role', 'user')
+                ->where('id', '<', $draftMessageId)->latest('id')->value('content');
+            $incomplete = $this->mentionedIncompleteResults($user, $conversation, $draftRequest, $draftMessageId);
+        }
+        if ($incomplete !== []) {
+            $names = implode(', ', $incomplete);
+
+            return $this->finish([
+                'content' => "Chưa thể tổng hợp từ kết quả {$names}: phản hồi chuyên viên trước đó bị cắt và chưa hoàn tất. Phần chưa nhận không phải kết quả đã phân tích. Cần gọi lại chuyên viên để hoàn tất trước khi dựa vào kết quả này; tài liệu đã lưu trong chat có thể được sử dụng lại nếu còn đầy đủ.",
+                'tool_calls' => [],
+                'blocked_by_incomplete_result' => true,
+            ], $history, 0, 0, [], false);
         }
         $catalog = $available->map(fn (Agent $agent): array => [
             'agent_id' => $agent->id,
@@ -235,6 +251,41 @@ class AgentOrchestrationService
         }
 
         return $this->finish(['content' => 'The Agent consultation limit was reached. Please narrow the request and try again.', 'tool_calls' => []], $history, $promptTokens, $completionTokens, $consulted, $knowledgeUsed, $stepResults, $sourceCoverage, $failedAgents);
+    }
+
+    /** @return list<string> */
+    private function mentionedIncompleteResults(User $user, Conversation $conversation, string $request, ?int $beforeMessageId = null): array
+    {
+        $incomplete = [];
+        foreach ($this->conversationSources->latestResultsByAgent($user, $conversation, $beforeMessageId) as $result) {
+            if (($result['result_complete'] ?? true) !== false) {
+                continue;
+            }
+            $title = trim((string) ($result['agent_title'] ?? ''));
+            if ($title === '') {
+                continue;
+            }
+            $mentioned = preg_match('/(?<![\pL\pN])'.preg_quote($title, '/').'(?![\pL\pN])/iu', $request) === 1;
+            $reference = '(?:(?:agent|chuyên\s*viên)\s+)?'.preg_quote($title, '/');
+            if (preg_match('/^\s*0*(\d{1,3})(?:\s|[–—-])/u', $title, $number) === 1) {
+                $shortReference = '(?:agent|chuyên\s*viên)\s*0*'.preg_quote($number[1], '/').'(?!\d)';
+                $mentioned = $mentioned || preg_match('/(?<![\pL\pN])'.$shortReference.'/iu', $request) === 1;
+                $reference = '(?:'.$reference.'|'.$shortReference.')';
+            }
+            $action = '(?:gọi|chạy|hỏi|call|consult|retry)\s+(?:lại\s+)?'.$reference;
+            $explicitRetry = preg_match('/(?<![\pL\pN])'.$action.'/iu', $request) === 1
+                && preg_match('/(?<![\pL\pN])(?:không|đừng|do\s+not|don\x27t)\s+'.$action.'/iu', $request) !== 1;
+            $explicitExclusion = preg_match('/(?<![\pL\pN])(?:không|đừng|bỏ\s+qua|loại\s+trừ|exclude|ignore|without)\s+(?:(?:dùng|sử\s+dụng|dựa\s+vào|kết\s+quả|results?\s+of)\s+)*'.$reference.'/iu', $request) === 1;
+            if ($explicitExclusion) {
+                $referenceCount = preg_match_all('/(?<![\pL\pN])'.$reference.'(?![\pL\pN])/iu', $request);
+                $explicitExclusion = $referenceCount === 1;
+            }
+            if ($mentioned && ! $explicitRetry && ! $explicitExclusion) {
+                $incomplete[] = $title;
+            }
+        }
+
+        return array_values(array_unique($incomplete));
     }
 
     /** @param  array<int, array<string, mixed>>  $stepResults */
