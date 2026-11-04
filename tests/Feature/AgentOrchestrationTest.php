@@ -79,7 +79,7 @@ it('delegates then synthesizes without creating files or extra conversations and
             && ($message['tool_call_id'] ?? '') === 'call-review' && str_contains($message['content'], 'REVIEW_FINDINGS'))
             && collect($messages)->contains(fn (array $message): bool => ($message['role'] ?? '') === 'assistant' && isset($message['tool_calls']));
     });
-    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'CHILD_INSTRUCTIONS') && ! isset($request['tools']) && $request['max_completion_tokens'] === 2048);
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'CHILD_INSTRUCTIONS') && ! isset($request['tools']) && $request['max_completion_tokens'] === 2048 && $request['reasoning_effort'] === 'none');
     expect(AdminAuditLog::where('event', 'agent.consulted')->first()->metadata)->toBe(['agent_id' => $this->childAgent->id, 'status' => 'completed']);
 });
 
@@ -239,6 +239,43 @@ it('reports complete source handoff when a specialist call fails after receiving
             && str_contains($message['content'], 'teaching-guide.txt'),
     ));
 });
+
+it('records usage and source coverage when a specialist returns no text', function (string $finishReason, string $failureKind, string $guidance) {
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Analyze the attached results')]))
+        ->push([
+            'choices' => [['message' => ['content' => ''], 'finish_reason' => $finishReason]],
+            'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 2048],
+            'model' => 'gpt-6-luna',
+        ])
+        ->push(connectedAgentResponse('The specialist did not return findings.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Analyze the attached results.',
+        'documents' => [[
+            'name' => 'results.txt',
+            'data_url' => 'data:text/plain;base64,'.base64_encode('SYNTHETIC_RESULTS_MARKER: three sample records.'),
+        ]],
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Agent result missing')
+        && str_contains($reply, $guidance)
+        && str_contains($reply, 'You do not need to upload the same files again.')
+        && ! str_contains($reply, 'Agents returned results'));
+
+    expect(UsageLog::where('activity_title', 'Connected Agent consultation')->first()->completion_tokens)->toBe(2048)
+        ->and(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(2098)
+        ->and(AdminAuditLog::where('event', 'agent.consulted')->count())->toBe(0);
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'] ?? '', 'CHILD_INSTRUCTIONS')
+        && requestHasContent($request, 'SYNTHETIC_RESULTS_MARKER')
+        && $request['reasoning_effort'] === 'none');
+    Http::assertSent(fn (Request $request): bool => collect($request['messages'])->where('role', 'tool')->contains(
+        fn (array $message): bool => str_contains($message['content'], '"failure_kind":"'.$failureKind.'"')
+            && str_contains($message['content'], '"handoff_complete":true'),
+    ));
+})->with([
+    ['length', 'output_limit', 'reached its response limit'],
+    ['stop', 'empty_response', 'returned an empty result'],
+]);
 
 it('passes a truncated specialist result as partial and reports that it is incomplete', function () {
     Http::fake(['https://api.openai.com/*' => Http::sequence()

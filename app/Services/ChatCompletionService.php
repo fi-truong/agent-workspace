@@ -18,7 +18,7 @@ class ChatCompletionService
      *
      * @throws \RuntimeException
      */
-    public function complete(array $messages, ?string $systemPrompt = null, ?string $safetyIdentifier = null, array $tools = [], ?int $maxCompletionTokens = null, ?int $timeoutSeconds = null, ?string $model = null): array
+    public function complete(array $messages, ?string $systemPrompt = null, ?string $safetyIdentifier = null, array $tools = [], ?int $maxCompletionTokens = null, ?int $timeoutSeconds = null, ?string $model = null, ?string $reasoningEffort = null, bool $allowEmptyResponse = false): array
     {
         [$payload, $filtered] = $this->buildPayload($messages, $systemPrompt);
 
@@ -27,7 +27,7 @@ class ChatCompletionService
         }
 
         try {
-            return $this->client->chat($payload, $safetyIdentifier, $maxCompletionTokens === null ? $this->outputTokenLimit($payload) : min($maxCompletionTokens, $this->outputTokenLimit($payload)), $tools, $timeoutSeconds, $model);
+            return $this->client->chat($payload, $safetyIdentifier, $maxCompletionTokens === null ? $this->outputTokenLimit($payload) : min($maxCompletionTokens, $this->outputTokenLimit($payload)), $tools, $timeoutSeconds, $model, $reasoningEffort, $allowEmptyResponse);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }

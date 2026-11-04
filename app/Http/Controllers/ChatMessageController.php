@@ -1037,6 +1037,8 @@ class ChatMessageController extends Controller
             'provider_unavailable', 'rate_limited', 'connection_failed' => 'The AI service could not complete this Agent call. Please try again later.',
             'model_access' => 'The selected specialist model is unavailable. Choose another available model or contact support.',
             'request_rejected' => 'The AI service rejected this Agent request. Please contact support.',
+            'output_limit' => 'This Agent reached its response limit before returning findings. Please contact support if this persists.',
+            'empty_response' => 'The AI service returned an empty result for this Agent. Please try again or contact support if this persists.',
             default => null,
         };
     }

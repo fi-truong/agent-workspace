@@ -18,7 +18,7 @@ class OpenAIClient
      *
      * @throws \Throwable
      */
-    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = [], ?int $timeoutSeconds = null, ?string $model = null): array
+    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = [], ?int $timeoutSeconds = null, ?string $model = null, ?string $reasoningEffort = null, bool $allowEmptyResponse = false): array
     {
         $apiKey = config('openai.api_key');
 
@@ -32,7 +32,7 @@ class OpenAIClient
             'model' => $model ?? config('openai.model'),
             'messages' => $messages,
             'max_completion_tokens' => $maxCompletionTokens ?? config('openai.max_tokens'),
-            'reasoning_effort' => $tools !== [] ? 'none' : config('openai.reasoning_effort'),
+            'reasoning_effort' => $tools !== [] ? 'none' : ($reasoningEffort ?? config('openai.reasoning_effort')),
         ];
         if ($tools !== []) {
             $payload['tools'] = $tools;
@@ -84,17 +84,17 @@ class OpenAIClient
         if (! is_string($content)) {
             $content = '';
         }
-        if ($content === '' && $toolCalls === []) {
-            throw new \RuntimeException('OpenAI trả về phản hồi thiếu nội dung.');
-        }
-
         $finishReason = $data['choices'][0]['finish_reason'] ?? null;
 
-        if ($content === '' && $finishReason === 'length') {
-            throw new \RuntimeException(
-                'Câu trả lời bị cắt vì vượt giới hạn token (thường do prompt/Knowledge quá dài). '
-                .'Hãy thử rút ngắn tin nhắn, hoặc liên hệ CIEC để tăng giới hạn.'
-            );
+        if ($content === '' && $toolCalls === [] && ! $allowEmptyResponse) {
+            if ($finishReason === 'length') {
+                throw new \RuntimeException(
+                    'Câu trả lời bị cắt vì vượt giới hạn token (thường do prompt/Knowledge quá dài). '
+                    .'Hãy thử rút ngắn tin nhắn, hoặc liên hệ CIEC để tăng giới hạn.'
+                );
+            }
+
+            throw new \RuntimeException('OpenAI trả về phản hồi thiếu nội dung.');
         }
 
         $usage = $data['usage'] ?? [];

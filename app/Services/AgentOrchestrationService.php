@@ -182,7 +182,11 @@ class AgentOrchestrationService
                                     $onProgress($output['result_complete'] ? 'Received results from '.$child->title : 'Received a partial result from '.$child->title);
                                 }
                             } else {
-                                $failedAgents[] = ['agent_title' => $child->title];
+                                $failedAgents[] = [
+                                    'agent_title' => $child->title,
+                                    'source_handoff_complete' => $this->sourceHandoffComplete($output['source_coverage'] ?? null),
+                                    'failure_kind' => $output['failure_kind'] ?? null,
+                                ];
                                 if ($onProgress !== null) {
                                     $onProgress('Could not get a result from '.$child->title);
                                 }
@@ -254,10 +258,17 @@ class AgentOrchestrationService
             }
             $completion = $this->chat->complete([
                 ['role' => 'user', 'content' => $userContent],
-            ], $prompt, $safetyIdentifier, [], max(1, min((int) config('agent_connections.delegate_max_tokens', 2048), $this->quota->remainingTokens($user, $model), $tokenBudget)), $this->callTimeoutSeconds($secondsLeft), $model);
+            ], $prompt, $safetyIdentifier, [], max(1, min((int) config('agent_connections.delegate_max_tokens', 2048), $this->quota->remainingTokens($user, $model), $tokenBudget)), $this->callTimeoutSeconds($secondsLeft), $model, reasoningEffort: 'none', allowEmptyResponse: true);
             $this->recordUsage($user, $conversation, $completion, 'Connected Agent consultation');
             if (trim($completion['content']) === '') {
-                return ['error' => 'This Agent returned no result. Do not present it as completed.'];
+                return [
+                    'error' => 'This Agent returned no result. Do not present it as completed.',
+                    'source_coverage' => $handoff['coverage'],
+                    'failure_kind' => ($completion['finish_reason'] ?? null) === 'length' ? 'output_limit' : 'empty_response',
+                    'prompt_tokens' => $completion['prompt_tokens'],
+                    'completion_tokens' => $completion['completion_tokens'],
+                    'knowledge_used' => $knowledgeUsed,
+                ];
             }
 
             $wasTruncated = mb_strlen($completion['content']) > 12000 || ($completion['finish_reason'] ?? null) === 'length';

@@ -53,6 +53,17 @@ it('sends a privacy-preserving safety identifier when supplied', function () {
     Http::assertSent(fn (Request $request): bool => $request->data()['safety_identifier'] === 'hashed-user-id');
 });
 
+it('distinguishes an empty output limit response from a generic empty response', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::fake(['https://api.openai.com/*' => Http::response([
+        'choices' => [['message' => ['content' => ''], 'finish_reason' => 'length']],
+        'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 2048],
+    ])]);
+
+    expect(fn () => (new OpenAIClient)->chat([['role' => 'user', 'content' => 'Analyze synthetic results']]))
+        ->toThrow(RuntimeException::class, 'vượt giới hạn token');
+});
+
 it('decodes streamed function-call arguments without exposing them as text deltas', function () {
     config(['openai.api_key' => 'sk-test', 'openai.model' => 'gpt-6-luna']);
     $toolArguments = json_encode([
