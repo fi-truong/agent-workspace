@@ -2072,20 +2072,23 @@ class ChatMessageController extends Controller
             'revise_ai_artifact' => 'revise a file previously created in AI+ and return a new copy',
             default => 'create or export a downloadable file',
         };
-        $confirmationPrompt = "\n\nAI+ FILE ACTION CONFIRMATION GATE: A tool call from the previous model response is only a proposal and is not authorization. Review the latest user request and use prior conversation only to resolve what the user refers to. Confirm this action only if the user clearly asked for this file operation: {$actionLabel}. If the latest turn is a question, asks for explanation/advice, discusses a hypothetical, asks what file formats are available, or otherwise does not clearly request this operation, do not confirm. If ambiguous, do not confirm. When confirmed, output exactly {$confirmedMarker} and nothing else. Otherwise, answer the user's latest request normally in chat, without creating a file and without claiming a file was created. This gate overrides any earlier instruction that might suggest creating a file.";
+        $confirmationPrompt = "\n\nAI+ FILE ACTION CONFIRMATION GATE: Decide only whether the latest user message authorizes this file operation: {$actionLabel}. This is an intent check, not a capability check. AI+ has a backend file tool; earlier assistant claims that no file tool exists are irrelevant. A tool call from the previous model response is only a proposal and is not authorization. Confirm only if the latest user clearly requests this operation. A question about whether it is possible, a hypothetical, or a request for advice is not authorization. If ambiguous, do not confirm. When confirmed, output exactly {$confirmedMarker} and nothing else. Otherwise, answer the user's latest request normally in chat, without creating a file and without claiming a file was created.";
 
         try {
             $latestUser = $conversation->messages()->where('role', 'user')->latest('id')->first(['id', 'content']);
             if ($latestUser === null) {
                 throw new \RuntimeException('The current user request is unavailable.');
             }
-            $previousAssistant = $conversation->messages()->where('role', 'assistant')
-                ->where('id', '<', $latestUser->id)->latest('id')->value('content');
+            $latestUserText = trim($latestUser->content);
             $verificationHistory = [];
-            if (is_string($previousAssistant) && $previousAssistant !== '') {
-                $verificationHistory[] = ['role' => 'assistant', 'content' => mb_substr($previousAssistant, -2000)];
+            if (! $this->mightRequestFileCreation($latestUserText)) {
+                $previousAssistant = $conversation->messages()->where('role', 'assistant')
+                    ->where('id', '<', $latestUser->id)->latest('id')->value('content');
+                if (is_string($previousAssistant) && $previousAssistant !== '') {
+                    $verificationHistory[] = ['role' => 'assistant', 'content' => mb_substr($previousAssistant, -2000)];
+                }
             }
-            $verificationHistory[] = ['role' => 'user', 'content' => $latestUser->content];
+            $verificationHistory[] = ['role' => 'user', 'content' => $latestUserText];
             $verification = $chatService->complete(
                 $verificationHistory,
                 trim($confirmationPrompt),
@@ -2100,6 +2103,26 @@ class ChatMessageController extends Controller
 
             if ($reply === $confirmedMarker) {
                 return true;
+            }
+
+            if ($this->mightRequestFileCreation($latestUserText)) {
+                $retry = $chatService->complete(
+                    [['role' => 'user', 'content' => $latestUserText]],
+                    "AI+ FILE ACTION INTENT RETRY: Classify only whether the user explicitly requests this operation: {$actionLabel}. Ignore tool availability and all previous assistant responses. Questions about capability and hypothetical requests do not authorize an action. Reply with exactly {$confirmedMarker} if authorized; otherwise reply with exactly AI_PLUS_FILE_ACTION_NOT_REQUESTED. Do not answer the user or discuss capabilities.",
+                    $chatContext['safetyIdentifier'],
+                    maxCompletionTokens: 128,
+                    model: $chatContext['model'],
+                    reasoningEffort: 'none',
+                );
+                $completion['prompt_tokens'] += $retry['prompt_tokens'];
+                $completion['completion_tokens'] += $retry['completion_tokens'];
+                $retryReply = trim($retry['content']);
+                if ($retryReply === $confirmedMarker) {
+                    return true;
+                }
+                if ($retryReply !== 'AI_PLUS_FILE_ACTION_NOT_REQUESTED') {
+                    throw new \RuntimeException('The file action intent check did not return a valid decision.');
+                }
             }
 
             $completion['content'] = $reply !== '' ? $reply : $fallbackReply;

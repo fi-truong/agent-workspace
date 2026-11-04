@@ -911,6 +911,7 @@ it('recovers an approved draft file request when the model falsely says it has n
     Http::swap(new Factory);
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(['choices' => [['message' => ['content' => 'I cannot create a Word file in this chat.']]], 'usage' => ['prompt_tokens' => 12, 'completion_tokens' => 8], 'model' => 'gpt-6-luna'])
+        ->push(fileActionConfirmationResponse('Mình chưa thể tạo file Word tải xuống trong phiên này.'))
         ->push(fileActionConfirmationResponse())
         ->push(artifactToolCallResponse('word', "# Approved draft\n\nCOMPLETE_DRAFT_MARKER", 'The Word file is ready.'))]);
     $conversation = Conversation::create([
@@ -928,7 +929,7 @@ it('recovers an approved draft file request when the model falsely says it has n
         'message' => 'Tôi duyệt bản nháp cuối. Tạo file Word tải xuống từ đúng bản đã duyệt.',
     ])->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name): bool => str_ends_with($name, '.docx'));
 
-    Http::assertSentCount(3);
+    Http::assertSentCount(4);
     Http::assertSent(fn (Request $request): bool => ! isset($request['tools'])
         && str_contains($request['messages'][0]['content'] ?? '', 'FILE ACTION CONFIRMATION GATE')
         && count($request['messages']) <= 3
@@ -938,6 +939,50 @@ it('recovers an approved draft file request when the model falsely says it has n
     ] && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'COMPLETE_DRAFT_MARKER')
         && ! str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'không có công cụ'));
     expect(AiArtifact::count())->toBe(1);
+});
+
+it('rechecks an explicit Word export when the file confirmation gate falsely claims no tool is available', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(artifactToolCallResponse('word', "# Approved assessment\n\nComplete content."))
+        ->push(fileActionConfirmationResponse('Mình chưa thể tạo file Word tải xuống trong phiên này.'))
+        ->push(fileActionConfirmationResponse())]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id, 'title' => 'Approved assessment', 'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant',
+        'content' => 'Xin lỗi, tôi không có công cụ tạo Word trong phiên này.']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id,
+        'message' => 'Tôi duyệt bản nháp cuối. Hãy tạo file Word tải xuống từ đúng bản nháp đó.',
+    ])->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name): bool => str_ends_with($name, '.docx'));
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'] ?? '', 'FILE ACTION CONFIRMATION GATE')
+        && ! str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'không có công cụ'));
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'] ?? '', 'FILE ACTION INTENT RETRY')
+        && count($request['messages']) === 2);
+    expect(AiArtifact::count())->toBe(1);
+});
+
+it('does not create an approved draft file when a capability question fails the intent retry', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(artifactToolCallResponse('word', '# Unrequested assessment'))
+        ->push(fileActionConfirmationResponse('I cannot create a Word file here.'))
+        ->push(fileActionConfirmationResponse('AI_PLUS_FILE_ACTION_NOT_REQUESTED'))]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id, 'title' => 'Assessment question', 'type' => Conversation::TYPE_CHAT,
+    ]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id,
+        'message' => 'Bạn có thể tạo file Word từ bản nháp đã duyệt không?',
+    ])->assertOk()->assertJsonPath('artifacts', []);
+
+    expect(AiArtifact::count())->toBe(0);
 });
 
 it('reports a technical confirmation failure without asking the user to clarify an explicit file request', function () {
@@ -962,7 +1007,8 @@ it('does not recover a file tool for a question about an earlier draft', functio
     Http::swap(new Factory);
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(['choices' => [['message' => ['content' => 'Yes, you can ask me to create it.']]], 'usage' => ['prompt_tokens' => 8, 'completion_tokens' => 7], 'model' => 'gpt-6-luna'])
-        ->push(fileActionConfirmationResponse('This is a question, not a file request.'))]);
+        ->push(fileActionConfirmationResponse('This is a question, not a file request.'))
+        ->push(fileActionConfirmationResponse('AI_PLUS_FILE_ACTION_NOT_REQUESTED'))]);
     $conversation = Conversation::create([
         'user_id' => $this->user->id, 'title' => 'Earlier draft', 'type' => Conversation::TYPE_CHAT,
     ]);
@@ -975,7 +1021,7 @@ it('does not recover a file tool for a question about an earlier draft', functio
     ])->assertOk()->assertJsonPath('artifacts', [])
         ->assertJsonPath('reply', 'Yes, you can ask me to create it.');
 
-    Http::assertSentCount(2);
+    Http::assertSentCount(3);
     expect(AiArtifact::count())->toBe(0);
 });
 

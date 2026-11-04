@@ -218,6 +218,7 @@ it('recovers a Word export from an approved draft in a connected Agent chat', fu
     ]];
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(connectedAgentResponse('I cannot create a Word file here.'))
+        ->push(connectedAgentResponse('Mình chưa thể tạo file Word tải xuống trong phiên này.'))
         ->push(connectedAgentResponse('AI_PLUS_FILE_ACTION_CONFIRMED'))
         ->push(connectedAgentResponse('', [$artifactCall]))]);
 
@@ -226,7 +227,7 @@ it('recovers a Word export from an approved draft in a connected Agent chat', fu
         'message' => 'Tôi duyệt bản nháp cuối. Tạo file Word tải xuống từ bản nháp đã duyệt.',
     ])->assertOk()->assertJsonCount(1, 'artifacts');
 
-    Http::assertSentCount(3);
+    Http::assertSentCount(4);
     Http::assertSent(fn (Request $request): bool => ($request['tool_choice'] ?? null) === [
         'type' => 'function', 'function' => ['name' => 'create_ai_artifact'],
     ]);
