@@ -1015,6 +1015,13 @@ class ChatMessageController extends Controller
         foreach (array_slice($failedAgents, 0, 5) as $item) {
             $agent = $this->safeNoticeLabel((string) ($item['agent_title'] ?? 'Connected Agent'));
             $parts[] = '⚠️ **Agent result missing:** '.$agent.' did not return a usable result; its findings were not included in the summary.';
+            $guidance = $this->failedAgentGuidance($item['failure_kind'] ?? null);
+            if ($guidance !== null) {
+                $parts[] = $guidance;
+            }
+            if (($item['source_handoff_complete'] ?? null) === true) {
+                $parts[] = 'The saved source material was supplied to this Agent before the call failed. You do not need to upload the same files again.';
+            }
         }
         $remainingFailures = max(0, count($failedAgents) - 5);
         if ($remainingFailures > 0) {
@@ -1022,6 +1029,16 @@ class ChatMessageController extends Controller
         }
 
         return $parts === [] ? $completion['content'] : rtrim($completion['content'])."\n\n".implode("\n\n", $parts);
+    }
+
+    private function failedAgentGuidance(mixed $failureKind): ?string
+    {
+        return match ($failureKind) {
+            'provider_unavailable', 'rate_limited', 'connection_failed' => 'The AI service could not complete this Agent call. Please try again later.',
+            'model_access' => 'The selected specialist model is unavailable. Choose another available model or contact support.',
+            'request_rejected' => 'The AI service rejected this Agent request. Please contact support.',
+            default => null,
+        };
     }
 
     private function safeNoticeLabel(string $value): string

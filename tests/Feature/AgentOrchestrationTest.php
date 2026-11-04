@@ -207,8 +207,37 @@ it('recovers from a specialist error without inventing a file or losing quota us
         ->push(['error' => ['message' => 'Unavailable']], 503)
         ->push(connectedAgentResponse('Reviewer was unavailable. Here is what I can answer.'))]);
     $this->postJson(route('ai-plus.agent-workspace.send'), ['conversation_id' => $this->conversation->id, 'message' => 'Review the school plan'])
-        ->assertOk()->assertJsonPath('reply', "Reviewer was unavailable. Here is what I can answer.\n\n⚠️ **Agent result missing:** Reviewer did not return a usable result; its findings were not included in the summary.");
+        ->assertOk()->assertJsonPath('reply', "Reviewer was unavailable. Here is what I can answer.\n\n⚠️ **Agent result missing:** Reviewer did not return a usable result; its findings were not included in the summary.\n\nThe AI service could not complete this Agent call. Please try again later.");
     expect(AiArtifact::count())->toBe(0)->and(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(30);
+});
+
+it('reports complete source handoff when a specialist call fails after receiving a long attachment', function () {
+    $source = str_repeat("Teaching context and assessment criteria for the class.\n", 280)
+        ."FINAL_SOURCE_MARKER: The last section is available to the specialist.\n";
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Review the attached guide')]))
+        ->push(['error' => ['message' => 'Unavailable']], 503)
+        ->push(connectedAgentResponse('The specialist request failed.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review the attached guide.',
+        'documents' => [[
+            'name' => 'teaching-guide.txt',
+            'data_url' => 'data:text/plain;base64,'.base64_encode($source),
+        ]],
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Agent result missing')
+        && str_contains($reply, 'The AI service could not complete this Agent call.')
+        && str_contains($reply, 'You do not need to upload the same files again.')
+        && ! str_contains($reply, 'Agent source coverage'));
+
+    expect(ConversationAttachment::where('original_name', 'teaching-guide.txt')->value('extraction_complete'))->toBeTrue();
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'] ?? '', 'CHILD_INSTRUCTIONS')
+        && requestHasContent($request, 'FINAL_SOURCE_MARKER'));
+    Http::assertSent(fn (Request $request): bool => collect($request['messages'])->where('role', 'tool')->contains(
+        fn (array $message): bool => str_contains($message['content'], '"handoff_complete":true')
+            && str_contains($message['content'], 'teaching-guide.txt'),
+    ));
 });
 
 it('passes a truncated specialist result as partial and reports that it is incomplete', function () {
