@@ -9,4 +9,8 @@ return [
     'max_turn_tokens' => 32000,
     'timeout_seconds' => 300,
     'delegate_max_tokens' => 2048,
+    'handoff_context_chars' => 24000,
+    'handoff_chunk_chars' => 2000,
+    'max_handoff_images' => 4,
+    'max_saved_source_chars' => 1000000,
 ];

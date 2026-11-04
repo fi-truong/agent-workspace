@@ -12,9 +12,9 @@ class OpenAIClient
     /**
      * Gọi OpenAI Chat Completions API (không streaming — giữ nguyên cho các chỗ khác đang dùng).
      *
-     * @param  array<int, array{role: string, content: mixed}>  $messages
+     * @param  array<int, array<string, mixed>>  $messages
      * @param  array<int, array<string, mixed>>  $tools
-     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string, tool_calls: array<int, array{id: string, name: string, arguments: string}>}
+     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string, finish_reason: ?string, tool_calls: array<int, array{id: string, name: string, arguments: string}>}
      *
      * @throws \Throwable
      */
@@ -65,15 +65,21 @@ class OpenAIClient
 
         $message = $data['choices'][0]['message'] ?? [];
         $content = $message['content'] ?? '';
-        $toolCalls = collect($message['tool_calls'] ?? [])
-            ->map(fn (array $toolCall): array => [
+        $toolCalls = [];
+        foreach (is_array($message['tool_calls'] ?? null) ? $message['tool_calls'] : [] as $toolCall) {
+            if (! is_array($toolCall)) {
+                continue;
+            }
+
+            $toolCall = [
                 'id' => (string) ($toolCall['id'] ?? ''),
                 'name' => (string) ($toolCall['function']['name'] ?? ''),
                 'arguments' => (string) ($toolCall['function']['arguments'] ?? ''),
-            ])
-            ->filter(fn (array $toolCall): bool => $toolCall['id'] !== '' && $toolCall['name'] !== '')
-            ->values()
-            ->all();
+            ];
+            if ($toolCall['id'] !== '' && $toolCall['name'] !== '') {
+                $toolCalls[] = $toolCall;
+            }
+        }
 
         if (! is_string($content)) {
             $content = '';
@@ -98,6 +104,7 @@ class OpenAIClient
             'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
             'completion_tokens' => (int) ($usage['completion_tokens'] ?? 0),
             'model' => $data['model'] ?? $model ?? config('openai.model'),
+            'finish_reason' => is_string($finishReason) ? $finishReason : null,
             'tool_calls' => $toolCalls,
         ];
     }
@@ -107,10 +114,10 @@ class OpenAIClient
      * Mỗi khi nhận được 1 đoạn nội dung mới, gọi $onDelta($textChunk) ngay lập tức
      * để caller (controller) đẩy tiếp ra trình duyệt theo thời gian thực.
      *
-     * @param  array<int, array{role: string, content: mixed}>  $messages
+     * @param  array<int, array<string, mixed>>  $messages
      * @param  callable(string): void  $onDelta
      * @param  array<int, array<string, mixed>>  $tools
-     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string, tool_calls: array<int, array{id: string, name: string, arguments: string}>}
+     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model: string, finish_reason: ?string, tool_calls: array<int, array{id: string, name: string, arguments: string}>}
      *
      * @throws \Throwable
      */
@@ -283,6 +290,7 @@ class OpenAIClient
             'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
             'completion_tokens' => (int) ($usage['completion_tokens'] ?? 0),
             'model' => $model,
+            'finish_reason' => is_string($finishReason) ? $finishReason : null,
             'tool_calls' => $toolCalls,
         ];
     }

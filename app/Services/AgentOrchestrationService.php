@@ -14,6 +14,7 @@ class AgentOrchestrationService
 {
     public function __construct(
         private readonly AgentConnectionService $connections,
+        private readonly ConversationSourceContextService $conversationSources,
         private readonly ChatCompletionService $chat,
         private readonly KnowledgeService $knowledge,
         private readonly SchoolKnowledgeService $schoolKnowledge,
@@ -73,6 +74,9 @@ class AgentOrchestrationService
         $completionTokens = 0;
         $attempted = [];
         $consulted = [];
+        $failedAgents = [];
+        $stepResults = [];
+        $sourceCoverage = [];
         $knowledgeUsed = false;
         $maxCalls = min(count($catalog), (int) config('agent_connections.max_calls', 10));
 
@@ -83,7 +87,7 @@ class AgentOrchestrationService
                 return $this->finish([
                     'content' => 'The connected-Agent task stopped at its time or token limit. No final file was created. Please narrow the request or try again.',
                     'tool_calls' => [],
-                ], $history, $promptTokens, $completionTokens, $consulted, $knowledgeUsed);
+                ], $history, $promptTokens, $completionTokens, $consulted, $knowledgeUsed, $stepResults, $sourceCoverage, $failedAgents);
             }
 
             $roundTools = $tools;
@@ -92,8 +96,8 @@ class AgentOrchestrationService
             }
             // ChatCompletionService retains its existing short/long input
             // selection; this upper bound must not reduce long-file output.
-            $maxOutput = min(max((int) config('openai.max_tokens', 8192), (int) config('openai.long_max_tokens', 16384)), max(1, $this->quota->remainingTokens($user, $model)));
-            $maxOutput = min($maxOutput, max(1, (int) config('agent_connections.max_turn_tokens', 32000) - $promptTokens - $completionTokens));
+            $maxOutput = (int) min(max((int) config('openai.max_tokens', 8192), (int) config('openai.long_max_tokens', 16384)), max(1, $this->quota->remainingTokens($user, $model)));
+            $maxOutput = (int) min($maxOutput, max(1, (int) config('agent_connections.max_turn_tokens', 32000) - $promptTokens - $completionTokens));
             $callTimeout = $this->callTimeoutSeconds($secondsLeft);
             $completion = $onDelta
                 ? $this->chat->streamComplete($history, $systemPrompt, $onDelta, $safetyIdentifier, $roundTools, $maxOutput, $callTimeout, $model)
@@ -105,7 +109,7 @@ class AgentOrchestrationService
             $calls = $completion['tool_calls'] ?? [];
             $hasConsultation = collect($calls)->contains(fn (array $call): bool => $call['name'] === 'consult_connected_agent');
             if (! $hasConsultation) {
-                return $this->finish($completion, $history, $promptTokens, $completionTokens, $consulted, $knowledgeUsed);
+                return $this->finish($completion, $history, $promptTokens, $completionTokens, $consulted, $knowledgeUsed, $stepResults, $sourceCoverage, $failedAgents);
             }
 
             $history[] = [
@@ -128,6 +132,7 @@ class AgentOrchestrationService
                     if ($child === null || ! $this->connections->enabled() || ! $this->connections->canUse($user, $child)
                         || ! $conversation->agent?->connectedAgents()->where('agents.id', $agentId)->exists()) {
                         $output = ['error' => 'This Agent is not connected or is no longer available to this user.'];
+                        $failedAgents[] = ['agent_title' => 'Connected Agent'];
                     } elseif (isset($attempted[$agentId]) || count($attempted) >= $maxCalls || $round >= $maxCalls) {
                         $output = ['error' => 'Agent consultation limit reached. Use the results already available.'];
                     } elseif ($task === '' || mb_strlen($task) > 16000) {
@@ -139,13 +144,52 @@ class AgentOrchestrationService
                         if ($onProgress !== null) {
                             $onProgress('Consulting '.$child->title.'…');
                         }
-                        $output = $this->consult($user, $conversation, $child, $task, $safetyIdentifier, $startedAt, (int) config('agent_connections.max_turn_tokens', 32000) - $promptTokens - $completionTokens, $specialistModel);
+                        $output = $this->consult($user, $conversation, $child, $task, $safetyIdentifier, $startedAt, (int) config('agent_connections.max_turn_tokens', 32000) - $promptTokens - $completionTokens, $specialistModel, $stepResults);
                         if (isset($output['prompt_tokens'])) {
                             $promptTokens += $output['prompt_tokens'];
                             $completionTokens += $output['completion_tokens'];
                             $knowledgeUsed = $knowledgeUsed || $output['knowledge_used'];
-                            $consulted[] = $child->title;
+                            if (in_array(($output['status'] ?? null), ['completed', 'partial'], true)) {
+                                $consulted[] = $child->title;
+                                $stepResults[] = [
+                                    'agent_id' => $child->id,
+                                    'agent_title' => $child->title,
+                                    'task' => $task,
+                                    'result' => $output['result'],
+                                    'result_complete' => $output['result_complete'],
+                                    'source_coverage' => $output['source_coverage'],
+                                ];
+                                foreach ($output['source_coverage'] as $coverageItem) {
+                                    $sourceCoverage[] = ['agent_title' => $child->title, ...$coverageItem];
+                                }
+                                if (! $output['result_complete']) {
+                                    $sourceCoverage[] = [
+                                        'agent_title' => $child->title,
+                                        'source_name' => 'Agent result',
+                                        'source_type' => 'previous_result',
+                                        'status' => 'partial',
+                                        'extraction_complete' => false,
+                                        'handoff_complete' => false,
+                                        'source_chars' => 0,
+                                        'sent_chars' => 0,
+                                        'message' => 'The specialist result reached an output limit and may omit later findings.',
+                                    ];
+                                }
+                                if ($onProgress !== null) {
+                                    $onProgress($output['result_complete'] ? 'Received results from '.$child->title : 'Received a partial result from '.$child->title);
+                                }
+                            } else {
+                                $failedAgents[] = ['agent_title' => $child->title];
+                                if ($onProgress !== null) {
+                                    $onProgress('Could not get a result from '.$child->title);
+                                }
+                            }
                             unset($output['prompt_tokens'], $output['completion_tokens'], $output['knowledge_used']);
+                        } else {
+                            $failedAgents[] = ['agent_title' => $child->title];
+                            if ($onProgress !== null) {
+                                $onProgress('Could not get a result from '.$child->title);
+                            }
                         }
                     }
                 }
@@ -156,11 +200,14 @@ class AgentOrchestrationService
             }
         }
 
-        return $this->finish(['content' => 'The Agent consultation limit was reached. Please narrow the request and try again.', 'tool_calls' => []], $history, $promptTokens, $completionTokens, $consulted, $knowledgeUsed);
+        return $this->finish(['content' => 'The Agent consultation limit was reached. Please narrow the request and try again.', 'tool_calls' => []], $history, $promptTokens, $completionTokens, $consulted, $knowledgeUsed, $stepResults, $sourceCoverage, $failedAgents);
     }
 
-    /** @return array<string, mixed> */
-    private function consult(User $user, Conversation $conversation, Agent $agent, string $task, string $safetyIdentifier, int $startedAt, int $tokenBudget, string $model): array
+    /**
+     * @param  array<int, array<string, mixed>>  $previousResults
+     * @return array<string, mixed>
+     */
+    private function consult(User $user, Conversation $conversation, Agent $agent, string $task, string $safetyIdentifier, int $startedAt, int $tokenBudget, string $model, array $previousResults): array
     {
         if ($this->quota->isExhausted($user)) {
             return ['error' => 'The user token quota has been reached.'];
@@ -188,19 +235,43 @@ class AgentOrchestrationService
             if ($secondsLeft < 1) {
                 return ['error' => 'The consultation time limit has been reached.'];
             }
+            $handoff = $this->conversationSources->forDelegation($user, $conversation, $task, $previousResults);
+            $userContent = [[
+                'type' => 'text',
+                'text' => $handoff['text'],
+            ]];
+            foreach ($handoff['images'] as $image) {
+                $userContent[] = ['type' => 'image_url', 'image_url' => ['url' => $image]];
+            }
             $completion = $this->chat->complete([
-                ['role' => 'user', 'content' => $task],
+                ['role' => 'user', 'content' => $userContent],
             ], $prompt, $safetyIdentifier, [], max(1, min((int) config('agent_connections.delegate_max_tokens', 2048), $this->quota->remainingTokens($user, $model), $tokenBudget)), $this->callTimeoutSeconds($secondsLeft), $model);
             $this->recordUsage($user, $conversation, $completion, 'Connected Agent consultation');
+            if (trim($completion['content']) === '') {
+                return ['error' => 'This Agent returned no result. Do not present it as completed.'];
+            }
+
+            $wasTruncated = mb_strlen($completion['content']) > 12000 || ($completion['finish_reason'] ?? null) === 'length';
+            $result = mb_substr($completion['content'], 0, 12000);
+            if ($wasTruncated) {
+                $result .= "\n[Agent result truncated: additional response text was not saved or passed to later steps.]";
+            }
+
             try {
-                AdminAuditLog::record('agent.consulted', $conversation, ['agent_id' => $agent->id, 'status' => 'completed']);
+                AdminAuditLog::record('agent.consulted', $conversation, [
+                    'agent_id' => $agent->id,
+                    'status' => $wasTruncated ? 'partial' : 'completed',
+                ]);
             } catch (\Throwable $exception) {
                 Log::warning('Connected Agent audit could not be recorded', ['conversation_id' => $conversation->id, 'exception' => $exception::class]);
             }
 
             return [
                 'agent_id' => $agent->id,
-                'result' => $this->piiFilter->filter(mb_substr($completion['content'], 0, 12000))['filtered'],
+                'status' => $wasTruncated ? 'partial' : 'completed',
+                'result' => $this->piiFilter->filter($result)['filtered'],
+                'result_complete' => ! $wasTruncated,
+                'source_coverage' => $handoff['coverage'],
                 'prompt_tokens' => $completion['prompt_tokens'],
                 'completion_tokens' => $completion['completion_tokens'],
                 'knowledge_used' => $knowledgeUsed,
@@ -255,15 +326,21 @@ class AgentOrchestrationService
      * @param  array<string, mixed>  $completion
      * @param  array<int, array<string, mixed>>  $history
      * @param  array<int, string>  $consulted
+     * @param  array<int, array<string, mixed>>  $stepResults
+     * @param  array<int, array<string, mixed>>  $sourceCoverage
+     * @param  array<int, array{agent_title: string}>  $failedAgents
      * @return array<string, mixed>
      */
-    private function finish(array $completion, array $history, int $promptTokens, int $completionTokens, array $consulted, bool $knowledgeUsed): array
+    private function finish(array $completion, array $history, int $promptTokens, int $completionTokens, array $consulted, bool $knowledgeUsed, array $stepResults = [], array $sourceCoverage = [], array $failedAgents = []): array
     {
         return array_merge($completion, [
             'prompt_tokens' => $promptTokens, 'completion_tokens' => $completionTokens,
             'recorded_prompt_tokens' => $promptTokens, 'recorded_completion_tokens' => $completionTokens,
             'connected_agents' => array_values(array_unique($consulted)),
             'connected_knowledge_used' => $knowledgeUsed,
+            'connected_agent_source_coverage' => $sourceCoverage,
+            'failed_agents' => $failedAgents,
+            'delegation_results' => $stepResults,
             'orchestration_history' => $history,
         ]);
     }

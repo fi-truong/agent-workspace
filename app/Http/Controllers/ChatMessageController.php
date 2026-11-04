@@ -14,6 +14,7 @@ use App\Services\AgentOrchestrationService;
 use App\Services\ArtifactService;
 use App\Services\ChatCompletionService;
 use App\Services\ChatModelService;
+use App\Services\ConversationSourceContextService;
 use App\Services\EmailDraftService;
 use App\Services\ImageGenerationService;
 use App\Services\KnowledgeService;
@@ -106,7 +107,7 @@ class ChatMessageController extends Controller
         WebPageReaderService $webPageReader,
         WorkUsePolicyService $workUsePolicy,
         TokenQuotaService $tokenQuotaService, ArtifactService $artifactService, EmailDraftService $emailDraftService,
-        AgentConnectionService $agentConnections, AgentOrchestrationService $orchestration,
+        AgentConnectionService $agentConnections, AgentOrchestrationService $orchestration, ConversationSourceContextService $conversationSources,
     ) {
         set_time_limit(120);
 
@@ -121,7 +122,7 @@ class ChatMessageController extends Controller
             return $this->tokenQuotaExceededResponse();
         }
 
-        $ctx = $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy);
+        $ctx = $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy, $conversationSources, $agentConnections);
 
         try {
             $usesConnectedAgents = $agentConnections->forAgent($ctx['conversation']->agent, $ctx['user'])->isNotEmpty();
@@ -281,7 +282,7 @@ class ChatMessageController extends Controller
         WebPageReaderService $webPageReader,
         WorkUsePolicyService $workUsePolicy,
         TokenQuotaService $tokenQuotaService, ArtifactService $artifactService, EmailDraftService $emailDraftService,
-        AgentConnectionService $agentConnections, AgentOrchestrationService $orchestration,
+        AgentConnectionService $agentConnections, AgentOrchestrationService $orchestration, ConversationSourceContextService $conversationSources,
     ): StreamedResponse|JsonResponse {
         set_time_limit(120);
 
@@ -297,7 +298,7 @@ class ChatMessageController extends Controller
             return $this->tokenQuotaExceededResponse();
         }
 
-        $ctx = $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy);
+        $ctx = $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy, $conversationSources, $agentConnections);
 
         return response()->stream(function () use ($ctx, $chatService, $request, $tokenQuotaService, $artifactService, $emailDraftService, $knowledgeService, $agentConnections, $orchestration) {
             while (ob_get_level() > 0) {
@@ -644,6 +645,8 @@ class ChatMessageController extends Controller
 
         $maxDocumentBytes = KnowledgeService::MAX_CHAT_DOCUMENT_SIZE_KB * 1024;
         foreach ($documents as $document) {
+            $name = is_array($document) ? trim((string) ($document['name'] ?? 'attached file')) : 'attached file';
+            $safeName = Str::limit(preg_replace('/[\r\n\t]+/', ' ', basename($name)) ?: 'attached file', 100);
             $dataUrl = is_array($document) ? ($document['data_url'] ?? null) : null;
             if (! is_string($dataUrl) || ! preg_match('#^data:[^;]+;base64,([A-Za-z0-9+/=]+)$#s', $dataUrl, $matches)) {
                 return 'Một tài liệu đính kèm không hợp lệ. Vui lòng chọn lại tệp.';
@@ -655,7 +658,8 @@ class ChatMessageController extends Controller
             }
             $bytes = strlen($binary);
             if ($bytes > $maxDocumentBytes) {
-                return 'Mỗi tài liệu chỉ được tối đa '.KnowledgeService::MAX_CHAT_DOCUMENT_SIZE_KB.' KB.';
+                return 'File "'.$safeName.'" was not read because chat attachments are limited to '
+                    .KnowledgeService::MAX_CHAT_DOCUMENT_SIZE_KB.' KB each. Reduce its size or split it and attach it again.';
             }
             $totalBytes += $bytes;
         }
@@ -672,9 +676,10 @@ class ChatMessageController extends Controller
      *
      * @return array{conversation: Conversation, model: string, history: array<int, array{role: string, content: mixed}>, systemPrompt: ?string, user: User, createdNew: bool, userMessageId: int, safetyIdentifier: string, agentKnowledgeOutOfScope: bool, autoDocumentTranslation: bool, hasAttachedDocuments: bool, hasCurrentTurnAttachments: bool, sourceCodeToolAvailable: bool, sourceCodeTools: array<int, array<string, mixed>>, tools: array<int, array<string, mixed>>}
      */
-    private function prepareTurn(Request $request, KnowledgeService $knowledgeService, SchoolKnowledgeService $schoolKnowledgeService, WebPageReaderService $webPageReader, WorkUsePolicyService $workUsePolicy): array
+    private function prepareTurn(Request $request, KnowledgeService $knowledgeService, SchoolKnowledgeService $schoolKnowledgeService, WebPageReaderService $webPageReader, WorkUsePolicyService $workUsePolicy, ConversationSourceContextService $conversationSources, AgentConnectionService $agentConnections): array
     {
         $images = array_slice($request->input('images', []), 0, 4);
+        $uploadedImages = $images;
         $documents = array_slice($request->input('documents', []), 0, 5);
 
         Log::info('Chat send received', [
@@ -735,6 +740,9 @@ class ChatMessageController extends Controller
             }
         }
 
+        $storeDelegationSources = $conversation->agent !== null
+            && $agentConnections->forAgent($conversation->agent, $user)->isNotEmpty();
+
         $model = ChatModelService::resolve($request->input('model') ?? $conversation->chat_model);
         if ($conversation->chat_model !== $model) {
             $conversation->update(['chat_model' => $model]);
@@ -751,11 +759,12 @@ class ChatMessageController extends Controller
         // tệp vẫn hiển thị trong bubble, còn nội dung trích xuất không bao giờ
         // bị lẫn vào prompt hiển thị của người dùng.
         $autoDocumentTranslation = $documents !== [] && $this->requestsAttachedDocumentTranslation($request->message);
-        [$documentBlocks, $scannedPdfImages, $fullDocumentContextTruncated] = $this->extractChatDocuments(
+        [$documentBlocks, $scannedPdfImages, $fullDocumentContextTruncated, $documentSources, $renderedPdfPages] = $this->extractChatDocuments(
             $documents,
             $knowledgeService,
             $request->message,
             $autoDocumentTranslation,
+            max(0, self::MAX_VISION_IMAGES - count($images)),
         );
         $fullDocumentCoverage = $this->requestsComprehensiveDocumentCoverage($request->message);
         // PDF scan được render thành ảnh ở server và đi qua cùng luồng vision với ảnh người dùng gửi.
@@ -802,6 +811,11 @@ class ChatMessageController extends Controller
             'content' => $userContent !== '' ? $userContent : '[Gửi tệp đính kèm]',
             'internal_context' => $internalContext !== '' ? $internalContext : null,
         ]);
+        if ($storeDelegationSources) {
+            $conversationSources->storeDocumentSources($user, $conversation, $userMessage, $documentSources);
+            $conversationSources->storeImageSources($user, $conversation, $userMessage, $attachedPaths, $uploadedImages);
+            $conversationSources->storeRenderedPages($user, $conversation, $userMessage, $renderedPdfPages);
+        }
         $this->persistSourceCodeAttachments($documents, $conversation, $userMessage);
 
         // Sidebar sắp xếp theo updated_at, nên mỗi lượt nhắn phải cập nhật conversation.
@@ -827,8 +841,9 @@ class ChatMessageController extends Controller
                 $limit = in_array($m->id, [$userMessage->id, $latestDocumentMessageId], true)
                     ? self::MAX_CURRENT_TURN_CHARS
                     : self::MAX_MESSAGE_CHARS;
-                $internalContext = $m->internal_context
-                    ? html_entity_decode($m->internal_context, ENT_QUOTES | ENT_HTML5, 'UTF-8')
+                $historyContext = ConversationSourceContextService::formatResultsForHistory($m->internal_context);
+                $internalContext = $historyContext
+                    ? html_entity_decode($historyContext, ENT_QUOTES | ENT_HTML5, 'UTF-8')
                     : null;
 
                 return [
@@ -929,7 +944,7 @@ class ChatMessageController extends Controller
     }
 
     /**
-     * @param  array{content: string, prompt_tokens: int, completion_tokens: int, model?: string, recorded_prompt_tokens?: int, recorded_completion_tokens?: int}  $completion
+     * @param  array{content: string, prompt_tokens: int, completion_tokens: int, model?: string, recorded_prompt_tokens?: int, recorded_completion_tokens?: int, delegation_results?: array<int, array<string, mixed>>}  $completion
      */
     private function persistAssistantReply(Conversation $conversation, User $user, Request $request, array $completion, bool $createdNew = false): void
     {
@@ -937,6 +952,7 @@ class ChatMessageController extends Controller
             'conversation_id' => $conversation->id,
             'role' => 'assistant',
             'content' => $completion['content'],
+            'internal_context' => ConversationSourceContextService::encodeResults($completion['delegation_results'] ?? []),
             'prompt_tokens' => $completion['prompt_tokens'],
             'completion_tokens' => $completion['completion_tokens'],
         ]);
@@ -967,12 +983,50 @@ class ChatMessageController extends Controller
     private function appendConnectedAgentNotice(array $completion): string
     {
         $names = $completion['connected_agents'] ?? [];
-        if ($names === []) {
-            return $completion['content'];
+        $parts = [];
+        if ($names !== []) {
+            $labels = array_map(fn (string $name): string => $this->safeNoticeLabel($name), $names);
+            $parts[] = '🤖 **Agents returned results:** '.implode(', ', $labels).'.';
         }
-        $labels = array_map(fn (string $name): string => preg_replace('/[\r\n<>\[\]*_`]/u', '', $name) ?? 'Agent', $names);
 
-        return rtrim($completion['content'])."\n\n🤖 **Agents consulted:** ".implode(', ', $labels).'.';
+        $allIncomplete = [];
+        foreach ($completion['connected_agent_source_coverage'] ?? [] as $item) {
+            if (is_array($item) && ! ($item['handoff_complete'] ?? false)) {
+                $allIncomplete[] = $item;
+            }
+        }
+        foreach (array_slice($allIncomplete, 0, 8) as $item) {
+            $agent = $this->safeNoticeLabel((string) ($item['agent_title'] ?? 'Agent'));
+            $source = $this->safeNoticeLabel((string) ($item['source_name'] ?? 'source material'));
+            $message = trim(strip_tags((string) ($item['message'] ?? 'Only partial content was supplied.')));
+            $parts[] = '⚠️ **Agent source coverage:** '.$agent.' — '.$source.': '.$message;
+        }
+        $remainingWarnings = max(0, count($allIncomplete) - 8);
+        if ($remainingWarnings > 0) {
+            $parts[] = '⚠️ **Agent source coverage:** '.$remainingWarnings.' additional source item(s) were incomplete.';
+        }
+
+        $failedAgents = [];
+        foreach ($completion['failed_agents'] ?? [] as $item) {
+            if (is_array($item)) {
+                $failedAgents[] = $item;
+            }
+        }
+        foreach (array_slice($failedAgents, 0, 5) as $item) {
+            $agent = $this->safeNoticeLabel((string) ($item['agent_title'] ?? 'Connected Agent'));
+            $parts[] = '⚠️ **Agent result missing:** '.$agent.' did not return a usable result; its findings were not included in the summary.';
+        }
+        $remainingFailures = max(0, count($failedAgents) - 5);
+        if ($remainingFailures > 0) {
+            $parts[] = '⚠️ **Agent result missing:** '.$remainingFailures.' additional Agent(s) did not return usable results.';
+        }
+
+        return $parts === [] ? $completion['content'] : rtrim($completion['content'])."\n\n".implode("\n\n", $parts);
+    }
+
+    private function safeNoticeLabel(string $value): string
+    {
+        return Str::limit(preg_replace('/[\r\n<>`*_\[\](){}|]/u', '', strip_tags($value)) ?: 'source', 120, '');
     }
 
     private function prependAgentKnowledgeScopeNotice(string $content, bool $outsideAgentKnowledge): string
@@ -1164,17 +1218,18 @@ class ChatMessageController extends Controller
     }
 
     /**
-     * Trich van ban tu cac tai lieu (khong phai anh) dinh kem trong o chat - gui kem message
-     * duoi dang data URL base64 (giong co che anh), nhung KHONG luu file goc lai, chi lay text
-     * de dua vao ngu canh cua luot chat hien tai. Co PII filter (Layer 1) + gioi han do dai.
+     * Extract chat attachments for the current model request and preserve a
+     * private, PII-filtered source snapshot for permission-checked delegation.
      *
      * @param  array<int, array{name?: string, data_url?: string}>  $documents
-     * @return array{0: array<int, string>, 1: array<int, string>, 2: bool} [text blocks, scanned-PDF page images, full-document truncation]
+     * @return array{0: array<int, string>, 1: array<int, string>, 2: bool, 3: array<int, array<string, mixed>>, 4: array<int, array{name: string, page: int, data_url: string}>}
      */
-    private function extractChatDocuments(array $documents, KnowledgeService $knowledgeService, string $query, bool $forTranslation = false): array
+    private function extractChatDocuments(array $documents, KnowledgeService $knowledgeService, string $query, bool $forTranslation = false, int $remainingVisionSlots = self::MAX_VISION_IMAGES): array
     {
         $blocks = [];
         $scannedPdfImages = [];
+        $sourceRecords = [];
+        $renderedPdfPages = [];
         $maxBytes = KnowledgeService::MAX_CHAT_DOCUMENT_SIZE_KB * 1024;
         $fullDocumentCoverage = $this->requestsComprehensiveDocumentCoverage($query);
         $fullDocumentChars = 0;
@@ -1185,16 +1240,37 @@ class ChatMessageController extends Controller
             $dataUrl = is_array($doc) ? (string) ($doc['data_url'] ?? '') : '';
 
             if (! preg_match('#^data:([^;]+);base64,(.+)$#s', $dataUrl, $m)) {
+                $sourceRecords[] = [
+                    'original_name' => $name,
+                    'extension' => strtolower(pathinfo($name, PATHINFO_EXTENSION)),
+                    'status' => 'unreadable',
+                    'status_message' => 'The attachment data was invalid. Reattach the file to continue.',
+                ];
+
                 continue;
             }
 
-            $binary = base64_decode((string) $m[2]);
+            $binary = base64_decode((string) $m[2], true);
 
             if ($binary === false || $binary === '') {
+                $sourceRecords[] = [
+                    'original_name' => $name,
+                    'extension' => strtolower(pathinfo($name, PATHINFO_EXTENSION)),
+                    'status' => 'unreadable',
+                    'status_message' => 'The attachment was empty or invalid. Reattach the file to continue.',
+                ];
+
                 continue;
             }
 
             if (strlen($binary) > $maxBytes) {
+                $sourceRecords[] = [
+                    'original_name' => $name,
+                    'extension' => strtolower(pathinfo($name, PATHINFO_EXTENSION)),
+                    'mime_type' => $m[1],
+                    'status' => 'too_large',
+                    'status_message' => 'The file exceeded the chat upload limit and was not read. Reduce its size or split it, then reattach it.',
+                ];
                 $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(Tệp vượt quá giới hạn ".KnowledgeService::MAX_CHAT_DOCUMENT_SIZE_KB.' KB — chưa đọc được nội dung.)';
 
                 continue;
@@ -1203,6 +1279,13 @@ class ChatMessageController extends Controller
             $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
 
             if (! in_array($extension, KnowledgeService::CHAT_DOCUMENT_EXTENSIONS, true)) {
+                $sourceRecords[] = [
+                    'original_name' => $name,
+                    'extension' => $extension,
+                    'mime_type' => $m[1],
+                    'status' => 'unsupported',
+                    'status_message' => 'This file format is not supported for text extraction. Convert it to a supported format and reattach it.',
+                ];
                 $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(Định dạng .{$extension} chưa được hỗ trợ đọc nội dung.)";
 
                 continue;
@@ -1219,12 +1302,27 @@ class ChatMessageController extends Controller
                 $source = $knowledgeService->sourceCodeForPiiScan($binary);
                 $sourceCodeTruncated = mb_strlen($source) > $maximumSourceCharacters;
                 $text = $knowledgeService->sourceCodeForEditing($source, $maximumSourceCharacters);
+                $sourceText = $source;
             } elseif ($requestedPdfPages !== null) {
                 $text = $knowledgeService->extractPdfPagesText($binary, $requestedPdfPages[0], $requestedPdfPages[1]);
                 $requestedPdfPageText = $text !== '';
+                $sourceText = $knowledgeService->extractTextFromBinary($binary, $extension);
             } else {
                 $text = $knowledgeService->extractTextFromBinary($binary, $extension);
+                $sourceText = $text;
             }
+            $sourceExtractionTruncated = str_contains($sourceText, '[OCR EXTRACTION TRUNCATED:');
+            $sourceRecords[] = [
+                'original_name' => $name,
+                'extension' => $extension,
+                'mime_type' => $m[1],
+                'text' => $sourceText,
+                'status' => trim($sourceText) === '' ? 'unreadable' : ($sourceExtractionTruncated ? 'partial' : 'available'),
+                'extraction_complete' => trim($sourceText) !== '' && ! $sourceExtractionTruncated,
+                'status_message' => trim($sourceText) === ''
+                    ? 'No readable text was extracted. The file may be scanned, password-protected, empty, or damaged.'
+                    : ($sourceExtractionTruncated ? 'The extractor reached its character limit; later source text was not read.' : null),
+            ];
             $documentContextLimit = $requestedPdfPages !== null
                 ? self::MAX_TRANSLATION_DOCUMENT_CONTEXT_CHARS
                 : ($forTranslation
@@ -1271,9 +1369,22 @@ class ChatMessageController extends Controller
                     $requestedPdfPages[1],
                 );
                 if ($pages !== []) {
-                    $scannedPdfImages = array_merge($scannedPdfImages, $pages);
+                    $pages = array_slice($pages, 0, max(0, $remainingVisionSlots - count($scannedPdfImages)));
+                    foreach ($pages as $pageOffset => $pageImage) {
+                        $scannedPdfImages[] = $pageImage;
+                        $renderedPdfPages[] = [
+                            'name' => $name,
+                            'page' => $requestedPdfPages[0] + $pageOffset,
+                            'data_url' => $pageImage,
+                        ];
+                    }
+                    if ($pages === []) {
+                        $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(PDF scan: không còn chỗ cho ảnh trang trong lượt xử lý này; phần scan chưa được gửi.)";
+
+                        continue;
+                    }
                     $pageDescription = 'trang '.$requestedPdfPages[0]
-                        .($requestedPdfPages[1] > $requestedPdfPages[0] ? '–'.$requestedPdfPages[1] : '');
+                        .(count($pages) > 1 ? '–'.($requestedPdfPages[0] + count($pages) - 1) : '');
                     $blocks[] = "📎 Tài liệu đính kèm: {$name}\n(PDF scan: đã gửi riêng {$pageDescription} dưới dạng ảnh. Chỉ phân tích các trang được yêu cầu.)";
 
                     continue;
@@ -1306,7 +1417,7 @@ class ChatMessageController extends Controller
             ]);
         }
 
-        return [$blocks, $scannedPdfImages, $fullDocumentTruncated];
+        return [$blocks, $scannedPdfImages, $fullDocumentTruncated, $sourceRecords, $renderedPdfPages];
     }
 
     private function requestsComprehensiveDocumentCoverage(string $query): bool

@@ -791,11 +791,14 @@ class KnowledgeService
                 return '';
             }
 
-            return trim(Str::limit(
-                $process->getOutput(),
-                max(1, (int) config('openai.knowledge_ocr_max_chars', 60_000)),
-                '',
-            ));
+            $output = trim($process->getOutput());
+            $maximumCharacters = max(1, (int) config('openai.knowledge_ocr_max_chars', 60_000));
+            if (mb_strlen($output) > $maximumCharacters) {
+                return mb_substr($output, 0, $maximumCharacters)
+                    ."\n[OCR EXTRACTION TRUNCATED: only the first {$maximumCharacters} characters were retained.]";
+            }
+
+            return $output;
         } catch (Throwable $exception) {
             Log::warning('Knowledge image OCR failed unexpectedly', [
                 'source' => $source,
@@ -1417,8 +1420,8 @@ class KnowledgeService
             $text .= "[Sheet: {$sheet->getTitle()}]\n";
 
             foreach ($sheet->toArray() as $row) {
-                $cells = array_filter($row, fn ($cell) => $cell !== null && trim((string) $cell) !== '');
-                if ($cells) {
+                $cells = array_map(fn ($cell): string => $cell === null ? '' : trim((string) $cell), $row);
+                if (array_filter($cells, fn (string $cell): bool => $cell !== '') !== []) {
                     $text .= implode(' | ', $cells)."\n";
                 }
             }

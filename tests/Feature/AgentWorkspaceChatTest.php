@@ -1909,7 +1909,7 @@ it('renders the requested PDF page when that page has no extractable text', func
     $pdf = '%PDF-1.4 test fixture';
     $knowledgeService = \Mockery::mock(KnowledgeService::class);
     $knowledgeService->shouldReceive('extractTextFromBinary')
-        ->once()
+        ->twice()
         ->with($pdf, 'pdf')
         ->andReturn('BOOK_OPENING_PAGE_ONLY');
     $knowledgeService->shouldReceive('extractPdfPagesText')

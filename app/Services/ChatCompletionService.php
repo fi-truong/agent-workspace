@@ -12,9 +12,9 @@ class ChatCompletionService
     ) {}
 
     /**
-     * @param  array<int, array{role: string, content: mixed}>  $messages
+     * @param  array<int, array<string, mixed>>  $messages
      * @param  array<int, array<string, mixed>>  $tools
-     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model?: string, tool_calls?: array<int, array{id: string, name: string, arguments: string}>}
+     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model?: string, finish_reason?: ?string, tool_calls?: array<int, array{id: string, name: string, arguments: string}>}
      *
      * @throws \RuntimeException
      */
@@ -36,10 +36,10 @@ class ChatCompletionService
     /**
      * Bản streaming của complete(): gọi $onDelta(string $chunk) mỗi khi có thêm nội dung mới.
      *
-     * @param  array<int, array{role: string, content: mixed}>  $messages
+     * @param  array<int, array<string, mixed>>  $messages
      * @param  callable(string): void  $onDelta
      * @param  array<int, array<string, mixed>>  $tools
-     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model?: string, tool_calls?: array<int, array{id: string, name: string, arguments: string}>}
+     * @return array{content: string, prompt_tokens: int, completion_tokens: int, model?: string, finish_reason?: ?string, tool_calls?: array<int, array{id: string, name: string, arguments: string}>}
      *
      * @throws \RuntimeException
      */
@@ -59,8 +59,8 @@ class ChatCompletionService
     }
 
     /**
-     * @param  array<int, array{role: string, content: mixed}>  $messages
-     * @return array{0: array<int, array{role: string, content: mixed}>, 1: array<int, array{role: string, content: mixed}>} [$payload, $filteredMessages]
+     * @param  array<int, array<string, mixed>>  $messages
+     * @return array{0: array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>} [$payload, $filteredMessages]
      */
     private function buildPayload(array $messages, ?string $systemPrompt): array
     {
@@ -108,7 +108,7 @@ class ChatCompletionService
      * long prompts and extracted documents. Input and output tokens are billed
      * independently, so this changes only how much the model may return.
      *
-     * @param  array<int, array{role: string, content: mixed}>  $payload
+     * @param  array<int, array<string, mixed>>  $payload
      */
     private function outputTokenLimit(array $payload): int
     {
@@ -138,7 +138,7 @@ class ChatCompletionService
     }
 
     /**
-     * @param  array<int, array{role: string, content: mixed}>  $messages
+     * @param  array<int, array<string, mixed>>  $messages
      * @return array{content: string, prompt_tokens: int, completion_tokens: int}
      */
     private function mockCompletion(array $messages): array
@@ -160,7 +160,7 @@ class ChatCompletionService
      * Bản streaming của mock: chia câu trả lời giả lập thành từng từ,
      * gọi $onDelta cho từng từ kèm delay nhỏ để giả lập hiệu ứng gõ chữ khi test local (chưa có API key).
      *
-     * @param  array<int, array{role: string, content: mixed}>  $messages
+     * @param  array<int, array<string, mixed>>  $messages
      * @return array{content: string, prompt_tokens: int, completion_tokens: int}
      */
     private function mockStreamCompletion(array $messages, callable $onDelta): array
@@ -182,7 +182,7 @@ class ChatCompletionService
     }
 
     /**
-     * @param  array<int, array{role: string, content: mixed}>  $messages
+     * @param  array<int, array<string, mixed>>  $messages
      */
     private function extractLastUserText(array $messages): string
     {

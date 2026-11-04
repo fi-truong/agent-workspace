@@ -3,6 +3,7 @@
 use App\Models\AdminAuditLog;
 use App\Models\AiArtifact;
 use App\Models\Conversation;
+use App\Models\ConversationAttachment;
 use App\Models\KnowledgeChunk;
 use App\Models\UsageLog;
 use App\Models\User;
@@ -10,11 +11,13 @@ use App\Services\TokenQuotaService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
-function connectedAgentResponse(string $content = '', array $calls = []): array
+function connectedAgentResponse(string $content = '', array $calls = [], ?string $finishReason = null): array
 {
     return [
-        'choices' => [['message' => ['content' => $content, 'tool_calls' => $calls]]],
+        'choices' => [['message' => ['content' => $content, 'tool_calls' => $calls], 'finish_reason' => $finishReason ?? ($calls === [] ? 'stop' : 'tool_calls')]],
         'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
         'model' => 'gpt-6-luna',
     ];
@@ -39,6 +42,11 @@ function connectedAgentStream(array $response): string
         ."data: [DONE]\n\n";
 }
 
+function requestHasContent(Request $request, string $marker): bool
+{
+    return str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), $marker);
+}
+
 beforeEach(function () {
     config(['agent_connections.enabled' => true, 'openai.api_key' => 'sk-test', 'openai.rag_embeddings_enabled' => false]);
     $this->user = User::factory()->create();
@@ -49,6 +57,7 @@ beforeEach(function () {
     $this->conversation = $this->user->conversations()->create(['title' => 'School planning', 'agent_id' => $this->parentAgent->id, 'type' => Conversation::TYPE_CHAT]);
     Storage::fake('knowledge');
     Storage::fake('ai-artifacts');
+    Storage::fake('chat-attachments');
     Http::preventStrayRequests();
 });
 
@@ -58,7 +67,7 @@ it('delegates then synthesizes without creating files or extra conversations and
         ->push(connectedAgentResponse('REVIEW_FINDINGS'))
         ->push(connectedAgentResponse('FINAL_ANSWER'))]);
     $this->postJson(route('ai-plus.agent-workspace.send'), ['conversation_id' => $this->conversation->id, 'message' => 'Review the school plan'])
-        ->assertOk()->assertJsonPath('reply', "FINAL_ANSWER\n\n🤖 **Agents consulted:** Reviewer.");
+        ->assertOk()->assertJsonPath('reply', "FINAL_ANSWER\n\n🤖 **Agents returned results:** Reviewer.");
     expect(Conversation::count())->toBe(1)->and($this->conversation->messages()->count())->toBe(2)
         ->and(AiArtifact::count())->toBe(0)
         ->and(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(45)
@@ -166,7 +175,7 @@ it('streams coordination progress and persists the final answer', function () {
     while (ob_get_level() < $bufferLevel) {
         ob_start();
     }
-    expect($this->conversation->messages()->where('role', 'assistant')->first()->content)->toContain('FINAL_STREAMED')->toContain('Agents consulted');
+    expect($this->conversation->messages()->where('role', 'assistant')->first()->content)->toContain('FINAL_STREAMED')->toContain('Agents returned results');
     expect(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(45);
 });
 
@@ -198,8 +207,28 @@ it('recovers from a specialist error without inventing a file or losing quota us
         ->push(['error' => ['message' => 'Unavailable']], 503)
         ->push(connectedAgentResponse('Reviewer was unavailable. Here is what I can answer.'))]);
     $this->postJson(route('ai-plus.agent-workspace.send'), ['conversation_id' => $this->conversation->id, 'message' => 'Review the school plan'])
-        ->assertOk()->assertJsonPath('reply', 'Reviewer was unavailable. Here is what I can answer.');
+        ->assertOk()->assertJsonPath('reply', "Reviewer was unavailable. Here is what I can answer.\n\n⚠️ **Agent result missing:** Reviewer did not return a usable result; its findings were not included in the summary.");
     expect(AiArtifact::count())->toBe(0)->and(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(30);
+});
+
+it('passes a truncated specialist result as partial and reports that it is incomplete', function () {
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]))
+        ->push(connectedAgentResponse('Partial finding before output limit.', [], 'length'))
+        ->push(connectedAgentResponse('I received a partial review.'))]);
+
+    $response = $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review the school plan and summarize the result.',
+    ]);
+    $response->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Agents returned results:** Reviewer.')
+        && str_contains($reply, 'specialist result reached an output limit'));
+
+    Http::assertSent(fn (Request $request): bool => collect($request['messages'])->where('role', 'tool')->contains(
+        fn (array $message): bool => str_contains($message['content'], '"status":"partial"')
+            && str_contains($message['content'], 'Partial finding before output limit.'),
+    ));
+    expect(AdminAuditLog::where('event', 'agent.consulted')->first()->metadata)->toBe(['agent_id' => $this->childAgent->id, 'status' => 'partial']);
 });
 
 it('retains specialist usage even if the final coordinating request fails', function () {
@@ -240,6 +269,9 @@ it('rechecks a shared specialist permission after the coordinator proposes a cal
     $this->postJson(route('ai-plus.agent-workspace.send'), ['conversation_id' => $this->conversation->id, 'message' => 'Review the school plan'])->assertOk();
     Http::assertSentCount(2);
     Http::assertNotSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'CHILD_INSTRUCTIONS'));
+    expect($this->conversation->messages()->where('role', 'assistant')->latest('id')->value('content'))
+        ->toContain('Agent result missing')
+        ->not->toContain('Agents returned results');
 });
 
 it('does not start a request when the coordination time or token budget has been reached', function (string $setting) {
@@ -358,6 +390,308 @@ it('does not execute a malformed consultation', function () {
     $this->postJson(route('ai-plus.agent-workspace.send'), ['conversation_id' => $this->conversation->id, 'message' => 'Review the school plan'])->assertOk();
     Http::assertSentCount(2);
     expect(AdminAuditLog::where('event', 'agent.consulted')->count())->toBe(0);
+});
+
+it('hands multiple uploaded files and an image to a specialist from the same chat turn', function () {
+    $childCall = connectedAgentCall($this->childAgent->id, 'Compare the lesson plan with the assessment criteria', 'call-source-review');
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [$childCall]))
+        ->push(connectedAgentResponse('The lesson plan matches the supplied assessment criteria.'))
+        ->push(connectedAgentResponse('The review is complete.'))]);
+
+    $png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9t8AAAAASUVORK5CYII=';
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Compare the lesson plan and criteria.',
+        'images' => ['data:image/png;base64,'.$png],
+        'documents' => [
+            ['name' => 'lesson-plan.txt', 'data_url' => 'data:text/plain;base64,'.base64_encode("LESSON_OBJECTIVE_MARKER\nStudents compare evidence.")],
+            ['name' => 'assessment.csv', 'data_url' => 'data:text/csv;base64,'.base64_encode("Criterion,Description\nEVIDENCE_CRITERION_MARKER,Uses evidence")],
+        ],
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Agents returned results'));
+
+    expect(ConversationAttachment::where('conversation_id', $this->conversation->id)->count())->toBe(3)
+        ->and(ConversationAttachment::where('source_type', 'document')->where('status', 'available')->count())->toBe(2);
+    Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request['messages'][0]['content'] ?? '', JSON_UNESCAPED_UNICODE), 'CHILD_INSTRUCTIONS')
+        && requestHasContent($request, 'LESSON_OBJECTIVE_MARKER')
+        && requestHasContent($request, 'EVIDENCE_CRITERION_MARKER')
+        && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'image_url'));
+});
+
+it('keeps ordinary chats on their existing attachment storage path', function () {
+    $this->parentAgent->connectedAgents()->detach();
+    Http::fake(['https://api.openai.com/*' => Http::response(connectedAgentResponse('Ordinary chat reply'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Summarize this note.',
+        'documents' => [[
+            'name' => 'ordinary-note.txt',
+            'data_url' => 'data:text/plain;base64,'.base64_encode('ORDINARY_CHAT_SOURCE'),
+        ]],
+    ])->assertOk()->assertJsonPath('reply', 'Ordinary chat reply');
+
+    expect(ConversationAttachment::count())->toBe(0);
+    Http::assertSentCount(1);
+});
+
+it('makes an earlier chat attachment available to a later specialist call without another upload', function () {
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('I have saved the uploaded source in this chat.'))
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Find the classroom routine in the earlier source', 'call-later-source')]))
+        ->push(connectedAgentResponse('The routine is listed in the source.'))
+        ->push(connectedAgentResponse('I found the routine in the earlier upload.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Keep this routine available for later.',
+        'documents' => [[
+            'name' => 'routine.txt',
+            'data_url' => 'data:text/plain;base64,'.base64_encode('CLASSROOM_ROUTINE_MARKER: Start with a two-minute reset.'),
+        ]],
+    ])->assertOk();
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Find the routine from the earlier file.',
+    ])->assertOk();
+
+    Http::assertSentCount(4);
+    Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request['messages'][0]['content'] ?? '', JSON_UNESCAPED_UNICODE), 'CHILD_INSTRUCTIONS')
+        && requestHasContent($request, 'CLASSROOM_ROUTINE_MARKER'));
+    expect(ConversationAttachment::where('conversation_id', $this->conversation->id)->where('original_name', 'routine.txt')->exists())->toBeTrue();
+});
+
+it('passes completed earlier Agent results to a specialist on a later chat turn', function () {
+    $firstCall = connectedAgentCall($this->childAgent->id, 'Inspect the rubric and return its core decision', 'call-first-step');
+    $secondCall = connectedAgentCall($this->childAgent->id, 'Apply the earlier decision to the next case', 'call-second-step');
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [$firstCall]))
+        ->push(connectedAgentResponse('PRIOR_STEP_RESULT_MARKER: use the evidence-based rubric.'))
+        ->push(connectedAgentResponse('Turn one is complete.'))
+        ->push(connectedAgentResponse('', [$secondCall]))
+        ->push(connectedAgentResponse('The next case meets the rubric.'))
+        ->push(connectedAgentResponse('The saved finding was applied.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review the rubric.',
+    ])->assertOk();
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Now apply the earlier result to this case.',
+    ])->assertOk();
+
+    Http::assertSentCount(6);
+    Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request['messages'][0]['content'] ?? '', JSON_UNESCAPED_UNICODE), 'CHILD_INSTRUCTIONS')
+        && requestHasContent($request, 'PRIOR_STEP_RESULT_MARKER'));
+    expect($this->conversation->messages()->where('role', 'assistant')->orderByDesc('id')->first()->content)->toContain('Agents returned results');
+});
+
+it('selects relevant rows from a long table and explicitly reports partial source coverage', function () {
+    config(['agent_connections.handoff_context_chars' => 1600, 'agent_connections.handoff_chunk_chars' => 400]);
+    $rows = ['Record,Category,Value'];
+    foreach (range(1, 280) as $index) {
+        $rows[] = 'ROW-'.$index.',category-'.$index.',ordinary value '.$index;
+    }
+    $rows[] = 'TARGET-ROW-XQ7,requested category,VALUE_ONLY_IN_RELEVANT_TABLE_ROW';
+    $childCall = connectedAgentCall($this->childAgent->id, 'Find the value for TARGET-ROW-XQ7', 'call-long-table');
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [$childCall]))
+        ->push(connectedAgentResponse('The requested value is VALUE_ONLY_IN_RELEVANT_TABLE_ROW.'))
+        ->push(connectedAgentResponse('The requested value is available.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Find the value for TARGET-ROW-XQ7 in the attached table.',
+        'documents' => [[
+            'name' => 'records.csv',
+            'data_url' => 'data:text/csv;base64,'.base64_encode(implode("\n", $rows)),
+        ]],
+    ])->assertOk()
+        ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Agent source coverage')
+            && str_contains($reply, 'Only selected excerpts fit the handoff context budget'));
+
+    Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request['messages'][0]['content'] ?? '', JSON_UNESCAPED_UNICODE), 'CHILD_INSTRUCTIONS')
+        && requestHasContent($request, 'VALUE_ONLY_IN_RELEVANT_TABLE_ROW')
+        && ! requestHasContent($request, 'ROW-1,category-1,ordinary value 1'));
+});
+
+it('preserves empty spreadsheet cells so delegated table columns do not shift', function () {
+    $spreadsheet = new Spreadsheet;
+    $spreadsheet->getActiveSheet()->fromArray([
+        ['Record ID', 'Notes', 'Amount'],
+        ['ROW-WITH-GAP', null, 'COLUMN_ALIGNMENT_MARKER'],
+    ]);
+    $path = tempnam(sys_get_temp_dir(), 'agent-handoff-xlsx-');
+    (new Xlsx($spreadsheet))->save($path);
+    $binary = file_get_contents($path);
+    @unlink($path);
+
+    $childCall = connectedAgentCall($this->childAgent->id, 'Check the amount for ROW-WITH-GAP', 'call-xlsx-gap');
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [$childCall]))
+        ->push(connectedAgentResponse('The amount is in the third column.'))
+        ->push(connectedAgentResponse('The amount is available.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Check the amount for ROW-WITH-GAP.',
+        'documents' => [[
+            'name' => 'records.xlsx',
+            'data_url' => 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,'.base64_encode((string) $binary),
+        ]],
+    ])->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => requestHasContent($request, 'ROW-WITH-GAP |  | COLUMN_ALIGNMENT_MARKER'));
+});
+
+it('marks source text beyond the private retention limit as incomplete', function () {
+    config(['agent_connections.max_saved_source_chars' => 1000]);
+    $documentText = "Heading\n".str_repeat("ordinary reference text\n", 200)."TARGET_AFTER_RETENTION_LIMIT\n";
+    $childCall = connectedAgentCall($this->childAgent->id, 'Find TARGET_AFTER_RETENTION_LIMIT in the uploaded source', 'call-retention-limit');
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [$childCall]))
+        ->push(connectedAgentResponse('The requested text was not included.'))
+        ->push(connectedAgentResponse('The retained portion does not include the requested text.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Find TARGET_AFTER_RETENTION_LIMIT in the uploaded source.',
+        'documents' => [[
+            'name' => 'long-source.txt',
+            'data_url' => 'data:text/plain;base64,'.base64_encode($documentText),
+        ]],
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'long-source.txt')
+        && str_contains($reply, 'Only the first 1000 characters could be retained'));
+
+    expect(ConversationAttachment::where('original_name', 'long-source.txt')->value('status'))->toBe('partial');
+    Http::assertSent(fn (Request $request): bool => requestHasContent($request, 'Only the first 1000 characters could be retained'));
+});
+
+it('tells a specialist when an attached file format is unsupported', function () {
+    $childCall = connectedAgentCall($this->childAgent->id, 'Review the attached source', 'call-unsupported-file');
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [$childCall]))
+        ->push(connectedAgentResponse('The source file cannot be read in this format.'))
+        ->push(connectedAgentResponse('I could not read the attached format.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review the attached source.',
+        'documents' => [[
+            'name' => 'legacy.bin',
+            'data_url' => 'data:application/octet-stream;base64,'.base64_encode('UNSUPPORTED_BINARY_MARKER'),
+        ]],
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'legacy.bin')
+        && str_contains($reply, 'not supported for text extraction'));
+
+    Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request['messages'][0]['content'] ?? '', JSON_UNESCAPED_UNICODE), 'CHILD_INSTRUCTIONS')
+        && requestHasContent($request, 'not supported for text extraction')
+        && ! requestHasContent($request, 'UNSUPPORTED_BINARY_MARKER'));
+});
+
+it('tells a specialist when an attached PDF has no extractable text', function () {
+    $childCall = connectedAgentCall($this->childAgent->id, 'Read the attached PDF', 'call-unreadable-pdf');
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [$childCall]))
+        ->push(connectedAgentResponse('The PDF contains no extractable text.'))
+        ->push(connectedAgentResponse('I could not read the PDF.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Read the attached PDF.',
+        'documents' => [[
+            'name' => 'scanned-handout.pdf',
+            'data_url' => 'data:application/pdf;base64,'.base64_encode("%PDF-1.4\ninvalid scan fixture\n%%EOF"),
+        ]],
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'scanned-handout.pdf')
+        && str_contains($reply, 'No readable text was extracted'));
+
+    expect(ConversationAttachment::where('original_name', 'scanned-handout.pdf')->value('status'))->toBe('unreadable');
+    Http::assertSent(fn (Request $request): bool => requestHasContent($request, 'scanned-handout.pdf')
+        && requestHasContent($request, 'No readable text was extracted'));
+});
+
+it('identifies the file rejected by the chat upload size limit', function () {
+    Http::fake();
+    $payload = 'data:text/plain;base64,'.base64_encode(str_repeat('x', 5 * 1024 * 1024 + 1));
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review this file.',
+        'documents' => [[
+            'name' => 'oversized-reference.txt',
+            'data_url' => $payload,
+        ]],
+    ])->assertUnprocessable()
+        ->assertJsonPath('error', 'File "oversized-reference.txt" was not read because chat attachments are limited to 5120 KB each. Reduce its size or split it and attach it again.');
+
+    expect($this->conversation->messages()->count())->toBe(0);
+    Http::assertNothingSent();
+});
+
+it('reports when an earlier attached image is no longer present in private storage', function () {
+    $message = $this->conversation->messages()->create([
+        'role' => 'user',
+        'content' => '📎 Image in this conversation: chart.png',
+    ]);
+    $path = $this->conversation->id.'/chart.png';
+    Storage::disk('chat-attachments')->put($path, 'image bytes');
+    ConversationAttachment::create([
+        'conversation_id' => $this->conversation->id,
+        'message_id' => $message->id,
+        'user_id' => $this->user->id,
+        'original_name' => 'chart.png',
+        'extension' => 'png',
+        'source_type' => 'image',
+        'status' => 'available',
+        'disk' => 'chat-attachments',
+        'path' => $path,
+        'extraction_complete' => true,
+        'metadata' => ['mime_type' => 'image/png'],
+    ]);
+    Storage::disk('chat-attachments')->delete($path);
+
+    $childCall = connectedAgentCall($this->childAgent->id, 'Read the chart attached earlier', 'call-missing-image');
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [$childCall]))
+        ->push(connectedAgentResponse('The image file is missing from storage.'))
+        ->push(connectedAgentResponse('I could not inspect the missing chart.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Read the chart attached earlier.',
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'chart.png')
+        && str_contains($reply, 'saved image is missing from private storage'));
+
+    Http::assertSent(fn (Request $request): bool => requestHasContent($request, 'saved image is missing from private storage')
+        && ! str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'image_url'));
+});
+
+it('never sends a conversation attachment to a different conversation owner', function () {
+    Storage::disk('chat-attachments')->put($this->conversation->id.'/secret.txt', 'OWNER_PRIVATE_ATTACHMENT_MARKER');
+    ConversationAttachment::create([
+        'conversation_id' => $this->conversation->id,
+        'message_id' => $this->conversation->messages()->create(['role' => 'user', 'content' => '📎 Tệp đính kèm: secret.txt'])->id,
+        'user_id' => $this->user->id,
+        'original_name' => 'secret.txt',
+        'extension' => 'txt',
+        'source_type' => 'document',
+        'status' => 'available',
+        'extracted_text' => 'OWNER_PRIVATE_ATTACHMENT_MARKER',
+        'character_count' => 30,
+        'extraction_complete' => true,
+    ]);
+    $other = User::factory()->create();
+    Http::fake();
+
+    $this->actingAs($other)->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Read this chat file.',
+    ])->assertNotFound();
+
+    Http::assertNothingSent();
 });
 
 it('keeps legacy chat behavior when connections are disabled', function () {
