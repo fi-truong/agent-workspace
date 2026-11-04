@@ -892,6 +892,60 @@ it('does not create a purported complete artifact when the attached source excee
     expect(AiArtifact::query()->exists())->toBeFalse();
 });
 
+it('exports the complete saved draft despite an earlier truncated attachment context', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(artifactToolCallResponse('word', 'An incomplete model rewrite'))
+        ->push(fileActionConfirmationResponse())
+        ->push(fileActionConfirmationResponse())]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id, 'title' => 'Approved draft', 'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'user',
+        'content' => "Tổng hợp tài liệu.\n\n📎 Tệp đính kèm: source.txt",
+        'internal_context' => '[FULL DOCUMENT CONTEXT TRUNCATED: earlier attachment exceeded the limit.]']);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant',
+        'content' => "# Teacher guidance\n\nTEACHER_MARKER\n\n# Student worksheet\n\nSTUDENT_MARKER"]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id,
+        'message' => 'Tôi duyệt bản nháp. Tạo file Word từ toàn bộ bản nháp đã duyệt, giữ riêng phần học sinh và giáo viên.',
+    ])->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name): bool => str_ends_with($name, '.docx'));
+
+    $artifact = AiArtifact::firstOrFail();
+    $archive = new ZipArchive;
+    expect($archive->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
+    $documentXml = $archive->getFromName('word/document.xml');
+    $archive->close();
+    expect($documentXml)->toContain('TEACHER_MARKER')->toContain('STUDENT_MARKER')->not->toContain('incomplete model rewrite');
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'] ?? '', 'export only the complete earlier chat draft as-is'));
+});
+
+it('keeps the full-source safeguard when a draft export also requests earlier attachments', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(artifactToolCallResponse('word', 'Incomplete combined content'))
+        ->push(fileActionConfirmationResponse())
+        ->push(fileActionConfirmationResponse('The request also needs the attachments.'))
+        ->push(fileActionConfirmationResponse('AI_PLUS_FILE_ACTION_NOT_REQUESTED'))]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id, 'title' => 'Combined export', 'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'user',
+        'content' => "Tổng hợp tài liệu.\n\n📎 Tệp đính kèm: source.txt",
+        'internal_context' => '[FULL DOCUMENT CONTEXT TRUNCATED: earlier attachment exceeded the limit.]']);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => '# Draft content']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id,
+        'message' => 'Tạo file Word từ bản nháp đã duyệt và toàn bộ dữ liệu trong tài liệu đính kèm.',
+    ])->assertOk()->assertJsonPath('artifacts', [])
+        ->assertJsonPath('artifact_error', fn (string $error): bool => str_contains($error, 'full-processing limit'));
+    expect(AiArtifact::count())->toBe(0);
+});
+
 it('creates a file only when OpenAI selects the artifact tool and format', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);

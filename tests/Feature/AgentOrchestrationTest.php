@@ -87,6 +87,52 @@ it('delegates then synthesizes without creating files or extra conversations and
     expect(AdminAuditLog::where('event', 'agent.consulted')->first()->metadata)->toBe(['agent_id' => $this->childAgent->id, 'status' => 'completed']);
 });
 
+it('shows a table mismatch warning even when the coordinator omits it', function () {
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Compare records')]))
+        ->push(connectedAgentResponse("record\titem_a\titem_b\tgroup\nA\t1\t0\tx\nB\t1\t0\ty"))
+        ->push(connectedAgentResponse('The result is ready.'))
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Use previous findings')]))
+        ->push(connectedAgentResponse('Later findings.'))
+        ->push(connectedAgentResponse('Later answer.'))]);
+    $source = "record\titem_a\titem_b\nA\t1\t0\nB\t0\t1";
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Compare the uploaded records.',
+        'documents' => [['name' => 'data.txt', 'data_url' => 'data:text/plain;base64,'.base64_encode($source)]],
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Cần kiểm tra kết quả Agent')
+        && str_contains($reply, '1 dòng có trường'));
+
+    $savedContext = $this->conversation->messages()->where('role', 'assistant')->latest('id')->value('internal_context');
+    expect($savedContext)->toContain('validation_warnings')->toContain('1 dòng');
+    $sources = app(ConversationSourceContextService::class);
+    $next = $sources->forDelegation($this->user, $this->conversation, 'Continue using earlier findings', [], [], true);
+    $independent = $sources->forDelegation($this->user, $this->conversation, 'Independent review', [], [], false);
+    expect($next['text'])->toContain('UNRESOLVED VALIDATION WARNINGS')->toContain('1 dòng')
+        ->and($independent['text'])->not->toContain('UNRESOLVED VALIDATION WARNINGS');
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Continue using the previous findings.',
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Cảnh báo từ kết quả Agent trước')
+        && str_contains($reply, '1 dòng có trường'));
+});
+
+it('marks specialist table discrepancies when coordination reaches its limit', function () {
+    config(['agent_connections.max_turn_tokens' => 30]);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Compare records')]))
+        ->push(connectedAgentResponse("record\titem_a\titem_b\nA\t1\t0\nB\t1\t0"))]);
+    $source = "record\titem_a\titem_b\nA\t1\t0\nB\t0\t1";
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Compare the uploaded records.',
+        'documents' => [['name' => 'data.txt', 'data_url' => 'data:text/plain;base64,'.base64_encode($source)]],
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'table validation requires review')
+        && str_contains($reply, '1 dòng có trường'));
+});
+
 it('uses child Knowledge without passing unrelated conversation history', function () {
     $this->childAgent->update(['knowledge' => json_encode([['path' => 'guide.txt', 'original_name' => 'guide.txt']])]);
     KnowledgeChunk::create(['agent_id' => $this->childAgent->id, 'source_file' => 'guide.txt', 'chunk_index' => 0, 'content' => 'Learning objectives: KNOWLEDGE_MARKER', 'embedding' => []]);
@@ -98,6 +144,59 @@ it('uses child Knowledge without passing unrelated conversation history', functi
     $this->postJson(route('ai-plus.agent-workspace.send'), ['conversation_id' => $this->conversation->id, 'message' => 'Review the school plan'])->assertOk();
     Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'KNOWLEDGE_MARKER')
         && ! str_contains(json_encode($request['messages']), 'UNRELATED_HISTORY_MARKER'));
+});
+
+it('keeps the two latest specialist results available to the coordinator beyond the normal history cap', function () {
+    foreach (['FIRST_RESULT_END', 'SECOND_RESULT_END'] as $marker) {
+        $stored = ConversationSourceContextService::encodeResults([[
+            'agent_title' => 'Reviewer', 'task' => 'Review', 'result_complete' => true,
+            'result' => str_repeat("Observed evidence.\n", 350).$marker, 'source_coverage' => [],
+        ]]);
+        $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Specialist response.', 'internal_context' => $stored]);
+    }
+    Http::fake(['https://api.openai.com/*' => Http::response(connectedAgentResponse('Combined draft.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id, 'message' => 'Prepare the final draft from the earlier findings.',
+    ])->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => requestHasContent($request, 'FIRST_RESULT_END')
+        && requestHasContent($request, 'SECOND_RESULT_END'));
+});
+
+it('marks earlier specialist context that exceeds the larger history limit', function () {
+    $stored = ConversationSourceContextService::encodeResults([[
+        'agent_title' => 'Reviewer', 'task' => 'Review', 'result_complete' => true,
+        'result' => str_repeat('Long result. ', 4000).'END_OF_LONG_RESULT', 'source_coverage' => [],
+    ]]);
+    $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Specialist response.', 'internal_context' => $stored]);
+    Http::fake(['https://api.openai.com/*' => Http::response(connectedAgentResponse('Draft.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id, 'message' => 'Prepare a draft using the earlier findings.',
+    ])->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => requestHasContent($request, 'Earlier Agent context was truncated')
+        && ! requestHasContent($request, 'END_OF_LONG_RESULT'));
+});
+
+it('shares a bounded history budget between recent specialist results', function () {
+    foreach (['OLDER_END_MARKER', 'NEWER_END_MARKER'] as $marker) {
+        $stored = ConversationSourceContextService::encodeResults([[
+            'agent_title' => 'Reviewer', 'task' => 'Review', 'result_complete' => true,
+            'result' => str_repeat('A', 25000).$marker, 'source_coverage' => [],
+        ]]);
+        $this->conversation->messages()->create(['role' => 'assistant', 'content' => 'Specialist response.', 'internal_context' => $stored]);
+    }
+    Http::fake(['https://api.openai.com/*' => Http::response(connectedAgentResponse('Draft.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id, 'message' => 'Prepare a draft using earlier findings.',
+    ])->assertOk();
+
+    Http::assertSent(fn (Request $request): bool => requestHasContent($request, 'NEWER_END_MARKER')
+        && ! requestHasContent($request, 'OLDER_END_MARKER')
+        && requestHasContent($request, 'Earlier Agent context was truncated'));
 });
 
 it('consults ten configured specialists sequentially and synthesizes after the tenth', function () {

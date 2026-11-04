@@ -849,25 +849,41 @@ class ChatMessageController extends Controller
                 }
             }
         }
+        $recentAgentResults = $historyMessages->filter(fn (Message $message): bool => $message->role === 'assistant'
+            && ConversationSourceContextService::hasStoredResults($message->internal_context))
+            ->reverse()->take(2)->values();
+        $recentAgentResultLimits = [];
+        $agentHistoryBudget = self::MAX_CURRENT_TURN_CHARS;
+        foreach ($recentAgentResults as $index => $message) {
+            $context = ConversationSourceContextService::formatResultsForHistory($message->internal_context) ?? '';
+            $needed = mb_strlen($message->content."\n\n".$context);
+            $reservedForEarlier = ($recentAgentResults->count() - $index - 1) * self::MAX_MESSAGE_CHARS;
+            $limit = min(max(self::MAX_MESSAGE_CHARS, $needed), $agentHistoryBudget - $reservedForEarlier);
+            $recentAgentResultLimits[$message->id] = $limit;
+            $agentHistoryBudget -= $limit;
+        }
         $history = $historyMessages
-            ->map(function (Message $m) use ($userMessage, $latestDocumentMessageId, $fileExportDraft): array {
+            ->map(function (Message $m) use ($userMessage, $latestDocumentMessageId, $fileExportDraft, $recentAgentResultLimits): array {
                 if ($m->id === $fileExportDraft?->id && mb_strlen($m->content) <= self::MAX_CURRENT_TURN_CHARS) {
                     return ['role' => $m->role, 'content' => $m->content];
                 }
-                $limit = in_array($m->id, [$userMessage->id, $latestDocumentMessageId, $fileExportDraft?->id], true)
+                $isRecentAgentResult = isset($recentAgentResultLimits[$m->id]);
+                $limit = $isRecentAgentResult ? $recentAgentResultLimits[$m->id] : (in_array($m->id, [$userMessage->id, $latestDocumentMessageId, $fileExportDraft?->id], true)
                     ? self::MAX_CURRENT_TURN_CHARS
-                    : self::MAX_MESSAGE_CHARS;
+                    : self::MAX_MESSAGE_CHARS);
                 $historyContext = ConversationSourceContextService::formatResultsForHistory($m->internal_context);
                 $internalContext = $historyContext
                     ? html_entity_decode($historyContext, ENT_QUOTES | ENT_HTML5, 'UTF-8')
                     : null;
 
+                $combined = $m->content.($internalContext ? "\n\n{$internalContext}" : '');
+                $truncationNotice = $isRecentAgentResult && mb_strlen($combined) > $limit
+                    ? "\n[Earlier Agent context was truncated; do not treat omitted details as verified.]"
+                    : '';
+
                 return [
                     'role' => $m->role,
-                    'content' => Str::limit(
-                        $m->content.($internalContext ? "\n\n{$internalContext}" : ''),
-                        $limit,
-                    ),
+                    'content' => Str::limit($combined, $limit).$truncationNotice,
                 ];
             })
             ->toArray();
@@ -1004,6 +1020,26 @@ class ChatMessageController extends Controller
         if ($names !== []) {
             $labels = array_map(fn (string $name): string => $this->safeNoticeLabel($name), $names);
             $parts[] = '🤖 **Agents returned results:** '.implode(', ', $labels).'.';
+        }
+
+        $priorValidationWarnings = [];
+        foreach ($completion['delegation_results'] ?? [] as $delegation) {
+            if (! is_array($delegation)) {
+                continue;
+            }
+            foreach ($delegation['validation_warnings'] ?? [] as $warning) {
+                if (is_string($warning) && $warning !== '') {
+                    $parts[] = '⚠️ **Cần kiểm tra kết quả Agent:** '.$this->safeNoticeLabel((string) ($delegation['agent_title'] ?? 'Agent')).' — '.$warning;
+                }
+            }
+            foreach ($delegation['prior_validation_warnings'] ?? [] as $warning) {
+                if (is_string($warning) && $warning !== '') {
+                    $priorValidationWarnings[] = $warning;
+                }
+            }
+        }
+        foreach (array_slice(array_values(array_unique($priorValidationWarnings)), 0, 8) as $warning) {
+            $parts[] = '⚠️ **Cảnh báo từ kết quả Agent trước:** '.$warning;
         }
 
         $allIncomplete = [];
@@ -2023,9 +2059,24 @@ class ChatMessageController extends Controller
                     && ($chatContext['fullDocumentContextTruncated'] ?? false)
                     && ($chatContext['fullDocumentCoverage'] ?? false)
                     && ($chatContext['hasAttachedDocuments'] ?? false)) {
-                    $result['artifact_error'] = 'The attached document is longer than the full-processing limit, so I did not create a partial file. Please split the document or upload the relevant months/sections.';
+                    $savedDraft = $chatContext['fileExportDraft'] ?? null;
+                    $draftOnly = false;
+                    if (! ($chatContext['hasCurrentTurnAttachments'] ?? false)
+                        && is_string($savedDraft) && trim($savedDraft) !== ''
+                        && mb_strlen($savedDraft) <= self::MAX_CURRENT_TURN_CHARS
+                        && $format !== 'source_code') {
+                        $draftConfirmation = ['content' => '', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'tool_calls' => []];
+                        $draftOnly = $this->confirmRequestedFileAction($draftConfirmation, 'export_chat_draft', $conversation, $chatService, $chatContext);
+                        $completion['prompt_tokens'] += $draftConfirmation['prompt_tokens'];
+                        $completion['completion_tokens'] += $draftConfirmation['completion_tokens'];
+                    }
+                    if (! $draftOnly) {
+                        $result['artifact_error'] = 'The attached document is longer than the full-processing limit, so I did not create a partial file. Please split the document or upload the relevant months/sections.';
 
-                    return $result;
+                        return $result;
+                    }
+                    $content = trim($savedDraft);
+                    $summary = 'Đã tạo file từ bản nháp trong chat.';
                 }
                 if ($format === 'source_code' && $sourceFile !== null) {
                     throw new \RuntimeException('For changes to an attached source file, use the validated code-edit tool; no replacement file was created.');
@@ -2107,6 +2158,7 @@ class ChatMessageController extends Controller
         $actionLabel = match ($toolName) {
             'apply_code_patch' => 'edit the attached source file and return an updated copy',
             'revise_ai_artifact' => 'revise a file previously created in AI+ and return a new copy',
+            'export_chat_draft' => 'export only the complete earlier chat draft as-is; preserve its existing sections, without adding, editing, translating, or using other attached source documents',
             default => 'create or export a downloadable file',
         };
         $confirmationPrompt = "\n\nAI+ FILE ACTION CONFIRMATION GATE: Decide only whether the latest user message authorizes this file operation: {$actionLabel}. This is an intent check, not a capability check. AI+ has a backend file tool; earlier assistant claims that no file tool exists are irrelevant. A tool call from the previous model response is only a proposal and is not authorization. Confirm only if the latest user clearly requests this operation. A question about whether it is possible, a hypothetical, or a request for advice is not authorization. If ambiguous, do not confirm. When confirmed, output exactly {$confirmedMarker} and nothing else. Otherwise, answer the user's latest request normally in chat, without creating a file and without claiming a file was created.";
