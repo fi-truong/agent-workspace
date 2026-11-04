@@ -18,7 +18,7 @@ class OpenAIClient
      *
      * @throws \Throwable
      */
-    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = [], ?int $timeoutSeconds = null, ?string $model = null, ?string $reasoningEffort = null, bool $allowEmptyResponse = false): array
+    public function chat(array $messages, ?string $safetyIdentifier = null, ?int $maxCompletionTokens = null, array $tools = [], ?int $timeoutSeconds = null, ?string $model = null, ?string $reasoningEffort = null, bool $allowEmptyResponse = false, ?string $requiredToolName = null): array
     {
         $apiKey = config('openai.api_key');
 
@@ -36,7 +36,9 @@ class OpenAIClient
         ];
         if ($tools !== []) {
             $payload['tools'] = $tools;
-            $payload['tool_choice'] = 'auto';
+            $payload['tool_choice'] = $requiredToolName === null
+                ? 'auto'
+                : ['type' => 'function', 'function' => ['name' => $requiredToolName]];
             $payload['parallel_tool_calls'] = false;
         }
         if ($safetyIdentifier !== null) {

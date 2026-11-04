@@ -205,6 +205,34 @@ it('creates exactly one final Word artifact and includes file-confirmation usage
     $zip->close();
 });
 
+it('recovers a Word export from an approved draft in a connected Agent chat', function () {
+    $this->conversation->messages()->create([
+        'role' => 'assistant',
+        'content' => "# Approved lesson assessment\n\n".str_repeat("Complete assessment section.\n", 12),
+    ]);
+    $artifactCall = ['id' => 'call-approved-word', 'type' => 'function', 'function' => [
+        'name' => 'create_ai_artifact', 'arguments' => json_encode([
+            'format' => 'word', 'file_extension' => '', 'filename' => 'approved-assessment',
+            'content' => '# Approved lesson assessment', 'summary' => 'The Word file is ready.',
+        ]),
+    ]];
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('I cannot create a Word file here.'))
+        ->push(connectedAgentResponse('AI_PLUS_FILE_ACTION_CONFIRMED'))
+        ->push(connectedAgentResponse('', [$artifactCall]))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Tôi duyệt bản nháp cuối. Tạo file Word tải xuống từ bản nháp đã duyệt.',
+    ])->assertOk()->assertJsonCount(1, 'artifacts');
+
+    Http::assertSentCount(3);
+    Http::assertSent(fn (Request $request): bool => ($request['tool_choice'] ?? null) === [
+        'type' => 'function', 'function' => ['name' => 'create_ai_artifact'],
+    ]);
+    expect(AiArtifact::count())->toBe(1);
+});
+
 it('recovers from a specialist error without inventing a file or losing quota usage', function () {
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]))

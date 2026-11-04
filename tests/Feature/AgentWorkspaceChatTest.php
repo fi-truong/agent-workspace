@@ -8,18 +8,23 @@ use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\EmailDraft;
 use App\Models\KnowledgeChunk;
+use App\Models\Message;
 use App\Models\SchoolKnowledgeChunk;
 use App\Models\SchoolKnowledgeSource;
-use App\Models\Message;
 use App\Models\UsageLog;
 use App\Models\User;
-use App\Services\KnowledgeService;
 use App\Services\ArtifactService;
+use App\Services\KnowledgeService;
+use Dompdf\Dompdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Http\Client\ResponseSequence;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 uses(RefreshDatabase::class)->group('chat', 'feature');
 
@@ -80,14 +85,14 @@ function fileActionConfirmationResponse(string $content = 'AI_PLUS_FILE_ACTION_C
     ];
 }
 
-function confirmedArtifactResponseSequence(string $format, string $content, string $summary = 'File ready.', string $filename = '', string $extension = '', int $promptTokens = 20, int $completionTokens = 8): \Illuminate\Http\Client\ResponseSequence
+function confirmedArtifactResponseSequence(string $format, string $content, string $summary = 'File ready.', string $filename = '', string $extension = '', int $promptTokens = 20, int $completionTokens = 8): ResponseSequence
 {
     return Http::sequence()
         ->push(artifactToolCallResponse($format, $content, $summary, $filename, $extension, $promptTokens, $completionTokens))
         ->push(fileActionConfirmationResponse());
 }
 
-function confirmedCodePatchResponseSequence(array ...$patchResponses): \Illuminate\Http\Client\ResponseSequence
+function confirmedCodePatchResponseSequence(array ...$patchResponses): ResponseSequence
 {
     $sequence = Http::sequence();
     foreach ($patchResponses as $index => $patchResponse) {
@@ -785,12 +790,12 @@ it('generates full attached-document content instead of saving a short chat ackn
     config(['openai.api_key' => 'sk-test', 'openai.rag_embeddings_enabled' => false]);
     Http::swap(new Factory);
     $documentText = 'BEGINNING_EVENT_MARKER'.str_repeat("\nTháng 9: CIEC tổ chức một hoạt động trong năm học.", 500)."\nFINAL_EVENT_MARKER";
-    Http::fake(['https://api.openai.com/*' => function (Request $request) use ($documentText) {
-        expect(json_encode($request->data(), JSON_UNESCAPED_UNICODE))->toContain('FINAL_EVENT_MARKER');
-
+    Http::fake(['https://api.openai.com/*' => function (Request $request) {
         if (! isset($request->data()['tools'])) {
             return Http::response(fileActionConfirmationResponse());
         }
+
+        expect(json_encode($request->data(), JSON_UNESCAPED_UNICODE))->toContain('FINAL_EVENT_MARKER');
 
         return Http::response(artifactToolCallResponse(
             'word',
@@ -803,7 +808,7 @@ it('generates full attached-document content instead of saving a short chat ackn
         'message' => 'Dựa trên lịch đính kèm, hãy tạo file Word thống kê các sự kiện theo tháng và đơn vị.',
         'documents' => [[
             'name' => 'school-calendar.txt',
-        'data_url' => 'data:text/plain;base64,'.base64_encode($documentText),
+            'data_url' => 'data:text/plain;base64,'.base64_encode($documentText),
         ]],
     ]);
 
@@ -899,6 +904,79 @@ it('creates a file only when OpenAI selects the artifact tool and format', funct
     $response->assertOk()
         ->assertJsonPath('artifacts.0.name', fn (string $name) => str_ends_with($name, '.docx'))
         ->assertJsonPath('reply', fn (string $reply) => str_contains($reply, '/ai-plus/artifacts/'));
+});
+
+it('recovers an approved draft file request when the model falsely says it has no file tool', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(['choices' => [['message' => ['content' => 'I cannot create a Word file in this chat.']]], 'usage' => ['prompt_tokens' => 12, 'completion_tokens' => 8], 'model' => 'gpt-6-luna'])
+        ->push(fileActionConfirmationResponse())
+        ->push(artifactToolCallResponse('word', "# Approved draft\n\nCOMPLETE_DRAFT_MARKER", 'The Word file is ready.'))]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id, 'title' => 'Approved draft', 'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant',
+        'content' => "# Approved draft\n\nCOMPLETE_DRAFT_MARKER\n".str_repeat("A complete section of the approved plan.\n", 12)]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant',
+        'content' => 'Mình chưa tạo file vì bước xác nhận gặp lỗi kỹ thuật.']);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant',
+        'content' => 'Xin lỗi, tôi không có công cụ tạo Word.']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id,
+        'message' => 'Tôi duyệt bản nháp cuối. Tạo file Word tải xuống từ đúng bản đã duyệt.',
+    ])->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name): bool => str_ends_with($name, '.docx'));
+
+    Http::assertSentCount(3);
+    Http::assertSent(fn (Request $request): bool => ! isset($request['tools'])
+        && str_contains($request['messages'][0]['content'] ?? '', 'FILE ACTION CONFIRMATION GATE')
+        && count($request['messages']) <= 3
+        && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'Tôi duyệt bản nháp cuối'));
+    Http::assertSent(fn (Request $request): bool => ($request['tool_choice'] ?? null) === [
+        'type' => 'function', 'function' => ['name' => 'create_ai_artifact'],
+    ] && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'COMPLETE_DRAFT_MARKER')
+        && ! str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'không có công cụ'));
+    expect(AiArtifact::count())->toBe(1);
+});
+
+it('reports a technical confirmation failure without asking the user to clarify an explicit file request', function () {
+    config(['openai.api_key' => 'sk-test', 'openai.retry_times' => 1, 'openai.model_access_retry_times' => 1]);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(artifactToolCallResponse('word', '# Complete approved draft'))
+        ->push(['error' => ['message' => 'Unavailable']], 503)]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Tạo file Word tải xuống từ bản nháp đã duyệt.',
+    ])->assertOk()->assertJsonPath('artifacts', [])
+        ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'bước xác nhận gặp lỗi kỹ thuật')
+            && ! str_contains($reply, 'nói rõ'));
+
+    Http::assertSentCount(2);
+    expect(AiArtifact::count())->toBe(0);
+});
+
+it('does not recover a file tool for a question about an earlier draft', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(['choices' => [['message' => ['content' => 'Yes, you can ask me to create it.']]], 'usage' => ['prompt_tokens' => 8, 'completion_tokens' => 7], 'model' => 'gpt-6-luna'])
+        ->push(fileActionConfirmationResponse('This is a question, not a file request.'))]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id, 'title' => 'Earlier draft', 'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant',
+        'content' => '# Earlier draft'.str_repeat("\nA complete plan section.", 15)]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id,
+        'message' => 'Bạn có thể tạo file Word từ bản nháp này không?',
+    ])->assertOk()->assertJsonPath('artifacts', [])
+        ->assertJsonPath('reply', 'Yes, you can ask me to create it.');
+
+    Http::assertSentCount(2);
+    expect(AiArtifact::count())->toBe(0);
 });
 
 it('replaces an incorrect model refusal when the requested file was created', function () {
@@ -1006,7 +1084,7 @@ it('formats Markdown exports for Excel, PDF, and HTML', function () {
     $service = app(ArtifactService::class);
 
     $excel = $service->generate($this->user, null, 'excel', $content);
-    $workbook = \PhpOffice\PhpSpreadsheet\IOFactory::load(Storage::disk('ai-artifacts')->path($excel->path));
+    $workbook = IOFactory::load(Storage::disk('ai-artifacts')->path($excel->path));
     $sheet = $workbook->getActiveSheet();
     expect($sheet->getCell('A1')->getValue())->toBe('Budget summary')
         ->and($sheet->getCell('A5')->getValue())->toBe('Item')
@@ -1856,7 +1934,7 @@ it('reads a valid Word attachment in the same request path', function () {
 it('reads a real PDF attachment before sending the chat request', function () {
     config(['openai.api_key' => 'sk-test']);
 
-    $pdf = new \Dompdf\Dompdf;
+    $pdf = new Dompdf;
     $pdf->loadHtml('<html><body><p>Exam instructions for teachers.</p></body></html>');
     $pdf->render();
 
@@ -1884,7 +1962,7 @@ it('reads the requested later PDF page instead of using opening-page excerpts', 
         $pages[] = '<div style="page-break-after: always">'.$content.'</div>';
     }
 
-    $pdf = new \Dompdf\Dompdf;
+    $pdf = new Dompdf;
     $pdf->loadHtml('<html><body>'.implode('', $pages).'</body></html>');
     $pdf->render();
 
@@ -1907,7 +1985,7 @@ it('renders the requested PDF page when that page has no extractable text', func
     config(['openai.api_key' => 'sk-test']);
 
     $pdf = '%PDF-1.4 test fixture';
-    $knowledgeService = \Mockery::mock(KnowledgeService::class);
+    $knowledgeService = Mockery::mock(KnowledgeService::class);
     $knowledgeService->shouldReceive('extractTextFromBinary')
         ->twice()
         ->with($pdf, 'pdf')
@@ -1941,10 +2019,10 @@ it('renders the requested PDF page when that page has no extractable text', func
 it('reads a real Excel attachment before sending the chat request', function () {
     config(['openai.api_key' => 'sk-test']);
 
-    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $spreadsheet = new Spreadsheet;
     $spreadsheet->getActiveSheet()->setCellValue('A1', 'Exam schedule for teachers');
     $path = tempnam(sys_get_temp_dir(), 'valid-chat-xlsx-');
-    (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($path);
+    (new Xlsx($spreadsheet))->save($path);
 
     try {
         $this->postJson('/ai-plus/agent-workspace/send', [
@@ -1972,12 +2050,12 @@ it('keeps Word, Excel, PDF, and an image together in one chat turn', function ()
     $word->addFromString('word/document.xml', '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Word lesson content</w:t></w:r></w:p></w:body></w:document>');
     $word->close();
 
-    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $spreadsheet = new Spreadsheet;
     $spreadsheet->getActiveSheet()->setCellValue('A1', 'Excel scores content');
     $excelPath = tempnam(sys_get_temp_dir(), 'mixed-chat-xlsx-');
-    (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save($excelPath);
+    (new Xlsx($spreadsheet))->save($excelPath);
 
-    $pdf = new \Dompdf\Dompdf;
+    $pdf = new Dompdf;
     $pdf->loadHtml('<html><body><p>PDF exam content</p></body></html>');
     $pdf->render();
 
@@ -2353,7 +2431,7 @@ it('keeps the latest uploaded document available beyond the normal chat-history 
         'conversation_id' => $conversation->id,
         'role' => 'user',
         'content' => "Dịch tài liệu\n\n📎 Tệp đính kèm: training.docx",
-        'internal_context' => '📎 Tài liệu đính kèm đã nhận: training.docx' . "\n" . str_repeat('Nội dung trước. ', 280) . "\nGoal &amp; Use Case\nCác mục quan trọng nằm sau tiêu đề này.",
+        'internal_context' => '📎 Tài liệu đính kèm đã nhận: training.docx'."\n".str_repeat('Nội dung trước. ', 280)."\nGoal &amp; Use Case\nCác mục quan trọng nằm sau tiêu đề này.",
     ]);
     Message::create([
         'conversation_id' => $conversation->id,
@@ -2380,7 +2458,7 @@ it('exports an attached document translation as Word without putting source or t
     Http::swap(new Factory);
     Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence(
         'word',
-        '# Translated lesson' . "\n\n" . 'Goal & objectives',
+        '# Translated lesson'."\n\n".'Goal & objectives',
         'Đã dịch tài liệu và tạo file Word để tải xuống.',
     )]);
 

@@ -53,6 +53,25 @@ it('sends a privacy-preserving safety identifier when supplied', function () {
     Http::assertSent(fn (Request $request): bool => $request->data()['safety_identifier'] === 'hashed-user-id');
 });
 
+it('can require the file tool after the user request was independently confirmed', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::fake(['https://api.openai.com/*' => Http::response([
+        'choices' => [['message' => ['content' => null, 'tool_calls' => [[
+            'id' => 'call-file', 'type' => 'function',
+            'function' => ['name' => 'create_ai_artifact', 'arguments' => '{}'],
+        ]]], 'finish_reason' => 'tool_calls']],
+        'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
+    ])]);
+
+    (new OpenAIClient)->chat([['role' => 'user', 'content' => 'Create the approved document']],
+        tools: [['type' => 'function', 'function' => ['name' => 'create_ai_artifact']]],
+        requiredToolName: 'create_ai_artifact');
+
+    Http::assertSent(fn (Request $request): bool => $request['tool_choice'] === [
+        'type' => 'function', 'function' => ['name' => 'create_ai_artifact'],
+    ] && $request['parallel_tool_calls'] === false);
+});
+
 it('distinguishes an empty output limit response from a generic empty response', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::fake(['https://api.openai.com/*' => Http::response([
