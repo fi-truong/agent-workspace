@@ -138,16 +138,53 @@ class ConversationSourceContextService
         }
     }
 
-    /**
-     * @param  array<int, array<string, mixed>>  $currentStepResults
-     * @return array{text: string, images: array<int, string>, coverage: array<int, array<string, mixed>>}
-     */
-    public function forDelegation(User $user, Conversation $conversation, string $task, array $currentStepResults = []): array
+    /** @return array<int, array{id: int, name: string, status: string, source_type: string}> */
+    public function sourceCatalog(User $user, Conversation $conversation): array
     {
         abort_unless($conversation->user_id === $user->id && $conversation->type === Conversation::TYPE_CHAT, 404);
 
         $rows = ConversationAttachment::query()->where('conversation_id', $conversation->id)
             ->where('user_id', $user->id)->orderBy('id')->get();
+        $catalog = $rows->map(fn (ConversationAttachment $row): array => [
+            'id' => $row->id,
+            'name' => $row->original_name,
+            'status' => $row->status,
+            'source_type' => $row->source_type,
+        ])->all();
+        $sourceMessageIds = $rows->pluck('message_id')->unique()->all();
+
+        foreach ($conversation->messages()->where('role', 'user')->orderBy('id')->get(['id', 'content', 'internal_context']) as $message) {
+            if (! str_contains($message->content, '📎 Tệp đính kèm:') || in_array($message->id, $sourceMessageIds, true)) {
+                continue;
+            }
+
+            preg_match_all('/📎 Tệp đính kèm:\s*([^\r\n]+)/u', $message->content, $matches);
+            $names = array_values(array_filter(array_map('trim', $matches[1])));
+            $catalog[] = [
+                'id' => -$message->id,
+                'name' => $names !== [] ? implode(', ', $names) : 'Previously attached file',
+                'status' => trim((string) $message->internal_context) === '' ? 'unavailable' : 'legacy_partial',
+                'source_type' => 'legacy',
+            ];
+        }
+
+        return array_values($catalog);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $currentStepResults
+     * @param  array<int, int>|null  $selectedSourceIds
+     * @return array{text: string, images: array<int, string>, coverage: array<int, array<string, mixed>>}
+     */
+    public function forDelegation(User $user, Conversation $conversation, string $task, array $currentStepResults = [], ?array $selectedSourceIds = null, bool $includePreviousResults = true): array
+    {
+        abort_unless($conversation->user_id === $user->id && $conversation->type === Conversation::TYPE_CHAT, 404);
+
+        $allRows = ConversationAttachment::query()->where('conversation_id', $conversation->id)
+            ->where('user_id', $user->id)->orderBy('id')->get();
+        $rows = $selectedSourceIds === null
+            ? $allRows
+            : $allRows->filter(fn (ConversationAttachment $row): bool => in_array($row->id, $selectedSourceIds, true));
         $inaccessibleSourceCount = ConversationAttachment::query()->where('conversation_id', $conversation->id)
             ->where('user_id', '!=', $user->id)->count();
         $messages = $conversation->messages()->orderBy('id')->get(['id', 'role', 'content', 'internal_context']);
@@ -156,7 +193,18 @@ class ConversationSourceContextService
         $textItems = [];
         $imageRows = [];
         $coverage = [];
-        $sourceMessageIds = $rows->pluck('message_id')->unique()->all();
+        $sourceMessageIds = $allRows->pluck('message_id')->unique()->all();
+
+        foreach ($selectedSourceIds ?? [] as $selectedId) {
+            if ($selectedId > 0 && ! $rows->contains('id', $selectedId)) {
+                $coverage[] = [
+                    'source_name' => 'Selected attachment', 'source_type' => 'file',
+                    'status' => 'unavailable', 'extraction_complete' => false,
+                    'handoff_complete' => false, 'source_chars' => 0, 'sent_chars' => 0,
+                    'message' => 'A selected attachment is no longer available to this user.',
+                ];
+            }
+        }
 
         foreach ($rows as $row) {
             if ($row->source_type === 'image') {
@@ -200,6 +248,9 @@ class ConversationSourceContextService
             if (! str_contains($message->content, '📎 Tệp đính kèm:') || in_array($message->id, $sourceMessageIds, true)) {
                 continue;
             }
+            if ($selectedSourceIds !== null && ! in_array(-$message->id, $selectedSourceIds, true)) {
+                continue;
+            }
 
             preg_match_all('/📎 Tệp đính kèm:\s*([^\r\n]+)/u', $message->content, $matches);
             $names = array_values(array_filter(array_map('trim', $matches[1])));
@@ -235,7 +286,7 @@ class ConversationSourceContextService
             }
         }
 
-        $previousResults = [...$this->previousResults($messages), ...$currentStepResults];
+        $previousResults = $includePreviousResults ? [...$this->previousResults($messages), ...$currentStepResults] : [];
         foreach ($previousResults as $index => $result) {
             $resultText = trim((string) ($result['result'] ?? ''));
             if ($resultText === '') {
