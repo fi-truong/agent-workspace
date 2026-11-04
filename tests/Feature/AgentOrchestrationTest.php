@@ -207,8 +207,20 @@ it('creates exactly one final Word artifact and includes file-confirmation usage
 
 it('recovers a Word export from an approved draft in a connected Agent chat', function () {
     $this->conversation->messages()->create([
+        'role' => 'user',
+        'content' => 'Prepare the assessment draft.',
+    ]);
+    $this->conversation->messages()->create([
         'role' => 'assistant',
-        'content' => "# Approved lesson assessment\n\n".str_repeat("Complete assessment section.\n", 12),
+        'content' => "# Approved lesson assessment\n\n".str_repeat("Complete assessment section.\n", 180)."\nEND_OF_APPROVED_ASSESSMENT",
+    ]);
+    $this->conversation->messages()->create([
+        'role' => 'user',
+        'content' => 'Xuất nội dung trên thành file Word.',
+    ]);
+    $this->conversation->messages()->create([
+        'role' => 'assistant',
+        'content' => str_repeat('Không thấy đủ nội dung. ', 15),
     ]);
     $artifactCall = ['id' => 'call-approved-word', 'type' => 'function', 'function' => [
         'name' => 'create_ai_artifact', 'arguments' => json_encode([
@@ -230,7 +242,8 @@ it('recovers a Word export from an approved draft in a connected Agent chat', fu
     Http::assertSentCount(4);
     Http::assertSent(fn (Request $request): bool => ($request['tool_choice'] ?? null) === [
         'type' => 'function', 'function' => ['name' => 'create_ai_artifact'],
-    ]);
+    ] && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'END_OF_APPROVED_ASSESSMENT')
+        && ! str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'Không thấy đủ nội dung'));
     expect(AiArtifact::count())->toBe(1);
 });
 
