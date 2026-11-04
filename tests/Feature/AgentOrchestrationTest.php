@@ -689,6 +689,49 @@ it('hands only selected authorized sources to a specialist doing an independent 
     ));
 });
 
+it('keeps an affordable source and the latest complete result whole when older findings fill the handoff budget', function () {
+    config(['agent_connections.handoff_context_chars' => 16000]);
+    $sourceMessage = $this->conversation->messages()->create(['role' => 'user', 'content' => 'Saved source file']);
+    $source = "SOURCE_START\n".str_repeat("SOURCE_ROW\n", 650)."SOURCE_END\n";
+    ConversationAttachment::create([
+        'conversation_id' => $this->conversation->id, 'message_id' => $sourceMessage->id,
+        'user_id' => $this->user->id, 'original_name' => 'source-results.txt',
+        'source_type' => 'document', 'status' => 'available',
+        'extracted_text' => $source, 'character_count' => mb_strlen($source),
+        'extraction_complete' => true,
+    ]);
+    $this->conversation->messages()->create([
+        'role' => 'assistant', 'content' => 'Older partial result',
+        'internal_context' => ConversationSourceContextService::encodeResults([[
+            'agent_title' => 'Older Agent', 'task' => 'Earlier check',
+            'result' => str_repeat("OLD_PARTIAL_ROW\n", 1500), 'result_complete' => false,
+            'source_coverage' => [[
+                'source_name' => 'source-results.txt', 'status' => 'partial',
+                'handoff_complete' => false, 'message' => 'Earlier handoff was incomplete.',
+            ]],
+        ]]),
+    ]);
+    $this->conversation->messages()->create([
+        'role' => 'assistant', 'content' => 'Latest complete result',
+        'internal_context' => ConversationSourceContextService::encodeResults([[
+            'agent_title' => 'Latest Agent', 'task' => 'Latest check',
+            'result' => str_repeat("LATEST_RESULT_ROW\n", 250)."LATEST_RESULT_END\n",
+            'result_complete' => true, 'source_coverage' => [],
+        ]]),
+    ]);
+
+    $handoff = app(ConversationSourceContextService::class)->forDelegation(
+        $this->user, $this->conversation, 'Recheck the saved source and latest result',
+    );
+    $coverage = collect($handoff['coverage']);
+
+    expect($handoff['text'])->toContain('SOURCE_END')->toContain('LATEST_RESULT_END')
+        ->and($coverage->firstWhere('source_name', 'source-results.txt')['handoff_complete'])->toBeTrue()
+        ->and($coverage->firstWhere('source_name', 'Latest Agent')['handoff_complete'])->toBeTrue()
+        ->and($coverage->firstWhere('source_name', 'Older Agent')['handoff_complete'])->toBeFalse()
+        ->and($coverage->contains(fn (array $item): bool => str_contains($item['source_name'], 'used by')))->toBeFalse();
+});
+
 it('rejects a selected source that is no longer in the current user catalog', function () {
     $sourceMessage = $this->conversation->messages()->create(['role' => 'user', 'content' => 'Saved source']);
     $foreignSource = ConversationAttachment::create([

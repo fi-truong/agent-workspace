@@ -286,7 +286,7 @@ class ConversationSourceContextService
             }
         }
 
-        $previousResults = $includePreviousResults ? [...$this->previousResults($messages), ...$currentStepResults] : [];
+        $previousResults = $includePreviousResults ? array_reverse([...$this->previousResults($messages), ...$currentStepResults]) : [];
         foreach ($previousResults as $index => $result) {
             $resultText = trim((string) ($result['result'] ?? ''));
             if ($resultText === '') {
@@ -300,16 +300,6 @@ class ConversationSourceContextService
                 $message = trim((string) ($priorCoverage['message'] ?? 'Prior source context was incomplete.'));
                 $sourceName = trim((string) ($priorCoverage['source_name'] ?? 'source material'));
                 $priorSourceNotes[] = $sourceName.': '.$message;
-                $coverage[] = [
-                    'source_name' => $sourceName.' (used by '.($result['agent_title'] ?? 'previous Agent').')',
-                    'source_type' => 'previous_result',
-                    'status' => $priorCoverage['status'] ?? 'partial',
-                    'extraction_complete' => (bool) ($priorCoverage['extraction_complete'] ?? false),
-                    'handoff_complete' => false,
-                    'source_chars' => (int) ($priorCoverage['source_chars'] ?? 0),
-                    'sent_chars' => (int) ($priorCoverage['sent_chars'] ?? 0),
-                    'message' => $message,
-                ];
             }
             $priorSourceContext = $priorSourceNotes === [] ? '' : "\nPrior source limitations:\n- ".implode("\n- ", $priorSourceNotes);
             $textItems[] = [
@@ -502,9 +492,38 @@ class ConversationSourceContextService
             return ['text' => implode("\n\n", $blocks), 'coverage' => $coverage];
         }
 
+        // Keep individually affordable saved files whole before older Agent
+        // findings compete for excerpts. Among prior findings, keep the most
+        // recent complete ones whole when they still fit.
+        $wholeItems = [];
+        $wholeCharacters = 0;
+        foreach ($items as $itemIndex => $item) {
+            if ($item['kind'] !== 'file') {
+                continue;
+            }
+            $length = mb_strlen($item['text']);
+            if ($wholeCharacters + $length <= $maximum) {
+                $wholeItems[$itemIndex] = true;
+                $wholeCharacters += $length;
+            }
+        }
+        foreach ($items as $itemIndex => $item) {
+            if ($item['kind'] !== 'previous_result' || ! $item['extraction_complete']) {
+                continue;
+            }
+            $length = mb_strlen($item['text']);
+            if ($wholeCharacters + $length <= $maximum) {
+                $wholeItems[$itemIndex] = true;
+                $wholeCharacters += $length;
+            }
+        }
+
         $tokens = $this->queryTokens($query);
         $candidates = [];
         foreach ($items as $itemIndex => $item) {
+            if (isset($wholeItems[$itemIndex])) {
+                continue;
+            }
             $itemCandidates = [];
             $tableHeader = $this->tableHeader($item['text'], $item['extension']);
             foreach ($this->textChunks($item['text'], (int) config('agent_connections.handoff_chunk_chars', 2000)) as $chunkIndex => $chunk) {
@@ -535,7 +554,7 @@ class ConversationSourceContextService
 
         usort($candidates, fn (array $left, array $right): int => $right['score'] <=> $left['score']);
         $selected = [];
-        $sentCharacters = 0;
+        $sentCharacters = $wholeCharacters;
         foreach (array_keys($items) as $itemIndex) {
             $first = collect($candidates)->first(fn (array $candidate): bool => $candidate['item_index'] === $itemIndex);
             if ($first !== null && $sentCharacters + mb_strlen($first['text']) <= $maximum) {
@@ -559,6 +578,14 @@ class ConversationSourceContextService
         $blocks = [];
         $coverage = [];
         foreach ($items as $itemIndex => $item) {
+            if (isset($wholeItems[$itemIndex])) {
+                $sourceLength = mb_strlen($item['text']);
+                $complete = $item['extraction_complete'];
+                $coverage[] = $this->textCoverage($item, $sourceLength, $complete, $complete ? null : ($item['status_message'] ?? 'Source extraction was incomplete.'));
+                $blocks[] = $this->formatTextItem($item, $item['text'], 0, $sourceLength, $complete);
+
+                continue;
+            }
             $itemChunks = array_values($selected[$itemIndex] ?? []);
             usort($itemChunks, fn (array $left, array $right): int => $left['start'] <=> $right['start']);
             $itemSent = array_sum(array_map(fn (array $chunk): int => $chunk['range_chars'], $itemChunks));
