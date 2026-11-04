@@ -52,7 +52,7 @@ function requestHasContent(Request $request, string $marker): bool
 }
 
 beforeEach(function () {
-    config(['agent_connections.enabled' => true, 'openai.api_key' => 'sk-test', 'openai.rag_embeddings_enabled' => false]);
+    config(['agent_connections.enabled' => true, 'openai.api_key' => 'sk-test', 'openai.rag_embeddings_enabled' => false, 'openai.max_tokens' => 8192]);
     $this->user = User::factory()->create();
     $this->actingAs($this->user);
     $this->parentAgent = $this->user->agents()->create(['title' => 'Coordinator', 'system_prompt' => 'Coordinate school tasks']);
@@ -83,7 +83,7 @@ it('delegates then synthesizes without creating files or extra conversations and
             && ($message['tool_call_id'] ?? '') === 'call-review' && str_contains($message['content'], 'REVIEW_FINDINGS'))
             && collect($messages)->contains(fn (array $message): bool => ($message['role'] ?? '') === 'assistant' && isset($message['tool_calls']));
     });
-    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'CHILD_INSTRUCTIONS') && ! isset($request['tools']) && $request['max_completion_tokens'] === 2048 && $request['reasoning_effort'] === 'none');
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'CHILD_INSTRUCTIONS') && ! isset($request['tools']) && $request['max_completion_tokens'] === 8192 && $request['reasoning_effort'] === 'none');
     expect(AdminAuditLog::where('event', 'agent.consulted')->first()->metadata)->toBe(['agent_id' => $this->childAgent->id, 'status' => 'completed']);
 });
 
@@ -311,6 +311,59 @@ it('continues a specialist answer cut by the per-request output limit', function
         ->and(AdminAuditLog::where('event', 'agent.consulted')->first()->metadata)->toBe(['agent_id' => $this->childAgent->id, 'status' => 'completed']);
 });
 
+it('passes a long complete specialist result to the coordinator in one request', function () {
+    $rows = implode("\n", array_map(fn (int $number): string => sprintf('S%02d\tGroup %d\tEvidence %d', $number, $number % 4, $number), range(1, 32)));
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]))
+        ->push(connectedAgentResponse("Student\tGroup\tEvidence\n".$rows))
+        ->push(connectedAgentResponse('All 32 rows are available for review.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review all student records.',
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'All 32 rows are available'));
+
+    Http::assertSentCount(3);
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'] ?? '', 'CHILD_INSTRUCTIONS')
+        && str_contains($request['messages'][0]['content'] ?? '', 'compact rows')
+        && $request['max_completion_tokens'] === 8192);
+    Http::assertSent(fn (Request $request): bool => collect($request['messages'])->where('role', 'tool')->contains(
+        fn (array $message): bool => str_contains($message['content'], 'S01')
+            && str_contains($message['content'], 'S32')
+            && str_contains($message['content'], '"status":"completed"'),
+    ));
+});
+
+it('shows received specialist findings when the deadline expires before synthesis', function (string $finishReason, string $expectedStatus) {
+    $this->travelTo(now()->startOfSecond());
+    $requestCount = 0;
+    Http::fake(['https://api.openai.com/*' => function () use (&$requestCount, $finishReason) {
+        $requestCount++;
+        if ($requestCount === 1) {
+            return Http::response(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]));
+        }
+        $this->travel(301)->seconds();
+
+        return Http::response(connectedAgentResponse('RECEIVED_FINDINGS', [], $finishReason));
+    }]);
+    try {
+        $this->postJson(route('ai-plus.agent-workspace.send'), [
+            'conversation_id' => $this->conversation->id,
+            'message' => 'Review the school plan.',
+        ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'RECEIVED_FINDINGS')
+            && str_contains($reply, $expectedStatus)
+            && str_contains($reply, 'No final file was created.'));
+    } finally {
+        $this->travelBack();
+    }
+
+    Http::assertSentCount(2);
+    expect(UsageLog::where('activity_title', 'Connected Agent consultation')->count())->toBe(1);
+})->with([
+    ['stop', 'complete specialist result'],
+    ['length', 'partial specialist result'],
+]);
+
 it('reports a specialist result as partial if continuation still reaches the bounded limit', function () {
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]))
@@ -328,6 +381,53 @@ it('reports a specialist result as partial if continuation still reaches the bou
     expect(UsageLog::where('activity_title', 'Connected Agent consultation')->count())->toBe(4)
         ->and(AdminAuditLog::where('event', 'agent.consulted')->first()->metadata)->toBe(['agent_id' => $this->childAgent->id, 'status' => 'partial']);
     Http::assertSentCount(6);
+});
+
+it('shows received specialist findings when the turn token threshold is reached', function () {
+    $specialist = connectedAgentResponse('TOKEN_LIMIT_FINDINGS');
+    $specialist['usage'] = ['prompt_tokens' => 20, 'completion_tokens' => 32000];
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]))
+        ->push($specialist)]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review the school plan.',
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'TOKEN_LIMIT_FINDINGS')
+        && str_contains($reply, 'complete specialist result'));
+
+    Http::assertSentCount(2);
+    expect(UsageLog::where('activity_title', 'Connected Agent consultation')->first()->completion_tokens)->toBe(32000);
+});
+
+it('keeps time for coordinator synthesis instead of starting a late specialist continuation', function () {
+    $this->travelTo(now()->startOfSecond());
+    $requestCount = 0;
+    Http::fake(['https://api.openai.com/*' => function () use (&$requestCount) {
+        $requestCount++;
+        if ($requestCount === 1) {
+            return Http::response(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]));
+        }
+        if ($requestCount === 2) {
+            $this->travel(200)->seconds();
+
+            return Http::response(connectedAgentResponse('FIRST_SECTION', [], 'length'));
+        }
+
+        return Http::response(connectedAgentResponse('The partial findings need review.'));
+    }]);
+    try {
+        $this->postJson(route('ai-plus.agent-workspace.send'), [
+            'conversation_id' => $this->conversation->id,
+            'message' => 'Review the school plan.',
+        ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'The partial findings need review.')
+            && str_contains($reply, 'specialist result reached an output limit'));
+    } finally {
+        $this->travelBack();
+    }
+
+    Http::assertSentCount(3);
+    expect(UsageLog::where('activity_title', 'Connected Agent consultation')->count())->toBe(1);
 });
 
 it('keeps the received specialist pages and their usage if a continuation request fails', function () {
