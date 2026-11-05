@@ -116,6 +116,8 @@ Processing flow:
 
 The original user file is not overwritten. Each request creates a new artifact.
 
+When a user requests export of a saved chat draft, the system confirms intent, source scope and format in one structured step. Once export of the unchanged draft is confirmed, the draft is within 40,000 characters and no new attachment is present on that turn, the backend generates the file from the complete saved content without asking the model to rewrite it or reconfirm its source. Earlier truncated attachments do not block this export; requests that also use attachments retain full-source checks. Missing, truncated or failed confirmation decisions must not create a file.
+
 ### 5.2 Email drafts
 
 When a user requests `Draft an email`, the system saves the AI-generated subject and body. An email draft is only a draft: Phase 1 does not send email, connect a mailbox or send content outside the system.

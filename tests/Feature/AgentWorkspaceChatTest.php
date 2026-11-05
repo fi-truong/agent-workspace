@@ -85,6 +85,19 @@ function fileActionConfirmationResponse(string $content = 'AI_PLUS_FILE_ACTION_C
     ];
 }
 
+function draftFileDecisionResponse(string $source = 'saved_chat_draft', ?string $format = 'word', string $reply = ''): array
+{
+    return [
+        'choices' => [['message' => ['content' => null, 'tool_calls' => [[
+            'id' => 'classify-draft-export', 'type' => 'function', 'function' => [
+                'name' => 'classify_file_request',
+                'arguments' => json_encode(['source' => $source, 'format' => $format, 'reply' => $reply]),
+            ],
+        ]]]]],
+        'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 2], 'model' => 'gpt-6-luna',
+    ];
+}
+
 function confirmedArtifactResponseSequence(string $format, string $content, string $summary = 'File ready.', string $filename = '', string $extension = '', int $promptTokens = 20, int $completionTokens = 8): ResponseSequence
 {
     return Http::sequence()
@@ -897,8 +910,7 @@ it('exports the complete saved draft despite an earlier truncated attachment con
     Http::swap(new Factory);
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(artifactToolCallResponse('word', 'An incomplete model rewrite'))
-        ->push(fileActionConfirmationResponse())
-        ->push(fileActionConfirmationResponse())]);
+        ->push(draftFileDecisionResponse())]);
     $conversation = Conversation::create([
         'user_id' => $this->user->id, 'title' => 'Approved draft', 'type' => Conversation::TYPE_CHAT,
     ]);
@@ -910,7 +922,7 @@ it('exports the complete saved draft despite an earlier truncated attachment con
 
     $this->postJson('/ai-plus/agent-workspace/send', [
         'conversation_id' => $conversation->id,
-        'message' => 'Tôi duyệt bản nháp. Tạo file Word từ toàn bộ bản nháp đã duyệt, giữ riêng phần học sinh và giáo viên.',
+        'message' => 'Tôi duyệt bản nháp gói kiểm tra tiếp nối đã trình. Hãy tạo file Word từ toàn bộ bản nháp đó, giữ riêng phần học sinh và phần giáo viên. Không gọi thêm Agent.',
     ])->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name): bool => str_ends_with($name, '.docx'));
 
     $artifact = AiArtifact::firstOrFail();
@@ -919,8 +931,11 @@ it('exports the complete saved draft despite an earlier truncated attachment con
     $documentXml = $archive->getFromName('word/document.xml');
     $archive->close();
     expect($documentXml)->toContain('TEACHER_MARKER')->toContain('STUDENT_MARKER')->not->toContain('incomplete model rewrite');
-    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'] ?? '', 'keeping already separate sections distinct is permitted')
-        && str_contains($request['messages'][0]['content'] ?? '', 'do not reject it solely for that wording'));
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => ($request['tool_choice'] ?? null) === [
+        'type' => 'function', 'function' => ['name' => 'classify_file_request'],
+    ] && $request['tools'][0]['function']['strict'] === true
+        && ! str_contains(json_encode($request['messages']), 'TEACHER_MARKER'));
 });
 
 it('keeps the full-source safeguard when a draft export also requests earlier attachments', function () {
@@ -928,9 +943,7 @@ it('keeps the full-source safeguard when a draft export also requests earlier at
     Http::swap(new Factory);
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(artifactToolCallResponse('word', 'Incomplete combined content'))
-        ->push(fileActionConfirmationResponse())
-        ->push(fileActionConfirmationResponse('The request also needs the attachments.'))
-        ->push(fileActionConfirmationResponse('AI_PLUS_FILE_ACTION_NOT_REQUESTED'))]);
+        ->push(draftFileDecisionResponse('other', null))]);
     $conversation = Conversation::create([
         'user_id' => $this->user->id, 'title' => 'Combined export', 'type' => Conversation::TYPE_CHAT,
     ]);
@@ -943,8 +956,85 @@ it('keeps the full-source safeguard when a draft export also requests earlier at
         'conversation_id' => $conversation->id,
         'message' => 'Tạo file Word từ bản nháp đã duyệt và toàn bộ dữ liệu trong tài liệu đính kèm.',
     ])->assertOk()->assertJsonPath('artifacts', [])
-        ->assertJsonPath('artifact_error', fn (string $error): bool => str_contains($error, 'chưa xác nhận được yêu cầu chỉ dùng bản nháp'));
+        ->assertJsonPath('artifact_error', fn (string $error): bool => str_contains($error, 'full-processing limit'));
+    Http::assertSentCount(2);
     expect(AiArtifact::count())->toBe(0);
+});
+
+it('exports the saved draft even when the proposed artifact arguments were cut off', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    $proposal = artifactToolCallResponse('word', 'Incomplete model rewrite');
+    $proposal['choices'][0]['message']['tool_calls'][0]['function']['arguments'] = '{"format":"word","content":"cut off';
+    $proposal['choices'][0]['finish_reason'] = 'length';
+    Http::fake(['https://api.openai.com/*' => Http::sequence()->push($proposal)->push(draftFileDecisionResponse())]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id, 'title' => 'Approved draft', 'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant',
+        'content' => "# Student worksheet\n\nCOMPLETE_START\n\n# Teacher rubric\n\n| Item | Level |\n| --- | --- |\n| SAMPLE_ROW | Pending |\n\nCOMPLETE_END"]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id, 'message' => 'Tôi duyệt bản nháp. Xuất toàn bộ bản nháp thành file Word.',
+    ])->assertOk()->assertJsonCount(1, 'artifacts');
+
+    $artifact = AiArtifact::firstOrFail();
+    $zip = new ZipArchive;
+    expect($zip->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
+    $xml = $zip->getFromName('word/document.xml');
+    $zip->close();
+    expect($xml)->toContain('COMPLETE_START')->toContain('SAMPLE_ROW')->toContain('COMPLETE_END')
+        ->not->toContain('Incomplete model rewrite');
+    Http::assertSentCount(2);
+});
+
+it('rejects invalid structured draft export decisions without creating a file', function (array $decision, ?string $finishReason = null) {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    $classification = draftFileDecisionResponse();
+    $classification['choices'][0]['message']['tool_calls'][0]['function']['arguments'] = json_encode($decision);
+    $classification['choices'][0]['finish_reason'] = $finishReason;
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(artifactToolCallResponse('word', '# Model rewrite'))->push($classification)]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id, 'title' => 'Approved draft', 'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => '# Saved draft']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id, 'message' => 'Tạo file Word từ bản nháp đã duyệt.',
+    ])->assertOk()->assertJsonPath('artifacts', [])
+        ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'bước xác nhận gặp lỗi kỹ thuật'));
+    expect(AiArtifact::count())->toBe(0);
+    Http::assertSentCount(2);
+})->with([
+    'missing source' => [['format' => 'word', 'reply' => '']],
+    'unsupported format' => [['source' => 'saved_chat_draft', 'format' => 'executable', 'reply' => '']],
+    'unknown source' => [['source' => 'unknown', 'format' => 'word', 'reply' => '']],
+    'truncated decision' => [['source' => 'saved_chat_draft', 'format' => 'word', 'reply' => ''], 'length'],
+]);
+
+it('does not substitute the saved draft for a requested translation', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(artifactToolCallResponse('word', '# TRANSLATED_CONTENT'))
+        ->push(draftFileDecisionResponse('other', null))]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id, 'title' => 'Translation', 'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => '# ORIGINAL_LANGUAGE']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id, 'message' => 'Dịch bản nháp sang tiếng Anh và tạo file Word.',
+    ])->assertOk()->assertJsonCount(1, 'artifacts');
+    $artifact = AiArtifact::firstOrFail();
+    $zip = new ZipArchive;
+    expect($zip->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
+    $xml = $zip->getFromName('word/document.xml');
+    $zip->close();
+    expect($xml)->toContain('TRANSLATED_CONTENT')->not->toContain('ORIGINAL_LANGUAGE');
+    Http::assertSentCount(2);
 });
 
 it('reports a draft-source confirmation error instead of claiming the attachment was too long', function () {
@@ -952,7 +1042,6 @@ it('reports a draft-source confirmation error instead of claiming the attachment
     Http::swap(new Factory);
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(artifactToolCallResponse('word', 'Requested draft'))
-        ->push(fileActionConfirmationResponse())
         ->push(['error' => ['message' => 'Unavailable']], 503)]);
     $conversation = Conversation::create([
         'user_id' => $this->user->id, 'title' => 'Draft export', 'type' => Conversation::TYPE_CHAT,
@@ -966,7 +1055,8 @@ it('reports a draft-source confirmation error instead of claiming the attachment
         'conversation_id' => $conversation->id,
         'message' => 'Tôi duyệt bản nháp. Tạo file Word từ toàn bộ bản nháp đó.',
     ])->assertOk()->assertJsonPath('artifacts', [])
-        ->assertJsonPath('artifact_error', fn (string $error): bool => str_contains($error, 'xác nhận nguồn xuất gặp lỗi kỹ thuật'));
+        ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'bước xác nhận gặp lỗi kỹ thuật'));
+    Http::assertSentCount(2);
     expect(AiArtifact::count())->toBe(0);
 });
 
@@ -989,9 +1079,7 @@ it('recovers an approved draft file request when the model falsely says it has n
     Http::swap(new Factory);
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(['choices' => [['message' => ['content' => 'I cannot create a Word file in this chat.']]], 'usage' => ['prompt_tokens' => 12, 'completion_tokens' => 8], 'model' => 'gpt-6-luna'])
-        ->push(fileActionConfirmationResponse('Mình chưa thể tạo file Word tải xuống trong phiên này.'))
-        ->push(fileActionConfirmationResponse())
-        ->push(artifactToolCallResponse('word', "# Approved draft\n\nCOMPLETE_DRAFT_MARKER", 'The Word file is ready.'))]);
+        ->push(draftFileDecisionResponse())]);
     $conversation = Conversation::create([
         'user_id' => $this->user->id, 'title' => 'Approved draft', 'type' => Conversation::TYPE_CHAT,
     ]);
@@ -1007,15 +1095,17 @@ it('recovers an approved draft file request when the model falsely says it has n
         'message' => 'Tôi duyệt bản nháp cuối. Tạo file Word tải xuống từ đúng bản đã duyệt.',
     ])->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name): bool => str_ends_with($name, '.docx'));
 
-    Http::assertSentCount(4);
-    Http::assertSent(fn (Request $request): bool => ! isset($request['tools'])
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => isset($request['tools'])
         && str_contains($request['messages'][0]['content'] ?? '', 'FILE ACTION CONFIRMATION GATE')
         && count($request['messages']) <= 3
         && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'Tôi duyệt bản nháp cuối'));
-    Http::assertSent(fn (Request $request): bool => ($request['tool_choice'] ?? null) === [
-        'type' => 'function', 'function' => ['name' => 'create_ai_artifact'],
-    ] && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'COMPLETE_DRAFT_MARKER')
-        && ! str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'không có công cụ'));
+    $artifact = AiArtifact::firstOrFail();
+    $archive = new ZipArchive;
+    expect($archive->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
+    $xml = $archive->getFromName('word/document.xml');
+    $archive->close();
+    expect($xml)->toContain('COMPLETE_DRAFT_MARKER')->not->toContain('không có công cụ');
     expect(AiArtifact::count())->toBe(1);
 });
 
@@ -1026,8 +1116,7 @@ it('supplies the complete earlier draft after failed Word export attempts', func
         ."\n# Student worksheet\n\nEND_OF_DRAFT";
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(['choices' => [['message' => ['content' => 'The draft is not fully visible.']]], 'usage' => ['prompt_tokens' => 12, 'completion_tokens' => 8], 'model' => 'gpt-6-luna'])
-        ->push(fileActionConfirmationResponse())
-        ->push(artifactToolCallResponse('word', $draft, 'Word ready.'))]);
+        ->push(draftFileDecisionResponse())]);
     $conversation = Conversation::create([
         'user_id' => $this->user->id, 'title' => 'Assessment', 'type' => Conversation::TYPE_CHAT,
     ]);
@@ -1044,10 +1133,7 @@ it('supplies the complete earlier draft after failed Word export attempts', func
     Http::assertSent(fn (Request $request): bool => isset($request['tools'])
         && ($request['tool_choice'] ?? null) === 'auto'
         && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'END_OF_DRAFT'));
-    Http::assertSent(fn (Request $request): bool => ($request['tool_choice'] ?? null) === [
-        'type' => 'function', 'function' => ['name' => 'create_ai_artifact'],
-    ] && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'END_OF_DRAFT')
-        && ! str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'Không thấy đủ nội dung'));
+    Http::assertSentCount(2);
     $artifact = AiArtifact::firstOrFail();
     $archive = new ZipArchive;
     expect($archive->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
@@ -1074,29 +1160,26 @@ it('does not export a truncated earlier draft that exceeds the processing limit'
     expect(AiArtifact::count())->toBe(0);
 });
 
-it('rechecks an explicit Word export when the file confirmation gate falsely claims no tool is available', function () {
+it('does not accept an unstructured refusal as a draft export decision', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(artifactToolCallResponse('word', "# Approved assessment\n\nComplete content."))
-        ->push(fileActionConfirmationResponse('Mình chưa thể tạo file Word tải xuống trong phiên này.'))
-        ->push(fileActionConfirmationResponse())]);
+        ->push(fileActionConfirmationResponse('Mình chưa thể tạo file Word tải xuống trong phiên này.'))]);
     $conversation = Conversation::create([
         'user_id' => $this->user->id, 'title' => 'Approved assessment', 'type' => Conversation::TYPE_CHAT,
     ]);
     Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant',
-        'content' => 'Xin lỗi, tôi không có công cụ tạo Word trong phiên này.']);
+        'content' => '# Complete approved assessment']);
 
     $this->postJson('/ai-plus/agent-workspace/send', [
         'conversation_id' => $conversation->id,
         'message' => 'Tôi duyệt bản nháp cuối. Hãy tạo file Word tải xuống từ đúng bản nháp đó.',
-    ])->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name): bool => str_ends_with($name, '.docx'));
+    ])->assertOk()->assertJsonPath('artifacts', [])
+        ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'bước xác nhận gặp lỗi kỹ thuật'));
 
-    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'] ?? '', 'FILE ACTION CONFIRMATION GATE')
-        && ! str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'không có công cụ'));
-    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'] ?? '', 'FILE ACTION INTENT RETRY')
-        && count($request['messages']) === 2);
-    expect(AiArtifact::count())->toBe(1);
+    Http::assertSentCount(2);
+    expect(AiArtifact::count())->toBe(0);
 });
 
 it('does not create an approved draft file when a capability question fails the intent retry', function () {
@@ -1140,8 +1223,7 @@ it('does not recover a file tool for a question about an earlier draft', functio
     Http::swap(new Factory);
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push(['choices' => [['message' => ['content' => 'Yes, you can ask me to create it.']]], 'usage' => ['prompt_tokens' => 8, 'completion_tokens' => 7], 'model' => 'gpt-6-luna'])
-        ->push(fileActionConfirmationResponse('This is a question, not a file request.'))
-        ->push(fileActionConfirmationResponse('AI_PLUS_FILE_ACTION_NOT_REQUESTED'))]);
+        ->push(draftFileDecisionResponse('not_requested', null, 'Yes, you can ask me to create it.'))]);
     $conversation = Conversation::create([
         'user_id' => $this->user->id, 'title' => 'Earlier draft', 'type' => Conversation::TYPE_CHAT,
     ]);
@@ -1154,7 +1236,7 @@ it('does not recover a file tool for a question about an earlier draft', functio
     ])->assertOk()->assertJsonPath('artifacts', [])
         ->assertJsonPath('reply', 'Yes, you can ask me to create it.');
 
-    Http::assertSentCount(3);
+    Http::assertSentCount(2);
     expect(AiArtifact::count())->toBe(0);
 });
 

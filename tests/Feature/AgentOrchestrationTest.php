@@ -435,7 +435,7 @@ it('creates exactly one final Word artifact and includes file-confirmation usage
     $zip->close();
 });
 
-it('recovers a Word export from an approved draft in a connected Agent chat', function () {
+it('recovers a Word export from an approved draft in a connected Agent chat', function (bool $streamed) {
     $this->conversation->messages()->create([
         'role' => 'user',
         'content' => 'Prepare the assessment draft.',
@@ -452,30 +452,47 @@ it('recovers a Word export from an approved draft in a connected Agent chat', fu
         'role' => 'assistant',
         'content' => str_repeat('Không thấy đủ nội dung. ', 15),
     ]);
-    $artifactCall = ['id' => 'call-approved-word', 'type' => 'function', 'function' => [
-        'name' => 'create_ai_artifact', 'arguments' => json_encode([
-            'format' => 'word', 'file_extension' => '', 'filename' => 'approved-assessment',
-            'content' => '# Approved lesson assessment', 'summary' => 'The Word file is ready.',
+    $decisionCall = ['id' => 'classify-approved-word', 'type' => 'function', 'function' => [
+        'name' => 'classify_file_request', 'arguments' => json_encode([
+            'source' => 'saved_chat_draft', 'format' => 'word', 'reply' => '',
         ]),
     ]];
     Http::fake(['https://api.openai.com/*' => Http::sequence()
-        ->push(connectedAgentResponse('I cannot create a Word file here.'))
-        ->push(connectedAgentResponse('Mình chưa thể tạo file Word tải xuống trong phiên này.'))
-        ->push(connectedAgentResponse('AI_PLUS_FILE_ACTION_CONFIRMED'))
-        ->push(connectedAgentResponse('', [$artifactCall]))]);
+        ->push(
+            $streamed ? connectedAgentStream(connectedAgentResponse('I cannot create a Word file here.')) : connectedAgentResponse('I cannot create a Word file here.'),
+            200, $streamed ? ['Content-Type' => 'text/event-stream'] : [],
+        )
+        ->push(connectedAgentResponse('', [$decisionCall]))]);
 
-    $this->postJson(route('ai-plus.agent-workspace.send'), [
+    $response = $this->postJson(route($streamed ? 'ai-plus.agent-workspace.send-stream' : 'ai-plus.agent-workspace.send'), [
         'conversation_id' => $this->conversation->id,
         'message' => 'Tôi duyệt bản nháp cuối. Tạo file Word tải xuống từ bản nháp đã duyệt.',
-    ])->assertOk()->assertJsonCount(1, 'artifacts');
+    ])->assertOk();
+    if ($streamed) {
+        $bufferLevel = ob_get_level();
+        $response->baseResponse->getCallback()();
+        while (ob_get_level() < $bufferLevel) {
+            ob_start();
+        }
+        expect($this->conversation->messages()->where('role', 'assistant')->latest('id')->value('content'))
+            ->toContain('/ai-plus/artifacts/');
+    } else {
+        $response->assertJsonCount(1, 'artifacts');
+    }
 
-    Http::assertSentCount(4);
+    Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => ($request['tool_choice'] ?? null) === [
-        'type' => 'function', 'function' => ['name' => 'create_ai_artifact'],
-    ] && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'END_OF_APPROVED_ASSESSMENT')
+        'type' => 'function', 'function' => ['name' => 'classify_file_request'],
+    ] && ! str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'END_OF_APPROVED_ASSESSMENT')
         && ! str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'Không thấy đủ nội dung'));
-    expect(AiArtifact::count())->toBe(1);
-});
+    $artifact = AiArtifact::firstOrFail();
+    $zip = new ZipArchive;
+    expect($zip->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
+    $xml = $zip->getFromName('word/document.xml');
+    $zip->close();
+    expect($xml)->toContain('END_OF_APPROVED_ASSESSMENT')->not->toContain('Không thấy đủ nội dung');
+    expect(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(30);
+})->with(['JSON' => false, 'SSE' => true]);
 
 it('recovers from a specialist error without inventing a file or losing quota usage', function () {
     Http::fake(['https://api.openai.com/*' => Http::sequence()

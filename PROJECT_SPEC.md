@@ -116,6 +116,8 @@ Luồng xử lý:
 
 File gốc của user không bị ghi đè. Mỗi lần tạo tạo ra một artifact mới.
 
+Khi user yêu cầu xuất bản nháp đã lưu trong chat, hệ thống xác nhận ý định, nguồn và định dạng trong cùng một bước có cấu trúc. Nếu xác nhận xuất nguyên bản nháp không quá 40.000 ký tự và không có tệp mới ở lượt đó, backend lấy đủ nội dung đã lưu để tạo file, không yêu cầu model viết lại hay xác nhận nguồn lần hai. Tài liệu đính kèm cũ bị cắt không chặn việc này; yêu cầu dùng thêm tài liệu vẫn giữ kiểm tra nguồn đầy đủ. Quyết định xác nhận thiếu, bị cắt hoặc lỗi không được tạo file.
+
 ### 5.2 Email draft
 
 Khi user yêu cầu `Soạn email nháp`, hệ thống lưu subject và body do AI tạo. Email draft chỉ là bản nháp; Giai đoạn 1 không gửi email, không kết nối mailbox và không gửi ra ngoài hệ thống.
