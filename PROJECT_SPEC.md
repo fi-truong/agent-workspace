@@ -92,7 +92,7 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 
 ### 4.8 Tài liệu tập huấn
 
-- Cuối trang Support, dưới thông tin liên hệ, hiển thị một liên kết `Tài liệu tập huấn AI+ — 12/11` tải bộ 16 Agent mẫu dạng ZIP.
+- Trang Support và trang chủ không hiển thị liên kết tài liệu tập huấn. Bộ 16 Agent mẫu dạng ZIP vẫn có thể tải qua route tải trực tiếp.
 - Gói tài liệu giả lập đi kèm mã nguồn trong `resources/training`, không đặt trong thư mục public. Route tải áp dụng cùng yêu cầu đăng nhập và chấp nhận AI Policy như trang Support; không giới thiệu liên kết trên trang chủ. Không cần migration hoặc cấu hình môi trường riêng.
 
 ## 5. AI Tool và Artifact — Giai đoạn 1

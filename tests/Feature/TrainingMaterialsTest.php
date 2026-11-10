@@ -15,15 +15,14 @@ test('training downloads follow the existing AI policy acceptance requirement', 
         ->assertRedirect(route('ai-plus.policy-acceptance.show'));
 });
 
-test('support shows one training link below contact information without advertising it on the homepage', function () {
+test('support and homepage do not display the training materials link', function () {
     $this->actingAs(User::factory()->create());
 
-    $response = $this->get(route('ai-plus.support.index'))
+    $this->get(route('ai-plus.support.index'))
         ->assertOk()
-        ->assertSeeInOrder(['HSC, Open Office', 'Tài liệu tập huấn AI+ — 12/11'])
-        ->assertSee(route('ai-plus.support.training-materials.download'), false);
-
-    expect(substr_count($response->getContent(), 'Tài liệu tập huấn AI+ — 12/11'))->toBe(1);
+        ->assertSee('HSC, Open Office')
+        ->assertDontSee('Tài liệu tập huấn AI+ — 12/11')
+        ->assertDontSee(route('ai-plus.support.training-materials.download'), false);
 
     $this->get(route('ai-plus.index'))
         ->assertOk()

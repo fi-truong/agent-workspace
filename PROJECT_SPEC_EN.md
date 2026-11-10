@@ -92,7 +92,7 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 
 ### 4.8 Workshop materials
 
-- The bottom of Support, below contact information, displays one `Tài liệu tập huấn AI+ — 12/11` link that downloads the sixteen-agent sample ZIP.
+- Support and the homepage do not display a workshop materials link. The sixteen-agent sample ZIP remains available through its direct download route.
 - The simulated training package ships with the source in `resources/training`, outside the public directory. Its download route uses the same sign-in and AI Policy acceptance requirements as Support; the homepage does not advertise the link. No migration or separate environment setting is required.
 
 ## 5. AI Tools and Artifacts Phase 1

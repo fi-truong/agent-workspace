@@ -101,9 +101,6 @@
           </div>
         </div>
       </div>
-      <p class="training-materials-link">
-        <a href="{{ route('ai-plus.support.training-materials.download') }}">Tài liệu tập huấn AI+ — 12/11</a>
-      </p>
     </div>
   </div>
 </main>
@@ -154,8 +151,6 @@
   .contact-icon{width:40px;height:40px;border-radius:8px;background: var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:18px;}
   .contact-label{font-size:12px;color: var(--text-soft);margin-bottom:2px;}
   .contact-value{font-size:14px;font-weight:500;color: var(--text-main);}
-  .training-materials-link{margin:24px 0 0;font-size:14px;}
-  .training-materials-link a{color:var(--navy);text-underline-offset:3px;}
 
   @media (max-width: 700px){
     .form-grid{grid-template-columns:1fr;}
