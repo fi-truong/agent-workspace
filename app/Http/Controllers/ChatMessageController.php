@@ -14,6 +14,7 @@ use App\Services\AgentOrchestrationService;
 use App\Services\ArtifactService;
 use App\Services\ChatCompletionService;
 use App\Services\ChatModelService;
+use App\Services\ChatResponseContinuationService;
 use App\Services\ConversationSourceContextService;
 use App\Services\EmailDraftService;
 use App\Services\ImageGenerationService;
@@ -102,6 +103,7 @@ class ChatMessageController extends Controller
         Request $request,
         PiiFilterService $piiFilter,
         ChatCompletionService $chatService,
+        ChatResponseContinuationService $chatContinuations,
         KnowledgeService $knowledgeService,
         SchoolKnowledgeService $schoolKnowledgeService,
         WebPageReaderService $webPageReader,
@@ -139,6 +141,14 @@ class ChatMessageController extends Controller
                 'retryable' => true,
             ], 502);
         }
+
+        $continuationTimeout = $usesConnectedAgents
+            ? min(20, max(1, (int) config('openai.timeout', 120)))
+            : null;
+        $completion = $chatContinuations->continueIfTruncated(
+            $completion, $ctx['conversation'], $ctx['user'], $ctx['model'], $completion['orchestration_history'] ?? $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'],
+            timeoutSeconds: $continuationTimeout,
+        );
 
         $ctx['history'] = $completion['orchestration_history'] ?? $ctx['history'];
         $actions = $this->createRequestedOutputs($completion, $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService, $knowledgeService, $chatService, $ctx);
@@ -277,6 +287,7 @@ class ChatMessageController extends Controller
         Request $request,
         PiiFilterService $piiFilter,
         ChatCompletionService $chatService,
+        ChatResponseContinuationService $chatContinuations,
         KnowledgeService $knowledgeService,
         SchoolKnowledgeService $schoolKnowledgeService,
         WebPageReaderService $webPageReader,
@@ -300,7 +311,7 @@ class ChatMessageController extends Controller
 
         $ctx = $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy, $conversationSources, $agentConnections);
 
-        return response()->stream(function () use ($ctx, $chatService, $request, $tokenQuotaService, $artifactService, $emailDraftService, $knowledgeService, $agentConnections, $orchestration) {
+        return response()->stream(function () use ($ctx, $chatService, $chatContinuations, $request, $tokenQuotaService, $artifactService, $emailDraftService, $knowledgeService, $agentConnections, $orchestration) {
             while (ob_get_level() > 0) {
                 ob_end_flush();
             }
@@ -342,6 +353,14 @@ class ChatMessageController extends Controller
                         $ctx['tools'],
                         model: $ctx['model'],
                     );
+
+                $continuationTimeout = $usesConnectedAgents
+                    ? min(20, max(1, (int) config('openai.timeout', 120)))
+                    : null;
+                $completion = $chatContinuations->continueIfTruncated(
+                    $completion, $ctx['conversation'], $ctx['user'], $ctx['model'], $completion['orchestration_history'] ?? $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $onDelta,
+                    $continuationTimeout,
+                );
 
                 $send('progress', ['message' => 'Đang hoàn tất phản hồi…']);
                 $ctx['history'] = $completion['orchestration_history'] ?? $ctx['history'];

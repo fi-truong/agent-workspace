@@ -224,6 +224,47 @@ it('creates conversation and stores both messages', function () {
         ->and(UsageLog::count())->toBe(1);
 });
 
+it('marks a non-streamed chat reply incomplete when its one continuation also reaches the output limit', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push([
+            'choices' => [['message' => ['content' => 'Questionnaire part one.'], 'finish_reason' => 'length']],
+            'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 8192],
+            'model' => 'gpt-6-luna',
+        ])
+        ->push([
+            'choices' => [['message' => ['content' => 'Questionnaire part two.'], 'finish_reason' => 'length']],
+            'usage' => ['prompt_tokens' => 8500, 'completion_tokens' => 8192],
+            'model' => 'gpt-6-luna',
+        ])]);
+
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id,
+        'title' => 'Long survey',
+        'type' => Conversation::TYPE_CHAT,
+    ]);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'user', 'content' => 'Tạo khảo sát nhiều phần.']);
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => 'Bản nháp trước.']);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id,
+        'message' => 'Tạo một khảo sát dài cho nhà trường và xuất thành file Word.',
+    ])->assertOk()
+        ->assertJsonPath('artifacts', [])
+        ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Questionnaire part one.')
+            && str_contains($reply, 'Questionnaire part two.')
+            && str_contains($reply, 'Phản hồi có thể chưa đầy đủ'));
+
+    $assistantReply = $conversation->messages()->where('role', 'assistant')->latest('id')->firstOrFail();
+    expect($assistantReply->prompt_tokens)->toBe(8600)
+        ->and($assistantReply->completion_tokens)->toBe(16384)
+        ->and($assistantReply->content)->toContain('Phản hồi có thể chưa đầy đủ');
+    expect(AiArtifact::query()->exists())->toBeFalse();
+
+    Http::assertSentCount(2);
+});
+
 it('recovers the complete saved reply for a streamed turn without exposing other turns', function () {
     $conversation = Conversation::create([
         'user_id' => $this->user->id,
