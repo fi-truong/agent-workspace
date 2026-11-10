@@ -342,6 +342,50 @@ test('grows and shrinks the prompt while keeping the toolbar below it', async (t
     assert.equal((await textarea.boundingBox()).height, short.height);
 });
 
+test('wraps a pasted long prompt without widening the chat page', async (t) => {
+    const page = await setup(t);
+    const longPrompt = `Review this code and explain each section:\n\n${'A'.repeat(4000)}`;
+    await page.setViewportSize({ width: 390, height: 800 });
+
+    const textarea = page.locator('textarea');
+    await textarea.fill(longPrompt);
+    const composerLayout = await textarea.evaluate((element) => ({
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+        height: element.getBoundingClientRect().height,
+        wrap: element.getAttribute('wrap'),
+    }));
+    assert.equal(composerLayout.wrap, 'soft');
+    assert.ok(composerLayout.scrollWidth <= composerLayout.clientWidth);
+    assert.ok(composerLayout.height <= 400);
+
+    const response = page.waitForResponse(
+        (result) => result.request().method() === 'POST',
+    );
+    await page.locator('.send-btn').click();
+    await response;
+    await page.getByText('School planning answer', { exact: true }).waitFor();
+
+    const messageLayout = await page.evaluate(() => {
+        const message = document.querySelector('.chat-bubble');
+        const bounds = message.getBoundingClientRect();
+
+        return {
+            pageWidth: document.documentElement.scrollWidth,
+            viewportWidth: window.innerWidth,
+            bubbleLeft: bounds.left,
+            bubbleRight: bounds.right,
+            text: message.textContent,
+            overflowWrap: getComputedStyle(message).overflowWrap,
+        };
+    });
+    assert.ok(messageLayout.pageWidth <= messageLayout.viewportWidth);
+    assert.ok(messageLayout.bubbleLeft >= 0);
+    assert.ok(messageLayout.bubbleRight <= messageLayout.viewportWidth);
+    assert.equal(messageLayout.text, longPrompt);
+    assert.equal(messageLayout.overflowWrap, 'anywhere');
+});
+
 test('keeps the arrow button intact while reading attachments', async (t) => {
     const page = await setup(t);
     await page.evaluate(() => {

@@ -208,7 +208,7 @@
     <div class="input-area">
       <div class="input-wrapper">
         <div class="input-box">
-          <textarea placeholder="Type your message, or describe what you want to build..." rows="1"></textarea>
+          <textarea placeholder="Type your message, or describe what you want to build..." rows="1" wrap="soft"></textarea>
           <div class="input-actions">
             <button type="button" class="attach-btn" title="Attach files" aria-label="Attach files">📎</button>
             <div class="composer-actions-right">
@@ -388,7 +388,7 @@
   .input-box:focus-within{border-color: var(--navy);box-shadow: 0 0 0 3px rgba(31,56,100,0.1);}
   /* The composer sits at the bottom of a flex layout, so the browser's native
      resize handle appears to grow upward. Content-driven auto-grow is clearer. */
-  .input-box textarea{width:100%;min-width:0;box-sizing:border-box;border:none;outline:none;resize:none;font-family: inherit;font-size:15px;line-height:1.5;min-height:40px;max-height:400px;color: var(--text-main);background: transparent;}
+  .input-box textarea{width:100%;min-width:0;box-sizing:border-box;border:none;outline:none;resize:none;overflow-x:hidden;overflow-y:auto;overflow-wrap:anywhere;white-space:pre-wrap;font-family: inherit;font-size:15px;line-height:1.5;min-height:40px;max-height:400px;color: var(--text-main);background: transparent;}
   .input-box textarea::placeholder{color: var(--text-soft);}
   .input-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .composer-actions-right{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;}
@@ -426,7 +426,12 @@
   .chat-msg-wrap .chat-bubble a:hover{color:#8A5C10;}
   [data-theme="teal"] .chat-msg-wrap .chat-bubble a:hover{color:#F0C878;}
   [style*="align-self:flex-start"] blockquote{border-left:3px solid var(--sage);margin:8px 0;padding-left:12px;color:var(--text-soft);}
-  #chat-messages{max-width:100%;}
+  #chat-messages{width:100%;min-width:0;max-width:100%;box-sizing:border-box;overflow-x:hidden;}
+  .chat-msg-wrap{min-width:0;max-width:85%;}
+  .chat-bubble{min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:normal;}
+  .chat-bubble pre{max-width:100%;box-sizing:border-box;overflow-x:auto;}
+  .chat-bubble table{display:block;max-width:100%;overflow-x:auto;}
+  .chat-bubble img{max-width:100%;height:auto;}
 
   @media (max-width: 860px){
     .quick-actions{grid-template-columns:1fr;}
