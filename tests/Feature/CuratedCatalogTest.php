@@ -42,6 +42,23 @@ test('public prompt library only lists published prompts and supports both taxon
         ->assertDontSee('Unpublished prompt');
 });
 
+test('prompt library copy buttons preserve apostrophes and ampersands', function () {
+    $user = User::factory()->create();
+    PromptLibraryPrompt::create([
+        'author_id' => $user->id,
+        'title' => 'Special characters prompt',
+        'description' => 'A prompt with punctuation.',
+        'preview_text' => "Review the school's policy & update the <plan>.",
+        'status' => 'published',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('ai-plus.prompt-library.index'))
+        ->assertOk()
+        ->assertSee('data-prompt="Review the school&#039;s policy &amp; update the &lt;plan&gt;."', false)
+        ->assertDontSee('school&amp;#039;s', false);
+});
+
 test('homepage catalog counts include only published prompts and templates', function () {
     $user = User::factory()->create();
 

@@ -34,6 +34,22 @@ test('a signed-in user can post a showcase comment', function () {
         ->assertSee('This is very useful, thank you!');
 });
 
+test('showcase descriptions escape special characters once and keep line breaks', function () {
+    $author = User::factory()->create();
+    $viewer = User::factory()->create();
+    $showcase = publishedShowcase($author);
+    $showcase->update(['description' => "The School's Spending Regulations & rates.\nReview each limit.\n<script>alert(1)</script>"]);
+
+    $this->actingAs($viewer)
+        ->get(route('ai-plus.sharing-showcase.show', $showcase))
+        ->assertOk()
+        ->assertSee('The School&#039;s Spending Regulations &amp; rates.', false)
+        ->assertSee('<br />', false)
+        ->assertSee('&lt;script&gt;alert(1)&lt;/script&gt;', false)
+        ->assertDontSee('<script>alert(1)</script>', false)
+        ->assertDontSee('School&amp;#039;s', false);
+});
+
 test('a showcase comment containing sensitive personal information is not published', function () {
     $author = User::factory()->create();
     $commenter = User::factory()->create();

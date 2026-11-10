@@ -42,7 +42,7 @@
     <div class="post-layout">
       <article class="post-main">
         <div class="post-description">
-          <p>{{ nl2br(e($post['description'])) }}</p>
+          <p>{!! nl2br(e($post['description'])) !!}</p>
         </div>
 
         <div class="post-actions">

@@ -81,7 +81,7 @@
         @endif
         <div class="prompt-preview">{{ $prompt['preview'] }}</div>
         <div class="prompt-footer">
-          <button class="copy-btn" data-prompt="{{ htmlspecialchars($prompt['preview'], ENT_QUOTES, 'UTF-8') }}">Copy Prompt</button>
+          <button class="copy-btn" data-prompt="{{ $prompt['preview'] }}">Copy Prompt</button>
         </div>
       </div>
       @endforeach
