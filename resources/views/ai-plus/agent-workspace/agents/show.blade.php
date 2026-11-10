@@ -1,6 +1,6 @@
 @extends('layouts.ai-plus')
 
-@section('title', '{{ $agent->title }} — Agent Workspace')
+@section('title', $agent->title . ' — Agent Workspace')
 
 @section('breadcrumb', $agent->title)
 
