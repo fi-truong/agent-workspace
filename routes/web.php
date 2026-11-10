@@ -106,6 +106,8 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware(['auth', 'ai.policy'])->g
     Route::get('/my-usage', [MyUsageController::class, 'index'])->name('my-usage.index');
     Route::get('/ai-policy', [AiPolicyController::class, 'index'])->name('ai-policy.index');
     Route::get('/support', [SupportController::class, 'index'])->name('support.index');
+    Route::get('/support/training-materials/2026-11-12', [SupportController::class, 'downloadTrainingMaterials'])
+        ->name('support.training-materials.download');
     Route::post('/support', [SupportController::class, 'store'])->middleware('throttle:support')->name('support.store');
     Route::get('/support/requests', [SupportController::class, 'myRequests'])->name('support.requests.index');
     Route::get('/support/requests/{ticket}', [SupportController::class, 'showRequest'])->name('support.requests.show');

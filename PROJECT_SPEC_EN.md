@@ -90,6 +90,11 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 - Users accept the current AI Policy version; work-use monitoring records limited metadata for cases needing review.
 - Microsoft login routes exist; availability depends on real tenant configuration.
 
+### 4.8 Workshop materials
+
+- The bottom of Support, below contact information, displays one `Tài liệu tập huấn AI+ — 12/11` link that downloads the sixteen-agent sample ZIP.
+- The simulated training package ships with the source in `resources/training`, outside the public directory. Its download route uses the same sign-in and AI Policy acceptance requirements as Support; the homepage does not advertise the link. No migration or separate environment setting is required.
+
 ## 5. AI Tools and Artifacts Phase 1
 
 ### 5.1 File creation

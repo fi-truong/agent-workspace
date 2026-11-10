@@ -12,15 +12,29 @@ use App\Models\SupportTicketReplyAttachment;
 use App\Services\PiiFilterService;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SupportController extends Controller
 {
+    public function downloadTrainingMaterials(): BinaryFileResponse
+    {
+        $filename = 'CIEC_26_1110_Bo_tai_lieu_16_Agent_AI_plus.zip';
+        $path = resource_path('training/'.$filename);
+        abort_unless(File::isFile($path), 404);
+
+        return response()->download($path, $filename, [
+            'Content-Type' => 'application/zip',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     public function index(Request $request)
     {
         $faqs = Faq::orderBy('sort_order')->get()->map(function ($faq) {
