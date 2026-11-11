@@ -435,6 +435,135 @@ it('creates exactly one final Word artifact and includes file-confirmation usage
     $zip->close();
 });
 
+it('recovers a first turn Word request using current sources and completed specialist findings', function (bool $streamed) {
+    $designer = $this->user->agents()->create(['title' => 'Activity designer', 'system_prompt' => 'Design activities from the analysis']);
+    $reviewer = $this->user->agents()->create(['title' => 'Evidence reviewer', 'system_prompt' => 'Review the provided evidence']);
+    $this->parentAgent->connectedAgents()->attach([$designer->id, $reviewer->id]);
+    $artifactCall = ['id' => 'call-current-word', 'type' => 'function', 'function' => [
+        'name' => 'create_ai_artifact', 'arguments' => json_encode([
+            'format' => 'word', 'content' => '# CURRENT_SOURCE and COMPLETE_FINDINGS with ACTIVITY_PLAN and EVIDENCE_REVIEW',
+            'summary' => 'The requested Word file is ready.',
+        ]),
+    ]];
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push($streamed
+            ? connectedAgentStream(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]))
+            : connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]), 200,
+            $streamed ? ['Content-Type' => 'text/event-stream'] : [])
+        ->push(connectedAgentResponse('COMPLETE_FINDINGS'))
+        ->push($streamed
+            ? connectedAgentStream(connectedAgentResponse('', [connectedAgentCall($designer->id, 'Design activities', 'call-design')]))
+            : connectedAgentResponse('', [connectedAgentCall($designer->id, 'Design activities', 'call-design')]), 200,
+            $streamed ? ['Content-Type' => 'text/event-stream'] : [])
+        ->push(connectedAgentResponse('ACTIVITY_PLAN'))
+        ->push($streamed
+            ? connectedAgentStream(connectedAgentResponse('', [connectedAgentCall($reviewer->id, 'Review evidence', 'call-evidence')]))
+            : connectedAgentResponse('', [connectedAgentCall($reviewer->id, 'Review evidence', 'call-evidence')]), 200,
+            $streamed ? ['Content-Type' => 'text/event-stream'] : [])
+        ->push(connectedAgentResponse('EVIDENCE_REVIEW'))
+        ->push($streamed
+            ? connectedAgentStream(connectedAgentResponse('I cannot create a Word file here.'))
+            : connectedAgentResponse('I cannot create a Word file here.'), 200,
+            $streamed ? ['Content-Type' => 'text/event-stream'] : [])
+        ->push(connectedAgentResponse('AI_PLUS_FILE_ACTION_CONFIRMED'))
+        ->push(connectedAgentResponse('', [$artifactCall]))]);
+
+    $response = $this->postJson(route($streamed ? 'ai-plus.agent-workspace.send-stream' : 'ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review the attached plan and create a draft Word file with the findings.',
+        'documents' => [['name' => 'plan.txt', 'data_url' => 'data:text/plain;base64,'.base64_encode('CURRENT_SOURCE')]],
+    ])->assertOk();
+    if ($streamed) {
+        $bufferLevel = ob_get_level();
+        $response->baseResponse->getCallback()();
+        while (ob_get_level() < $bufferLevel) {
+            ob_start();
+        }
+        expect($this->conversation->messages()->where('role', 'assistant')->latest('id')->value('content'))
+            ->toContain('/ai-plus/artifacts/');
+    } else {
+        $response->assertJsonCount(1, 'artifacts');
+    }
+
+    Http::assertSentCount(9);
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'CURRENT TURN FILE RECOVERY')
+        && requestHasContent($request, 'CURRENT_SOURCE')
+        && requestHasContent($request, 'COMPLETE_FINDINGS')
+        && requestHasContent($request, 'ACTIVITY_PLAN')
+        && requestHasContent($request, 'EVIDENCE_REVIEW')
+        && collect($request['messages'])->contains(fn (array $message): bool => ($message['role'] ?? '') === 'tool')
+        && count($request['tools'] ?? []) === 1
+        && $request['tools'][0]['function']['name'] === 'create_ai_artifact');
+    $artifact = AiArtifact::sole();
+    $zip = new ZipArchive;
+    expect($zip->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
+    expect($zip->getFromName('word/document.xml'))->toContain('CURRENT_SOURCE')->toContain('COMPLETE_FINDINGS')
+        ->toContain('ACTIVITY_PLAN')->toContain('EVIDENCE_REVIEW');
+    $zip->close();
+    expect(app(TokenQuotaService::class)->summary($this->user)['used'])->toBe(135);
+})->with(['JSON' => false, 'SSE' => true]);
+
+it('blocks file creation when current specialist tables have unresolved validation warnings', function (bool $streamed, bool $proposesFile) {
+    $artifactCall = ['id' => 'call-invalid-word', 'type' => 'function', 'function' => [
+        'name' => 'create_ai_artifact', 'arguments' => json_encode([
+            'format' => 'word', 'content' => '# Invalid findings', 'summary' => 'The file is ready.',
+        ]),
+    ]];
+    $final = $proposesFile
+        ? connectedAgentResponse('', [$artifactCall])
+        : connectedAgentResponse('I cannot create a Word file here.');
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push($streamed
+            ? connectedAgentStream(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Compare records')]))
+            : connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Compare records')]), 200,
+            $streamed ? ['Content-Type' => 'text/event-stream'] : [])
+        ->push(connectedAgentResponse("record\titem_a\titem_b\tgroup\nA\t1\t0\tG0\nB\t1\t0\tG3\n\nG0=2; G3=0"))
+        ->push($streamed ? connectedAgentStream($final) : $final, 200,
+            $streamed ? ['Content-Type' => 'text/event-stream'] : [])]);
+
+    $response = $this->postJson(route($streamed ? 'ai-plus.agent-workspace.send-stream' : 'ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Compare the records and create a Word file with the findings.',
+        'documents' => [['name' => 'records.txt', 'data_url' => 'data:text/plain;base64,'.base64_encode("record\titem_a\titem_b\nA\t1\t0\nB\t0\t1")]],
+    ])->assertOk();
+    if ($streamed) {
+        $bufferLevel = ob_get_level();
+        $response->baseResponse->getCallback()();
+        while (ob_get_level() < $bufferLevel) {
+            ob_start();
+        }
+        $reply = $this->conversation->messages()->where('role', 'assistant')->latest('id')->value('content');
+    } else {
+        $response->assertJsonPath('artifacts', []);
+        $reply = $response->json('reply');
+    }
+    expect($reply)->toContain('Chưa tạo file')->toContain('sai lệch')->toContain('Reviewer')
+        ->toContain('Số lượng trong phần tóm tắt')->toContain('1 dòng có trường')
+        ->not->toContain('lỗi kỹ thuật');
+    Http::assertSentCount(3);
+    expect(AiArtifact::count())->toBe(0);
+})->with(['JSON' => false, 'SSE' => true])->with(['recovery' => false, 'proposed tool' => true]);
+
+it('does not create a Word file from a current specialist result that remains partial', function () {
+    $sequence = Http::sequence()->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id)]));
+    for ($segment = 0; $segment < 4; $segment++) {
+        $sequence->push(connectedAgentResponse("Incomplete section {$segment}.", [], 'length'));
+    }
+    $sequence->push(connectedAgentResponse('', [['id' => 'call-partial-word', 'type' => 'function', 'function' => [
+        'name' => 'create_ai_artifact', 'arguments' => json_encode(['format' => 'word', 'content' => '# Incomplete findings']),
+    ]]]));
+    Http::fake(['https://api.openai.com/*' => $sequence]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review the plan and create a draft Word file.',
+    ])->assertOk()->assertJsonPath('artifacts', [])
+        ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Chưa tạo file')
+            && str_contains($reply, 'chưa hoàn tất'));
+    Http::assertSentCount(6);
+    expect(AiArtifact::count())->toBe(0);
+});
+
 it('recovers a Word export from an approved draft in a connected Agent chat', function (bool $streamed) {
     $this->conversation->messages()->create([
         'role' => 'user',

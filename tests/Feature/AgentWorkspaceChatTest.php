@@ -1115,6 +1115,25 @@ it('creates a file only when OpenAI selects the artifact tool and format', funct
         ->assertJsonPath('reply', fn (string $reply) => str_contains($reply, '/ai-plus/artifacts/'));
 });
 
+it('preserves a missing source explanation when first turn file recovery cannot create a complete document', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(fileActionConfirmationResponse('I cannot create a Word file here.'))
+        ->push(fileActionConfirmationResponse())
+        ->push(fileActionConfirmationResponse('The requested source table is missing; no file was created.'))]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'message' => 'Create a draft Word report from the source table.',
+    ])->assertOk()->assertJsonPath('artifacts', [])
+        ->assertJsonPath('reply', 'The requested source table is missing; no file was created.');
+
+    Http::assertSentCount(3);
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'CURRENT TURN FILE RECOVERY')
+        && ($request['tool_choice'] ?? null) === 'auto');
+    expect(AiArtifact::count())->toBe(0);
+});
+
 it('recovers an approved draft file request when the model falsely says it has no file tool', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
