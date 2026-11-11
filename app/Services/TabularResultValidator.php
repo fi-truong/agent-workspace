@@ -80,11 +80,42 @@ class TabularResultValidator
         return array_values(array_unique($warnings));
     }
 
+    /** @return list<string> */
+    public function replacementWarnings(string $handoff, string $original, string $replacement): array
+    {
+        $warnings = $this->warnings($handoff, $replacement);
+        $originalTables = $this->tables($original);
+        $replacementTables = $this->tables($replacement);
+        if ($originalTables === [] || count($originalTables) !== count($replacementTables)) {
+            $warnings[] = 'Bản sửa không giữ đầy đủ các bảng của kết quả ban đầu.';
+        }
+        foreach ($originalTables as $table) {
+            $matches = array_values(array_filter($replacementTables, fn (array $candidate): bool => $candidate['columns'] === $table['columns']
+                && array_diff_key($candidate['rows'], $table['rows']) === []
+                && array_diff_key($table['rows'], $candidate['rows']) === []));
+            if (count($matches) !== 1) {
+                $warnings[] = 'Bản sửa không giữ nguyên các cột và mã dòng duy nhất của kết quả ban đầu.';
+
+                continue;
+            }
+            $labels = array_keys($this->categorySummary($original, $table));
+            $summary = $this->categorySummary($replacement, $matches[0], $labels);
+            foreach ($labels as $label) {
+                if (! isset($summary[$label]) || $summary[$label]['declared'] !== $summary[$label]['actual']) {
+                    $warnings[] = 'Bản sửa thiếu hoặc chưa khớp số lượng nhóm đã nêu trong kết quả ban đầu.';
+                }
+            }
+        }
+
+        return array_values(array_unique($warnings));
+    }
+
     /**
      * @param  array{header: string, columns: list<string>, rows: array<string, array<string, string>>}  $table
+     * @param  list<string>  $requiredLabels
      * @return array<string, array{declared: int, actual: int}>
      */
-    private function categorySummary(string $result, array $table): array
+    private function categorySummary(string $result, array $table, array $requiredLabels = []): array
     {
         $position = strpos($result, $table['header']);
         if ($position === false) {
@@ -98,8 +129,8 @@ class TabularResultValidator
         }
         $after = substr(implode("\n", $lines), 0, 4000);
         foreach ([$before, $after] as $summary) {
-            $matched = $this->matchCategoryTotals($summary, $table);
-            if (count($matched) >= 2) {
+            $matched = $this->matchCategoryTotals($summary, $table, $requiredLabels);
+            if (count($matched) >= max(2, count($requiredLabels))) {
                 return $matched;
             }
         }
@@ -109,9 +140,10 @@ class TabularResultValidator
 
     /**
      * @param  array{header: string, columns: list<string>, rows: array<string, array<string, string>>}  $table
+     * @param  list<string>  $requiredLabels
      * @return array<string, array{declared: int, actual: int}>
      */
-    private function matchCategoryTotals(string $summary, array $table): array
+    private function matchCategoryTotals(string $summary, array $table, array $requiredLabels = []): array
     {
         preg_match_all('/(?<![\pL\pN_])([\pL][\pL\pN_-]{0,15})\s*(?:=|:)\s*(\d+)(?![\d\/.])/u', $summary, $matches, PREG_SET_ORDER);
         $declared = [];
@@ -129,7 +161,7 @@ class TabularResultValidator
                     $actual++;
                 }
             }
-            if ($actual > 0) {
+            if ($actual > 0 || in_array($label, $requiredLabels, true)) {
                 $matched[$label] = ['declared' => (int) array_key_first($counts), 'actual' => $actual];
             }
         }
