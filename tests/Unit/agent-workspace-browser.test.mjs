@@ -386,6 +386,48 @@ test('wraps a pasted long prompt without widening the chat page', async (t) => {
     assert.equal(messageLayout.overflowWrap, 'anywhere');
 });
 
+test('wraps long TSV code rows inside the assistant chat bubble', async (t) => {
+    const page = await setup(t);
+    await page.setViewportSize({ width: 640, height: 800 });
+
+    const layout = await page.evaluate(() => {
+        const messages = document.createElement('div');
+        messages.id = 'chat-messages';
+        messages.style.cssText =
+            'display:flex;flex-direction:column;width:100%;min-width:0;padding:24px;box-sizing:border-box;';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'chat-msg-wrap';
+        wrap.style.cssText =
+            'display:flex;flex-direction:column;gap:4px;max-width:85%;align-self:flex-start;';
+
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-bubble';
+        bubble.style.cssText =
+            'background:var(--card-bg);padding:12px 16px;border-radius:14px;';
+        bubble.innerHTML = `<pre><code>HS21\tCHUA_DU_DU_LIEU\tCHUA_DU_DU_LIEU\tCHUA_DU_DU_LIEU\tG0\tC1–C6=CHUA_CO; trợ giúp CHUA_RO</code></pre>`;
+        wrap.appendChild(bubble);
+        messages.appendChild(wrap);
+        document.querySelector('.main').appendChild(messages);
+
+        const pre = bubble.querySelector('pre');
+        const preBounds = pre.getBoundingClientRect();
+        const bubbleBounds = bubble.getBoundingClientRect();
+
+        return {
+            bubbleRight: bubbleBounds.right,
+            preRight: preBounds.right,
+            preScrollWidth: pre.scrollWidth,
+            preClientWidth: pre.clientWidth,
+            whiteSpace: getComputedStyle(pre).whiteSpace,
+        };
+    });
+
+    assert.ok(layout.preRight <= layout.bubbleRight);
+    assert.ok(layout.preScrollWidth <= layout.preClientWidth);
+    assert.equal(layout.whiteSpace, 'pre-wrap');
+});
+
 test('keeps the arrow button intact while reading attachments', async (t) => {
     const page = await setup(t);
     await page.evaluate(() => {
