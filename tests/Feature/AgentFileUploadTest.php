@@ -79,6 +79,7 @@ it('accepts an HTML file as Agent Knowledge', function () {
 it('renders Agent Knowledge upload limits from the backend configuration', function () {
     $this->get('/ai-plus/agent-workspace/agents')
         ->assertOk()
+        ->assertSee('Instructions (System Prompt)')
         ->assertSee('maxKnowledgeFiles = 10;', false)
         ->assertSee('maxKnowledgeFileBytes = 15728640;', false)
         ->assertSee('maxKnowledgeTotalBytes = 52428800;', false)

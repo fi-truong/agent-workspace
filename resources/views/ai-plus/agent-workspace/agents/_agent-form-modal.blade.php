@@ -28,7 +28,7 @@
         </div>
       </div>
       <div class="form-group">
-        <label for="system_prompt">System Prompt</label>
+        <label for="system_prompt">Instructions (System Prompt)</label>
         <textarea id="system_prompt" name="system_prompt" rows="6" placeholder="Instructions for the AI (e.g., 'You are a helpful math teacher...')"></textarea>
         <small class="form-hint">This prompt guides the agent's behavior. Leave empty to use default.</small>
       </div>
