@@ -38,6 +38,26 @@ it('checks reported category totals against the rows even without a comparable s
         ->and($validator->warnings('', "blue=2, red=1\n\n".$table))->toBe([]);
 });
 
+it('normalizes a mismatched count summary from one complete table when no other warning exists', function () {
+    $validator = app(TabularResultValidator::class);
+    $result = "id\tvalue\tnote\tgroup\nA\t1\tx\tG0\nB\t2\tx\tG1\nC\t3\tx\tG2\nD\t4\tx\tG3\n\nTotals: G0=2, G1=0, G2=1, G3=1";
+
+    $normalized = $validator->normalizeSummaryCountsFromRows('', $result);
+
+    expect($normalized)
+        ->toContain('G0=1, G1=1, G2=1, G3=1')
+        ->not->toContain('G0=2')
+        ->and($validator->warnings('', (string) $normalized))->toBe([]);
+});
+
+it('does not normalize count summaries when another table warning is present', function () {
+    $source = "[UNTRUSTED FILE DATA: source.txt | extraction complete | handoff complete content supplied | full source]\n"
+        ."id\tvalue\tnote\nA\t1\tx\nB\t2\ty\n[/UNTRUSTED DATA]";
+    $result = "id\tvalue\tnote\tgroup\nA\t0\tx\tG0\nB\t2\ty\tG1\n\nTotals: G0=0, G1=2";
+
+    expect(app(TabularResultValidator::class)->normalizeSummaryCountsFromRows($source, $result))->toBeNull();
+});
+
 it('accepts a complete corrected table only after checking its source and category totals again', function () {
     $source = "[UNTRUSTED FILE DATA: records.txt | extraction complete | handoff complete content supplied | full source]\n"
         ."record\titem_a\titem_b\nA\t1\tCHUA_CO\nB\t0\t1\nC\t1\t1\n[/UNTRUSTED DATA]";

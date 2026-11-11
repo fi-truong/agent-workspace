@@ -361,6 +361,7 @@ class AgentOrchestrationService
             $failureKind = null;
             $repairOriginal = null;
             $repairWarnings = [];
+            $summaryCountsNormalized = false;
             for ($segment = 0; $segment < self::MAX_SPECIALIST_SEGMENTS; $segment++) {
                 $secondsLeft = $this->remainingSeconds($startedAt);
                 $remainingBudget = $tokenBudget - $promptTokensUsed - $completionTokensUsed;
@@ -417,6 +418,12 @@ class AgentOrchestrationService
                 if (($completion['finish_reason'] ?? null) !== 'length') {
                     $finished = true;
                     $filtered = $this->piiFilter->filter($answer)['filtered'];
+                    $normalized = $this->tabularValidator->normalizeSummaryCountsFromRows($handoff['text'], $filtered);
+                    if ($normalized !== null) {
+                        $answer = $normalized;
+                        $filtered = $normalized;
+                        $summaryCountsNormalized = true;
+                    }
                     $warnings = $this->tabularValidator->warnings($handoff['text'], $filtered);
                     if ($warnings !== [] && $segment + 1 < self::MAX_SPECIALIST_SEGMENTS
                         && mb_strlen($answer) <= self::MAX_SPECIALIST_RESULT_CHARS) {
@@ -487,6 +494,7 @@ class AgentOrchestrationService
                 AdminAuditLog::record('agent.consulted', $conversation, [
                     'agent_id' => $agent->id,
                     'status' => $wasTruncated ? 'partial' : 'completed',
+                    ...($summaryCountsNormalized ? ['table_summary_counts' => 'normalized_from_rows'] : []),
                     ...($repairOriginal !== null ? ['table_repair' => $repairWarnings === [] ? 'accepted' : 'rejected'] : []),
                 ]);
             } catch (Throwable $exception) {

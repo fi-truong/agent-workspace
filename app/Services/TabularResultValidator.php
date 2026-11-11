@@ -80,6 +80,53 @@ class TabularResultValidator
         return array_values(array_unique($warnings));
     }
 
+    /**
+     * Corrects only a prose count summary when one complete, unambiguous table
+     * is the sole source of a mismatch. Returns null when the discrepancy is
+     * not safe to resolve deterministically.
+     */
+    public function normalizeSummaryCountsFromRows(string $handoff, string $result): ?string
+    {
+        $warnings = $this->warnings($handoff, $result);
+        if (count($warnings) !== 1 || ! str_starts_with($warnings[0], 'Số lượng trong phần tóm tắt')) {
+            return null;
+        }
+
+        $tables = $this->tables($result);
+        if (count($tables) !== 1) {
+            return null;
+        }
+
+        $table = $tables[0];
+        $summary = $this->categorySummary($result, $table);
+        if (count($summary) < 2 || array_sum(array_column($summary, 'actual')) !== count($table['rows'])) {
+            return null;
+        }
+
+        $normalized = $result;
+        foreach ($summary as $label => $counts) {
+            if ($counts['declared'] === $counts['actual']) {
+                continue;
+            }
+
+            $pattern = '/(?<![\pL\pN_])('.preg_quote($label, '/').')(\s*)(=|:)(\s*)'
+                .preg_quote((string) $counts['declared'], '/').'(?![\d\/.])/u';
+            if (preg_match_all($pattern, $normalized) !== 1) {
+                return null;
+            }
+
+            $updated = preg_replace_callback($pattern, fn (array $match): string => $match[1].$match[2].$match[3].$match[4].$counts['actual'], $normalized, 1);
+            if (! is_string($updated)) {
+                return null;
+            }
+            $normalized = $updated;
+        }
+
+        return $normalized !== $result && $this->warnings($handoff, $normalized) === []
+            ? $normalized
+            : null;
+    }
+
     /** @return list<string> */
     public function replacementWarnings(string $handoff, string $original, string $replacement): array
     {

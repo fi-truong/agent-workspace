@@ -218,6 +218,25 @@ it('allows a task that explicitly excludes the incomplete specialist result', fu
     Http::assertSentCount(1);
 });
 
+it('normalizes summary-only category count errors before handing results to the coordinator', function () {
+    $result = "id\tvalue\tnote\tgroup\nA\t1\tx\tG0\nB\t2\tx\tG1\nC\t3\tx\tG2\nD\t4\tx\tG3\n\nTotals: G0=2, G1=0, G2=1, G3=1";
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Review category totals')]))
+        ->push(connectedAgentResponse($result))
+        ->push(connectedAgentResponse('The table and its totals are ready for review.'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review these group totals.',
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => ! str_contains($reply, 'Cần kiểm tra kết quả Agent'));
+
+    Http::assertSentCount(3);
+    Http::assertNotSent(fn (Request $request): bool => requestHasContent($request, 'TABLE VALIDATION REPAIR'));
+    $saved = $this->conversation->messages()->where('role', 'assistant')->latest('id')->value('internal_context');
+    expect($saved)->toContain('G0=1, G1=1, G2=1, G3=1')
+        ->and(AdminAuditLog::where('event', 'agent.consulted')->first()->metadata['table_summary_counts'])->toBe('normalized_from_rows');
+});
+
 it('repairs copied fields and category totals before forwarding findings and creating the final Word file', function (bool $streamed) {
     $designer = $this->user->agents()->create(['title' => 'Designer', 'system_prompt' => 'Design from verified findings']);
     $this->parentAgent->connectedAgents()->attach($designer);
@@ -1266,6 +1285,65 @@ it('keeps an affordable source and the latest complete result whole when older f
         ->and($coverage->firstWhere('source_name', 'Latest Agent')['handoff_complete'])->toBeTrue()
         ->and($coverage->firstWhere('source_name', 'Older Agent')['handoff_complete'])->toBeFalse()
         ->and($coverage->contains(fn (array $item): bool => str_contains($item['source_name'], 'used by')))->toBeFalse();
+});
+
+it('hands off only the newest result and warnings for each Agent', function () {
+    $otherAgent = $this->user->agents()->create([
+        'title' => 'Learning designer',
+        'system_prompt' => 'Design learning activities',
+    ]);
+    $this->conversation->messages()->create([
+        'role' => 'assistant',
+        'content' => 'Older analysis with a warning',
+        'internal_context' => ConversationSourceContextService::encodeResults([[
+            'agent_id' => $this->childAgent->id,
+            'agent_title' => $this->childAgent->title,
+            'task' => 'Analyze learner results',
+            'result' => 'OLD_ANALYSIS_MARKER',
+            'result_complete' => true,
+            'validation_warnings' => ['STALE_WARNING_MARKER'],
+            'source_coverage' => [],
+        ]]),
+    ]);
+    $this->conversation->messages()->create([
+        'role' => 'assistant',
+        'content' => 'Activity design',
+        'internal_context' => ConversationSourceContextService::encodeResults([[
+            'agent_id' => $otherAgent->id,
+            'agent_title' => $otherAgent->title,
+            'task' => 'Design activities',
+            'result' => 'OTHER_AGENT_RESULT_MARKER',
+            'result_complete' => true,
+            'validation_warnings' => [],
+            'source_coverage' => [],
+        ]]),
+    ]);
+    $this->conversation->messages()->create([
+        'role' => 'assistant',
+        'content' => 'Latest corrected analysis',
+        'internal_context' => ConversationSourceContextService::encodeResults([[
+            'agent_id' => $this->childAgent->id,
+            'agent_title' => $this->childAgent->title,
+            'task' => 'Recheck learner results',
+            'result' => 'LATEST_ANALYSIS_MARKER',
+            'result_complete' => true,
+            'validation_warnings' => [],
+            'source_coverage' => [],
+        ]]),
+    ]);
+
+    $handoff = app(ConversationSourceContextService::class)->forDelegation(
+        $this->user,
+        $this->conversation,
+        'Use the latest learner analysis and design activities.',
+    );
+
+    expect($handoff['text'])
+        ->toContain('LATEST_ANALYSIS_MARKER')
+        ->toContain('OTHER_AGENT_RESULT_MARKER')
+        ->not->toContain('OLD_ANALYSIS_MARKER')
+        ->not->toContain('STALE_WARNING_MARKER')
+        ->and($handoff['prior_validation_warnings'])->toBe([]);
 });
 
 it('rejects a selected source that is no longer in the current user catalog', function () {

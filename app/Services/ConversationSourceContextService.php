@@ -286,7 +286,9 @@ class ConversationSourceContextService
             }
         }
 
-        $previousResults = $includePreviousResults ? array_reverse([...$this->previousResults($messages), ...$currentStepResults]) : [];
+        $previousResults = $includePreviousResults
+            ? $this->latestResults([...$this->previousResults($messages), ...$currentStepResults])
+            : [];
         $priorValidationNotes = [];
         foreach ($previousResults as $index => $result) {
             $resultText = trim((string) ($result['result'] ?? ''));
@@ -498,6 +500,34 @@ class ConversationSourceContextService
         }
 
         return $results;
+    }
+
+    /** @param array<int, array<string, mixed>> $results
+     * @return array<int, array<string, mixed>>
+     */
+    private function latestResults(array $results): array
+    {
+        $latest = [];
+        foreach ($results as $index => $result) {
+            $agentId = filter_var($result['agent_id'] ?? null, FILTER_VALIDATE_INT);
+            $title = trim((string) ($result['agent_title'] ?? ''));
+            $titleKey = $title === '' ? null : 'name:'.mb_strtolower($title);
+            $key = $agentId !== false && $agentId > 0
+                ? 'id:'.$agentId
+                : ($titleKey ?? 'unknown:'.$index);
+
+            // An older result may have been saved before its Agent ID was
+            // recorded. Replace that title-only entry when the identified
+            // result arrives, then retain just the newest result per Agent.
+            if ($agentId !== false && $agentId > 0 && $titleKey !== null) {
+                unset($latest[$titleKey]);
+            }
+            unset($latest[$key]);
+            $latest[$key] = $result;
+        }
+
+        // Recent results get first access to the bounded handoff budget.
+        return array_values(array_reverse($latest));
     }
 
     /** @return array<int, array<string, mixed>> */
