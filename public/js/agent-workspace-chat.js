@@ -1818,9 +1818,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Returning to the Chat tab intentionally clears the client-side Agent
   // selection. Existing Agent conversations remain available in the sidebar.
-  document.querySelector('[data-behavior="new-quick-chat"]')?.addEventListener('click', (event) => {
-    event.preventDefault();
-    startQuickChat();
+  document.querySelectorAll('[data-behavior="new-quick-chat"]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      startQuickChat();
+    });
   });
   document.addEventListener('click', (event) => {
     if (event.target.closest('[data-behavior="leave-agent"]')) {

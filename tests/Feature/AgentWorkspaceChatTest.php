@@ -376,6 +376,9 @@ it('groups Agent conversations beneath their Agent in the workspace sidebar', fu
         ->assertOk()
         ->assertSee('class="add-btn" title="New chat" data-behavior="new-quick-chat"', false)
         ->assertSeeInOrder(['Quick Chats', 'Quick question', 'My Agents', 'Admissions Assistant', 'Admissions chat']);
+
+    expect(file_get_contents(public_path('js/agent-workspace-chat.js')))
+        ->toContain("document.querySelectorAll('[data-behavior=\"new-quick-chat\"]')");
 });
 
 it('repairs a historic file message when the model incorrectly refused after creating it', function () {
