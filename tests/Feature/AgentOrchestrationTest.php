@@ -218,6 +218,88 @@ it('allows a task that explicitly excludes the incomplete specialist result', fu
     Http::assertSentCount(1);
 });
 
+it('retains analysis and warnings when the user explicitly postpones file creation', function (bool $streamed, string $message) {
+    $bad = "record\titem_a\titem_b\tgroup\nA\t1\t0\tred\nB\t1\t0\tblue\nC\t1\t1\tblue\n\nblue=1; red=2";
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push($streamed ? connectedAgentStream(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Analyze records')]))
+            : connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Analyze records')]), 200,
+            $streamed ? ['Content-Type' => 'text/event-stream'] : [])
+        ->push(connectedAgentResponse($bad))
+        ->push(connectedAgentResponse('The source needs checking.'))
+        ->push($streamed ? connectedAgentStream(connectedAgentResponse("ANALYSIS_ONLY_RESULT\n".$bad))
+            : connectedAgentResponse("ANALYSIS_ONLY_RESULT\n".$bad), 200,
+            $streamed ? ['Content-Type' => 'text/event-stream'] : [])]);
+
+    $response = $this->postJson(route($streamed ? 'ai-plus.agent-workspace.send-stream' : 'ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => $message,
+        'documents' => [['name' => 'records.txt', 'data_url' => 'data:text/plain;base64,'.base64_encode("record\titem_a\titem_b\nA\t1\tCHUA_CO\nB\t0\t1\nC\t1\t1")]],
+    ])->assertOk();
+    if ($streamed) {
+        $bufferLevel = ob_get_level();
+        $response->baseResponse->getCallback()();
+        while (ob_get_level() < $bufferLevel) {
+            ob_start();
+        }
+        $reply = $this->conversation->messages()->where('role', 'assistant')->latest('id')->value('content');
+    } else {
+        $response->assertJsonPath('artifacts', []);
+        $reply = $response->json('reply');
+    }
+
+    expect($reply)->toContain('ANALYSIS_ONLY_RESULT')->toContain('Cần kiểm tra kết quả Agent')->not->toContain('Chưa tạo file vì kết quả');
+    expect(AiArtifact::count())->toBe(0);
+    Http::assertSentCount(4);
+})->with(['JSON' => false, 'SSE' => true])->with([
+    'Vietnamese' => 'Chỉ phân tích các dòng và căn cứ. Chưa thiết kế hoạt động, chưa tạo file.',
+    'English' => 'Analyze the records only. Do not create a file yet.',
+]);
+
+it('confirms intent before reporting a file block when a tool was proposed despite a no-file request', function () {
+    $bad = "record\titem_a\titem_b\nA\t1\t0\nB\t1\t0";
+    $artifactCall = ['id' => 'call-unrequested-file', 'type' => 'function', 'function' => [
+        'name' => 'create_ai_artifact', 'arguments' => json_encode(['format' => 'word', 'content' => $bad]),
+    ]];
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Analyze records')]))
+        ->push(connectedAgentResponse($bad))
+        ->push(connectedAgentResponse($bad))
+        ->push(connectedAgentResponse('', [$artifactCall]))
+        ->push(connectedAgentResponse('ANALYSIS_ONLY_ALLOWED'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id, 'message' => 'Analyze records only. Do not create a file.',
+        'documents' => [['name' => 'records.txt', 'data_url' => 'data:text/plain;base64,'.base64_encode("record\titem_a\titem_b\nA\t1\t0\nB\t0\t1")]],
+    ])->assertOk()->assertJsonPath('artifacts', [])
+        ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'ANALYSIS_ONLY_ALLOWED')
+            && str_contains($reply, 'Cần kiểm tra kết quả Agent') && ! str_contains($reply, 'Chưa tạo file vì kết quả'));
+
+    expect(AiArtifact::count())->toBe(0);
+    Http::assertSentCount(5);
+    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'FILE ACTION CONFIRMATION GATE'));
+});
+
+it('normalizes a repaired table summary before validating the replacement', function () {
+    $bad = "record\titem_a\titem_b\tgroup\nA\t1\t0\tred\nB\t1\t0\tblue\nC\t1\t1\tblue\n\nblue=1; red=2";
+    $repaired = "record\titem_a\titem_b\tgroup\nA\t1\tCHUA_CO\tred\nB\t0\t1\tblue\nC\t1\t1\tblue\n\nblue=1; red=2";
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Analyze records')]))
+        ->push(connectedAgentResponse($bad))
+        ->push(connectedAgentResponse($repaired))
+        ->push(connectedAgentResponse('ANALYSIS_FINISHED'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id, 'message' => 'Analyze the records and report the findings.',
+        'documents' => [['name' => 'records.txt', 'data_url' => 'data:text/plain;base64,'.base64_encode("record\titem_a\titem_b\nA\t1\tCHUA_CO\nB\t0\t1\nC\t1\t1")]],
+    ])->assertOk()->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'ANALYSIS_FINISHED') && ! str_contains($reply, 'Cần kiểm tra kết quả Agent'));
+
+    $audit = AdminAuditLog::where('event', 'agent.consulted')->first();
+    expect($audit->metadata['table_repair'])->toBe('accepted')
+        ->and($audit->metadata['table_summary_counts'])->toBe('normalized_from_rows');
+    Http::assertSent(fn (Request $request): bool => collect($request['messages'])->contains(fn (array $message): bool => ($message['role'] ?? '') === 'tool'
+        && str_contains($message['content'], 'blue=2; red=1') && str_contains($message['content'], 'CHUA_CO')));
+});
+
 it('normalizes summary-only category count errors before handing results to the coordinator', function () {
     $result = "id\tvalue\tnote\tgroup\nA\t1\tx\tG0\nB\t2\tx\tG1\nC\t3\tx\tG2\nD\t4\tx\tG3\n\nTotals: G0=2, G1=0, G2=1, G3=1";
     Http::fake(['https://api.openai.com/*' => Http::sequence()
@@ -298,7 +380,8 @@ it('keeps original warnings and blocks export when one table repair is unusable'
         ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Compare records')]))
         ->push(connectedAgentResponse($bad))
         ->push(connectedAgentResponse($replacement, [], $finishReason))
-        ->push(connectedAgentResponse('The final file cannot be completed.'))]);
+        ->push(connectedAgentResponse('The final file cannot be completed.'))
+        ->push(connectedAgentResponse('AI_PLUS_FILE_ACTION_CONFIRMED'))]);
 
     $this->postJson(route('ai-plus.agent-workspace.send'), [
         'conversation_id' => $this->conversation->id, 'message' => 'Compare records and create a draft Word file.',
@@ -306,7 +389,7 @@ it('keeps original warnings and blocks export when one table repair is unusable'
     ])->assertOk()->assertJsonPath('artifacts', [])
         ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Chưa tạo file')
             && str_contains($reply, 'Số lượng trong phần tóm tắt') && str_contains($reply, 'dòng có trường'));
-    Http::assertSentCount(4);
+    Http::assertSentCount(5);
     expect(AiArtifact::count())->toBe(0);
     $saved = $this->conversation->messages()->where('role', 'assistant')->latest('id')->value('internal_context');
     expect($saved)->toContain('blue=1; red=2');
@@ -325,7 +408,8 @@ it('preserves the original discrepancy when the table repair request fails', fun
         ->push(connectedAgentResponse('', [connectedAgentCall($this->childAgent->id, 'Compare records')]))
         ->push(connectedAgentResponse("record\titem_a\titem_b\nA\t1\t0\nB\t1\t0"))
         ->push(['error' => ['message' => 'Service unavailable']], 503)
-        ->push(connectedAgentResponse('The findings still need checking.'))]);
+        ->push(connectedAgentResponse('The findings still need checking.'))
+        ->push(connectedAgentResponse('AI_PLUS_FILE_ACTION_CONFIRMED'))]);
 
     $this->postJson(route('ai-plus.agent-workspace.send'), [
         'conversation_id' => $this->conversation->id, 'message' => 'Compare records and create a draft Word file.',
@@ -333,7 +417,7 @@ it('preserves the original discrepancy when the table repair request fails', fun
     ])->assertOk()->assertJsonPath('artifacts', [])
         ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Chưa tạo file')
             && str_contains($reply, '1 dòng có trường'));
-    Http::assertSentCount(4);
+    Http::assertSentCount(5);
     expect(AiArtifact::count())->toBe(0)
         ->and(AdminAuditLog::where('event', 'agent.consulted')->first()->metadata['table_repair'])->toBe('rejected');
 });
@@ -656,11 +740,12 @@ it('blocks file creation when current specialist tables have unresolved validati
         ->push(connectedAgentResponse("record\titem_a\titem_b\tgroup\nA\t1\t0\tG0\nB\t1\t0\tG3\n\nG0=2; G3=0"))
         ->push(connectedAgentResponse("record\titem_a\titem_b\tgroup\nA\t1\t0\tG0\nB\t1\t0\tG3\n\nG0=2; G3=0"))
         ->push($streamed ? connectedAgentStream($final) : $final, 200,
-            $streamed ? ['Content-Type' => 'text/event-stream'] : [])]);
+            $streamed ? ['Content-Type' => 'text/event-stream'] : [])
+        ->push(connectedAgentResponse('AI_PLUS_FILE_ACTION_CONFIRMED'))]);
 
     $response = $this->postJson(route($streamed ? 'ai-plus.agent-workspace.send-stream' : 'ai-plus.agent-workspace.send'), [
         'conversation_id' => $this->conversation->id,
-        'message' => 'Compare the records and create a Word file with the findings.',
+        'message' => 'Compare the records and create a draft Word file with the findings.',
         'documents' => [['name' => 'records.txt', 'data_url' => 'data:text/plain;base64,'.base64_encode("record\titem_a\titem_b\nA\t1\t0\nB\t0\t1")]],
     ])->assertOk();
     if ($streamed) {
@@ -677,7 +762,7 @@ it('blocks file creation when current specialist tables have unresolved validati
     expect($reply)->toContain('Chưa tạo file')->toContain('sai lệch')->toContain('Reviewer')
         ->toContain('Số lượng trong phần tóm tắt')->toContain('1 dòng có trường')
         ->not->toContain('lỗi kỹ thuật');
-    Http::assertSentCount(4);
+    Http::assertSentCount(5);
     expect(AiArtifact::count())->toBe(0);
 })->with(['JSON' => false, 'SSE' => true])->with(['recovery' => false, 'proposed tool' => true]);
 
@@ -689,6 +774,7 @@ it('does not create a Word file from a current specialist result that remains pa
     $sequence->push(connectedAgentResponse('', [['id' => 'call-partial-word', 'type' => 'function', 'function' => [
         'name' => 'create_ai_artifact', 'arguments' => json_encode(['format' => 'word', 'content' => '# Incomplete findings']),
     ]]]));
+    $sequence->push(connectedAgentResponse('AI_PLUS_FILE_ACTION_CONFIRMED'));
     Http::fake(['https://api.openai.com/*' => $sequence]);
 
     $this->postJson(route('ai-plus.agent-workspace.send'), [
@@ -697,7 +783,7 @@ it('does not create a Word file from a current specialist result that remains pa
     ])->assertOk()->assertJsonPath('artifacts', [])
         ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Chưa tạo file')
             && str_contains($reply, 'chưa hoàn tất'));
-    Http::assertSentCount(6);
+    Http::assertSentCount(7);
     expect(AiArtifact::count())->toBe(0);
 });
 

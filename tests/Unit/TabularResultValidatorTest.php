@@ -58,6 +58,37 @@ it('does not normalize count summaries when another table warning is present', f
     expect(app(TabularResultValidator::class)->normalizeSummaryCountsFromRows($source, $result))->toBeNull();
 });
 
+it('normalizes counts for the only categorized table while retaining an unrelated source table', function () {
+    $sourceTable = "record\titem_a\titem_b\nA\t1\t0\nB\t0\t1\nC\t1\t1";
+    $analysisTable = "record\tvalue\tcategory\nA\t1\tblue\nB\t2\tblue\nC\t3\tred";
+    $result = $sourceTable."\n\nAnalysis\n".$analysisTable."\n\nblue=1; red=2";
+
+    expect(app(TabularResultValidator::class)->normalizeSummaryCountsFromRows('', $result))
+        ->toBe($sourceTable."\n\nAnalysis\n".$analysisTable."\n\nblue=2; red=1");
+});
+
+it('normalizes consistent repeated summaries without changing any table row', function () {
+    $table = "record\tvalue\tcategory\nA\t1\tblue\nB\t2\tblue\nC\t3\tred";
+    $result = "blue=1; red=2\n\n".$table."\n\nblue=1; red=2";
+
+    expect(app(TabularResultValidator::class)->normalizeSummaryCountsFromRows('', $result))
+        ->toBe("blue=2; red=1\n\n".$table."\n\nblue=2; red=1");
+});
+
+it('does not normalize ambiguous category tables', function () {
+    $first = "record\tvalue\tcategory\nA\t1\tblue\nB\t2\tblue\nC\t3\tred";
+    $second = "record\tvalue\tcategory\nX\t1\tblue\nY\t2\tblue\nZ\t3\tred";
+
+    expect(app(TabularResultValidator::class)->normalizeSummaryCountsFromRows('', $first."\n\n".$second."\n\nblue=1; red=2"))->toBeNull();
+});
+
+it('preserves summary-like values inside table cells while correcting prose counts', function () {
+    $table = "record\tnote\tcategory\nA\tblue=1\tblue\nB\tother\tblue\nC\tother\tred";
+
+    expect(app(TabularResultValidator::class)->normalizeSummaryCountsFromRows('', $table."\n\nblue=1; red=2"))
+        ->toBe($table."\n\nblue=2; red=1");
+});
+
 it('accepts a complete corrected table only after checking its source and category totals again', function () {
     $source = "[UNTRUSTED FILE DATA: records.txt | extraction complete | handoff complete content supplied | full source]\n"
         ."record\titem_a\titem_b\nA\t1\tCHUA_CO\nB\t0\t1\nC\t1\t1\n[/UNTRUSTED DATA]";

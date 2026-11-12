@@ -456,12 +456,21 @@ class AgentOrchestrationService
 
             if ($repairOriginal !== null) {
                 $replacement = $this->piiFilter->filter($answer)['filtered'];
+                $normalized = $finished && mb_strlen($answer) <= self::MAX_SPECIALIST_RESULT_CHARS
+                    ? $this->tabularValidator->normalizeSummaryCountsFromRows($handoff['text'], $replacement)
+                    : null;
+                if ($normalized !== null) {
+                    $replacement = $normalized;
+                }
                 $repairWarnings = $finished && mb_strlen($answer) <= self::MAX_SPECIALIST_RESULT_CHARS
                     ? $this->tabularValidator->replacementWarnings($handoff['text'], $repairOriginal, $replacement)
                     : ['Chưa nhận được bản sửa đầy đủ trong giới hạn xử lý.'];
                 if ($repairWarnings !== []) {
                     $answer = $repairOriginal;
                     $finished = true;
+                } else {
+                    $answer = $replacement;
+                    $summaryCountsNormalized = $normalized !== null;
                 }
             }
 

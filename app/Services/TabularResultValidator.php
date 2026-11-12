@@ -81,9 +81,8 @@ class TabularResultValidator
     }
 
     /**
-     * Corrects only a prose count summary when one complete, unambiguous table
-     * is the sole source of a mismatch. Returns null when the discrepancy is
-     * not safe to resolve deterministically.
+     * Corrects prose counts for one unambiguous categorized table. Other tables
+     * and every data row remain unchanged.
      */
     public function normalizeSummaryCountsFromRows(string $handoff, string $result): ?string
     {
@@ -92,18 +91,28 @@ class TabularResultValidator
             return null;
         }
 
-        $tables = $this->tables($result);
-        if (count($tables) !== 1) {
+        $candidates = [];
+        foreach ($this->tables($result) as $table) {
+            $summary = $this->categorySummary($result, $table);
+            if (count($summary) < 2 || array_sum(array_column($summary, 'actual')) !== count($table['rows'])) {
+                continue;
+            }
+            $categoryColumns = array_filter($table['columns'], fn (string $column): bool => array_diff(
+                array_column($table['rows'], $column), array_keys($summary),
+            ) === []);
+            if (count($categoryColumns) === 1) {
+                $candidates[] = $summary;
+            }
+        }
+        if (count($candidates) !== 1) {
             return null;
         }
+        $summary = $candidates[0];
 
-        $table = $tables[0];
-        $summary = $this->categorySummary($result, $table);
-        if (count($summary) < 2 || array_sum(array_column($summary, 'actual')) !== count($table['rows'])) {
+        $parts = preg_split('/(\R)/u', $result, -1, PREG_SPLIT_DELIM_CAPTURE);
+        if ($parts === false) {
             return null;
         }
-
-        $normalized = $result;
         foreach ($summary as $label => $counts) {
             if ($counts['declared'] === $counts['actual']) {
                 continue;
@@ -111,16 +120,23 @@ class TabularResultValidator
 
             $pattern = '/(?<![\pL\pN_])('.preg_quote($label, '/').')(\s*)(=|:)(\s*)'
                 .preg_quote((string) $counts['declared'], '/').'(?![\d\/.])/u';
-            if (preg_match_all($pattern, $normalized) !== 1) {
+            $replacementCount = 0;
+            foreach ($parts as $index => $part) {
+                if (str_contains($part, "\t")) {
+                    continue;
+                }
+                $updated = preg_replace_callback($pattern, fn (array $match): string => $match[1].$match[2].$match[3].$match[4].$counts['actual'], $part, -1, $changed);
+                if (! is_string($updated)) {
+                    return null;
+                }
+                $parts[$index] = $updated;
+                $replacementCount += $changed;
+            }
+            if ($replacementCount === 0) {
                 return null;
             }
-
-            $updated = preg_replace_callback($pattern, fn (array $match): string => $match[1].$match[2].$match[3].$match[4].$counts['actual'], $normalized, 1);
-            if (! is_string($updated)) {
-                return null;
-            }
-            $normalized = $updated;
         }
+        $normalized = implode('', $parts);
 
         return $normalized !== $result && $this->warnings($handoff, $normalized) === []
             ? $normalized

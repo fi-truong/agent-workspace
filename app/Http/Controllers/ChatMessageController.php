@@ -1823,20 +1823,6 @@ class ChatMessageController extends Controller
                 'revise_ai_artifact',
             ], true));
         $latestUserText = (string) $conversation->messages()->where('role', 'user')->latest('id')->value('content');
-        if ($this->mentionsFileCreation($latestUserText)) {
-            $unresolvedAgents = collect($completion['delegation_results'] ?? [])
-                ->filter(fn (array $result): bool => ! ($result['result_complete'] ?? false)
-                    || ($result['validation_warnings'] ?? []) !== []
-                    || ($result['prior_validation_warnings'] ?? []) !== [])
-                ->pluck('agent_title')->unique()->implode(', ');
-            if ($unresolvedAgents !== '') {
-                $completion['content'] = 'Chưa tạo file vì kết quả của '.$unresolvedAgents
-                    .' chưa hoàn tất hoặc còn sai lệch cần kiểm tra. Kết quả và cảnh báo đã được lưu; cần đối chiếu trước khi tạo sản phẩm hoàn chỉnh.';
-                $completion['tool_calls'] = [];
-
-                return $result;
-            }
-        }
         $recoveryConfirmed = false;
         if ($proposedFileAction === null && $chatService !== null && $chatContext !== null) {
             if ($this->mightRequestFileCreation($latestUserText)) {
@@ -1845,6 +1831,12 @@ class ChatMessageController extends Controller
                 $completion['prompt_tokens'] += $confirmation['prompt_tokens'];
                 $completion['completion_tokens'] += $confirmation['completion_tokens'];
                 if ($recoveryConfirmed) {
+                    if (($warning = $this->unresolvedSpecialistFileWarning($completion)) !== null) {
+                        $completion['content'] = $warning;
+                        $completion['tool_calls'] = [];
+
+                        return $result;
+                    }
                     try {
                         $draft = $chatContext['fileExportDraft'] ?? null;
                         if (is_string($draft) && mb_strlen($draft) > self::MAX_CURRENT_TURN_CHARS) {
@@ -1904,6 +1896,14 @@ class ChatMessageController extends Controller
         }
         if ($proposedFileAction !== null && ! $recoveryConfirmed && ! $this->confirmRequestedFileAction($completion, $proposedFileAction['name'], $conversation, $chatService, $chatContext)) {
             return $result;
+        }
+        if ($proposedFileAction !== null) {
+            if (($warning = $this->unresolvedSpecialistFileWarning($completion)) !== null) {
+                $completion['content'] = $warning;
+                $completion['tool_calls'] = [];
+
+                return $result;
+            }
         }
 
         $exportDraft = $chatContext['fileExportDraft'] ?? null;
@@ -2247,6 +2247,24 @@ class ChatMessageController extends Controller
         }
 
         return true;
+    }
+
+    /**
+     * @param  array{delegation_results?: array<int, array{agent_title: string, result_complete?: bool, validation_warnings?: array<int, string>, prior_validation_warnings?: array<int, string>}>}  $completion
+     */
+    private function unresolvedSpecialistFileWarning(array $completion): ?string
+    {
+        $unresolvedAgents = collect($completion['delegation_results'] ?? [])
+            ->filter(fn (array $result): bool => ! ($result['result_complete'] ?? false)
+                || ($result['validation_warnings'] ?? []) !== []
+                || ($result['prior_validation_warnings'] ?? []) !== [])
+            ->pluck('agent_title')->unique()->implode(', ');
+        if ($unresolvedAgents === '') {
+            return null;
+        }
+
+        return 'Chưa tạo file vì kết quả của '.$unresolvedAgents
+            .' chưa hoàn tất hoặc còn sai lệch cần kiểm tra. Kết quả và cảnh báo đã được lưu; cần đối chiếu trước khi tạo sản phẩm hoàn chỉnh.';
     }
 
     private function mightRequestFileCreation(string $message): bool
