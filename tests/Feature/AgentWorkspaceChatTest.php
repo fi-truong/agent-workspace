@@ -1569,7 +1569,10 @@ it('creates an email draft but never sends an email', function () {
     Http::fake(['https://api.openai.com/*' => Http::response(emailDraftToolCallResponse('Meeting notice', 'Please join the meeting tomorrow.', 'Draft saved.'))]);
 
     $this->postJson('/ai-plus/agent-workspace/send', ['message' => 'Soạn email nháp thông báo họp'])
-        ->assertOk()->assertJsonStructure(['email_draft' => ['id', 'subject', 'body']]);
+        ->assertOk()
+        ->assertJsonStructure(['email_draft' => ['id', 'subject', 'body']])
+        ->assertJsonPath('email_draft.body', 'Please join the meeting tomorrow.')
+        ->assertJsonPath('reply', "✉️ **Email draft saved — not sent.**\n\n**Subject:** Meeting notice\n\nPlease join the meeting tomorrow.");
 
     expect(EmailDraft::count())->toBe(1);
     expect(AdminAuditLog::where('event', 'email_draft.created')->exists())->toBeTrue();

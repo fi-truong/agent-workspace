@@ -2160,8 +2160,9 @@ class ChatMessageController extends Controller
                     throw new \RuntimeException('The email draft content was empty; no draft was saved.');
                 }
 
-                $result['email_draft'] = $drafts->create($user, $conversation, $body, $subject)->only(['id', 'subject', 'body']);
-                $completion['content'] = trim((string) ($arguments['summary'] ?? '')) ?: 'Email draft saved. It has not been sent.';
+                $draft = $drafts->create($user, $conversation, $body, $subject);
+                $result['email_draft'] = $draft->only(['id', 'subject', 'body']);
+                $completion['content'] = "✉️ **Email draft saved — not sent.**\n\n**Subject:** {$draft->subject}\n\n{$draft->body}";
             } catch (\JsonException|\RuntimeException $exception) {
                 $result['artifact_error'] = $exception->getMessage();
             }
