@@ -374,6 +374,7 @@ it('groups Agent conversations beneath their Agent in the workspace sidebar', fu
 
     $this->get(route('ai-plus.agent-workspace.index'))
         ->assertOk()
+        ->assertSee('class="add-btn" title="New chat" data-behavior="new-quick-chat"', false)
         ->assertSeeInOrder(['Quick Chats', 'Quick question', 'My Agents', 'Admissions Assistant', 'Admissions chat']);
 });
 

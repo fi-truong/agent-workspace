@@ -44,7 +44,7 @@
     <div class="chat-list">
       <div class="chat-list-section">
         Quick Chats
-        <button class="add-btn" title="New chat">+</button>
+        <button class="add-btn" title="New chat" data-behavior="new-quick-chat">+</button>
       </div>
       @foreach($quickConversations as $conv)
       <div class="chat-item-wrap">
