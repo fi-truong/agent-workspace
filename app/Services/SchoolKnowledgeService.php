@@ -83,8 +83,7 @@ class SchoolKnowledgeService
         private readonly EmbeddingService $embeddingService,
         private readonly RegexPiiFilter $piiFilter,
         private readonly WebPageReaderService $webPageReader,
-    ) {
-    }
+    ) {}
 
     public function isEnabled(): bool
     {
@@ -158,7 +157,7 @@ class SchoolKnowledgeService
     }
 
     /**
-     * @param array<int, string> $urls
+     * @param  array<int, string>  $urls
      * @return array{indexed: int, failed: array<int, string>}
      */
     private function importWebsiteSources(array $urls, User $admin, string $logLabel): array
@@ -223,8 +222,8 @@ class SchoolKnowledgeService
             return '';
         }
 
-        $queryEmbedding = $this->embeddingService->embed($query);
         $semanticChunks = $chunks->filter(fn (SchoolKnowledgeChunk $chunk) => $chunk->embedding !== []);
+        $queryEmbedding = $semanticChunks->isEmpty() ? [] : $this->embeddingService->embed($query);
         if ($queryEmbedding !== [] && $semanticChunks->isNotEmpty()) {
             $ranked = $semanticChunks->map(fn (SchoolKnowledgeChunk $chunk) => [
                 'chunk' => $chunk,

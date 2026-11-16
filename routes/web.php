@@ -31,14 +31,15 @@ use App\Http\Controllers\SharingShowcaseController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
+use App\Http\Middleware\MeasureChatPerformance;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/ai-plus/agent-workspace/send', [ChatMessageController::class, 'store'])
-    ->middleware(['auth', 'ai.policy', 'throttle:chat'])
+    ->middleware(['auth', 'ai.policy', MeasureChatPerformance::class, 'throttle:chat'])
     ->name('ai-plus.agent-workspace.send');
 
 Route::post('/ai-plus/agent-workspace/send-stream', [ChatMessageController::class, 'stream'])
-    ->middleware(['auth', 'ai.policy', 'throttle:chat'])
+    ->middleware(['auth', 'ai.policy', MeasureChatPerformance::class, 'throttle:chat'])
     ->name('ai-plus.agent-workspace.send-stream');
 Route::post('/ai-plus/agent-workspace/generate-image', [ChatMessageController::class, 'generateImage'])
     ->middleware(['auth', 'ai.policy', 'throttle:image-generation'])

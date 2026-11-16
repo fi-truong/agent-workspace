@@ -192,6 +192,7 @@ Email đúng domain `@lsts.edu.vn` được cho phép cho mục đích công vi�
 - Luồng xuất conversation còn hỗ trợ HTML, lựa chọn ngôn ngữ và kiểu tài liệu; các template này là cấu trúc đầu ra, chưa phải mẫu Word/Excel chính thức của trường.
 - PDF scan giới hạn số trang render theo cấu hình để kiểm soát thời gian và chi phí.
 - Tác vụ file lớn hiện chạy trong request chat; production nên chuyển sang queue.
+- Bộ đọc text PDF chạy trong tiến trình riêng, giới hạn 20 giây và 256 MB RAM; vượt giới hạn trả lỗi rõ thay vì tiếp tục với nội dung thiếu. Kết quả đọc PDF và embedding giống nhau chỉ được dùng lại trong cùng request. Tra cứu Knowledge không gọi embedding khi chưa có vector tài liệu. Log INFO `AI+ chat performance` ghi thời gian từng bước và tổng lượt chat, không ghi nội dung tài liệu/prompt; các bước có thể lồng nhau nên không cộng để tính tổng.
 
 ## 10. Roadmap
 

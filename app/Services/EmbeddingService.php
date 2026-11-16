@@ -33,11 +33,33 @@ class EmbeddingService
             return [];
         }
 
+        $key = 'ai_plus.embeddings.'.hash('sha256', serialize([
+            config('openai.base_url'), config('openai.embedding_model'),
+            config('openai.api_key'), array_values($texts),
+        ]));
+        $request = request();
+        if ($request->attributes->has($key)) {
+            return $request->attributes->get($key);
+        }
+
+        $embeddings = app(ChatPerformance::class)->measure('embedding_api', fn (): array => $this->requestEmbeddings($texts));
+        $request->attributes->set($key, $embeddings);
+
+        return $embeddings;
+    }
+
+    /**
+     * @param  array<int, string>  $texts
+     * @return array<int, array<int, float>>
+     */
+    private function requestEmbeddings(array $texts): array
+    {
         try {
             $response = Http::retry(
                 (int) config('openai.retry_times'),
                 (int) config('openai.retry_delay_ms'),
                 fn (Throwable $exception): bool => $exception instanceof ConnectionException,
+                throw: false,
             )
                 ->baseUrl(config('openai.base_url'))
                 ->timeout(60)
@@ -48,8 +70,14 @@ class EmbeddingService
                     'model' => config('openai.embedding_model'),
                     'input' => array_values($texts),
                 ]);
-        } catch (Throwable $exception) {
+        } catch (ConnectionException $exception) {
             Log::warning('Embedding API connection failed; using keyword RAG.', [
+                'exception' => $exception::class,
+            ]);
+
+            return [];
+        } catch (Throwable $exception) {
+            Log::warning('Embedding API unexpected failure; using keyword RAG.', [
                 'exception' => $exception::class,
             ]);
 

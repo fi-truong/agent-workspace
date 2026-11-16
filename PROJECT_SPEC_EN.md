@@ -192,6 +192,7 @@ Exact `@lsts.edu.vn` email is allowed for internal work. Raw PII is not stored i
 - Conversation export also supports HTML, language selection and document styles; these are output structures rather than official school Word/Excel templates.
 - Scanned PDF rendering is limited by configuration to control time and cost.
 - Large file jobs currently run in the chat request and should move to queues in production.
+- PDF text parsing runs in a separate process limited to 20 seconds and 256 MB RAM; exceeding either limit returns an explicit error instead of proceeding with partial content. Identical PDF extraction and embeddings are reused only within the same request. Knowledge retrieval skips embeddings when no document vectors exist. The INFO event `AI+ chat performance` records stage and total chat timings without document or prompt content; stages may overlap and must not be added to derive the total.
 
 ## 10. Roadmap
 

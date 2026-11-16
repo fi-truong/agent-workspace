@@ -18,7 +18,6 @@ use PhpOffice\PhpWord\Element\Table;
 use PhpOffice\PhpWord\Element\TextRun;
 use PhpOffice\PhpWord\IOFactory as WordIOFactory;
 use PhpOffice\PhpWord\PhpWord;
-use Smalot\PdfParser\Parser as PdfParser;
 use Symfony\Component\Process\Process;
 use Throwable;
 
@@ -290,8 +289,8 @@ class KnowledgeService
             return '';
         }
 
-        $queryEmbedding = $this->embeddingService->embed($query);
         $semanticChunks = $chunks->filter(fn (KnowledgeChunk $chunk) => $chunk->embedding !== []);
+        $queryEmbedding = $semanticChunks->isEmpty() ? [] : $this->embeddingService->embed($query);
         $scored = $queryEmbedding !== [] && $semanticChunks->isNotEmpty()
             ? $semanticChunks->map(fn (KnowledgeChunk $chunk) => [
                 'chunk' => $chunk,
@@ -330,8 +329,8 @@ class KnowledgeService
             return ['context' => '', 'has_indexed_knowledge' => false, 'is_relevant' => false];
         }
 
-        $queryEmbedding = $this->embeddingService->embed($query);
         $semanticChunks = $chunks->filter(fn (KnowledgeChunk $chunk) => $chunk->embedding !== []);
+        $queryEmbedding = $semanticChunks->isEmpty() ? [] : $this->embeddingService->embed($query);
 
         if ($queryEmbedding !== [] && $semanticChunks->isNotEmpty()) {
             $scored = $semanticChunks->map(fn (KnowledgeChunk $chunk) => [
@@ -653,6 +652,8 @@ class KnowledgeService
                 'png', 'jpg', 'jpeg', 'gif', 'webp' => $this->ocrImage($disk->get($path) ?: '', $extension, $path),
                 default => '',
             };
+        } catch (ValidationException $exception) {
+            throw $exception;
         } catch (Throwable $e) {
             Log::error('Failed to extract text from knowledge file', [
                 'user_id' => $userId,
@@ -672,6 +673,11 @@ class KnowledgeService
      * "knowledge" (khong gan voi 1 Agent cu the), chi nhan binary content + extension.
      */
     public function extractTextFromBinary(string $binary, string $extension): string
+    {
+        return app(ChatPerformance::class)->measure('document_read', fn (): string => $this->extractDocumentText($binary, $extension));
+    }
+
+    private function extractDocumentText(string $binary, string $extension): string
     {
         $extension = strtolower($extension);
 
@@ -695,6 +701,10 @@ class KnowledgeService
             return $this->ocrImage($binary, $extension, 'direct-upload');
         }
 
+        if ($extension === 'pdf') {
+            return app(PdfTextExtractor::class)->extract($binary);
+        }
+
         $tmp = tempnam(sys_get_temp_dir(), 'chat_doc_');
 
         if ($tmp === false) {
@@ -705,7 +715,6 @@ class KnowledgeService
 
         try {
             return match ($extension) {
-                'pdf' => trim((new PdfParser)->parseContent($binary)->getText()),
                 'doc', 'docx' => $this->readWordFile($tmp, $extension),
                 'xls', 'xlsx' => $this->renderSpreadsheetText(SpreadsheetIOFactory::load($tmp)),
                 'ppt', 'pptx' => $this->readPresentationFile($tmp, $extension),
@@ -1082,7 +1091,9 @@ class KnowledgeService
         }
 
         try {
-            $text = trim((new PdfParser)->parseContent($content)->getText());
+            $text = app(PdfTextExtractor::class)->extract($content);
+        } catch (ValidationException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             Log::info('PDF text parser could not read Knowledge file; trying scan OCR', [
                 'message' => $exception->getMessage(),

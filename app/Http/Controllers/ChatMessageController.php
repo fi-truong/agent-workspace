@@ -14,6 +14,7 @@ use App\Services\AgentOrchestrationService;
 use App\Services\ArtifactService;
 use App\Services\ChatCompletionService;
 use App\Services\ChatModelService;
+use App\Services\ChatPerformance;
 use App\Services\ChatResponseContinuationService;
 use App\Services\ConversationSourceContextService;
 use App\Services\EmailDraftService;
@@ -110,30 +111,31 @@ class ChatMessageController extends Controller
         WorkUsePolicyService $workUsePolicy,
         TokenQuotaService $tokenQuotaService, ArtifactService $artifactService, EmailDraftService $emailDraftService,
         AgentConnectionService $agentConnections, AgentOrchestrationService $orchestration, ConversationSourceContextService $conversationSources,
+        ChatPerformance $performance,
     ) {
         set_time_limit(120);
 
-        $blocked = $this->validateAndScanPii($request, $piiFilter, $knowledgeService);
+        $blocked = $performance->measure('validation_and_pii', fn () => $this->validateAndScanPii($request, $piiFilter, $knowledgeService));
         if ($blocked) {
             return $blocked;
         }
-        if ($safetyResponse = $this->assessWorkUse($request, $workUsePolicy)) {
+        if ($safetyResponse = $performance->measure('moderation', fn () => $this->assessWorkUse($request, $workUsePolicy))) {
             return $safetyResponse;
         }
         if ($tokenQuotaService->isExhausted($request->user())) {
             return $this->tokenQuotaExceededResponse();
         }
 
-        $ctx = $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy, $conversationSources, $agentConnections);
+        $ctx = $performance->measure('prepare_turn', fn () => $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy, $conversationSources, $agentConnections));
 
         try {
             $usesConnectedAgents = $agentConnections->forAgent($ctx['conversation']->agent, $ctx['user'])->isNotEmpty();
             if ($usesConnectedAgents) {
                 set_time_limit($orchestration->requestTimeoutSeconds());
             }
-            $completion = $usesConnectedAgents
+            $completion = $performance->measure('ai_response', fn () => $usesConnectedAgents
                 ? $orchestration->complete($ctx['user'], $ctx['conversation'], $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'], draftMessageId: $ctx['fileExportDraftId'])
-                : $chatService->complete($ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'], model: $ctx['model']);
+                : $chatService->complete($ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'], model: $ctx['model']));
         } catch (\RuntimeException $e) {
             return response()->json([
                 'blocked' => false,
@@ -145,13 +147,18 @@ class ChatMessageController extends Controller
         $continuationTimeout = $usesConnectedAgents
             ? min(20, max(1, (int) config('openai.timeout', 120)))
             : null;
-        $completion = $chatContinuations->continueIfTruncated(
+        $completion = $performance->measure('ai_continuation', fn () => $chatContinuations->continueIfTruncated(
             $completion, $ctx['conversation'], $ctx['user'], $ctx['model'], $completion['orchestration_history'] ?? $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'],
             timeoutSeconds: $continuationTimeout,
-        );
+        ));
 
         $ctx['history'] = $completion['orchestration_history'] ?? $ctx['history'];
-        $actions = $this->createRequestedOutputs($completion, $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService, $knowledgeService, $chatService, $ctx);
+        $outputStartedAt = hrtime(true);
+        try {
+            $actions = $this->createRequestedOutputs($completion, $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService, $knowledgeService, $chatService, $ctx);
+        } finally {
+            $performance->record('file_output', $outputStartedAt);
+        }
         $completion['content'] = $this->normalizeGeneratedFileReply($completion['content'], $actions);
         $completion['content'] = $this->appendOutputLinks($completion['content'], $actions);
         $completion['content'] = $this->prependAgentKnowledgeScopeNotice($completion['content'], $ctx['agentKnowledgeOutOfScope'] && ! ($completion['connected_knowledge_used'] ?? false));
@@ -294,24 +301,25 @@ class ChatMessageController extends Controller
         WorkUsePolicyService $workUsePolicy,
         TokenQuotaService $tokenQuotaService, ArtifactService $artifactService, EmailDraftService $emailDraftService,
         AgentConnectionService $agentConnections, AgentOrchestrationService $orchestration, ConversationSourceContextService $conversationSources,
+        ChatPerformance $performance,
     ): StreamedResponse|JsonResponse {
         set_time_limit(120);
 
-        $blocked = $this->validateAndScanPii($request, $piiFilter, $knowledgeService);
+        $blocked = $performance->measure('validation_and_pii', fn () => $this->validateAndScanPii($request, $piiFilter, $knowledgeService));
         if ($blocked) {
             // Chặn PII: trả JSON thường (chưa mở stream), giữ hành vi giống store().
             return $blocked;
         }
-        if ($safetyResponse = $this->assessWorkUse($request, $workUsePolicy)) {
+        if ($safetyResponse = $performance->measure('moderation', fn () => $this->assessWorkUse($request, $workUsePolicy))) {
             return $safetyResponse;
         }
         if ($tokenQuotaService->isExhausted($request->user())) {
             return $this->tokenQuotaExceededResponse();
         }
 
-        $ctx = $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy, $conversationSources, $agentConnections);
+        $ctx = $performance->measure('prepare_turn', fn () => $this->prepareTurn($request, $knowledgeService, $schoolKnowledgeService, $webPageReader, $workUsePolicy, $conversationSources, $agentConnections));
 
-        return response()->stream(function () use ($ctx, $chatService, $chatContinuations, $request, $tokenQuotaService, $artifactService, $emailDraftService, $knowledgeService, $agentConnections, $orchestration) {
+        return response()->stream(function () use ($ctx, $chatService, $chatContinuations, $request, $tokenQuotaService, $artifactService, $emailDraftService, $knowledgeService, $agentConnections, $orchestration, $performance) {
             while (ob_get_level() > 0) {
                 ob_end_flush();
             }
@@ -340,7 +348,7 @@ class ChatMessageController extends Controller
                 if ($usesConnectedAgents) {
                     set_time_limit($orchestration->requestTimeoutSeconds());
                 }
-                $completion = $usesConnectedAgents
+                $completion = $performance->measure('ai_response', fn () => $usesConnectedAgents
                     ? $orchestration->complete(
                         $ctx['user'], $ctx['conversation'], $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $ctx['tools'],
                         $onDelta, fn (string $message) => $send('progress', ['message' => $message]), $ctx['fileExportDraftId'],
@@ -352,19 +360,24 @@ class ChatMessageController extends Controller
                         $ctx['safetyIdentifier'],
                         $ctx['tools'],
                         model: $ctx['model'],
-                    );
+                    ));
 
                 $continuationTimeout = $usesConnectedAgents
                     ? min(20, max(1, (int) config('openai.timeout', 120)))
                     : null;
-                $completion = $chatContinuations->continueIfTruncated(
+                $completion = $performance->measure('ai_continuation', fn () => $chatContinuations->continueIfTruncated(
                     $completion, $ctx['conversation'], $ctx['user'], $ctx['model'], $completion['orchestration_history'] ?? $ctx['history'], $ctx['systemPrompt'], $ctx['safetyIdentifier'], $onDelta,
                     $continuationTimeout,
-                );
+                ));
 
                 $send('progress', ['message' => 'Đang hoàn tất phản hồi…']);
                 $ctx['history'] = $completion['orchestration_history'] ?? $ctx['history'];
-                $actions = $this->createRequestedOutputs($completion, $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService, $knowledgeService, $chatService, $ctx);
+                $outputStartedAt = hrtime(true);
+                try {
+                    $actions = $this->createRequestedOutputs($completion, $ctx['conversation'], $ctx['user'], $artifactService, $emailDraftService, $knowledgeService, $chatService, $ctx);
+                } finally {
+                    $performance->record('file_output', $outputStartedAt);
+                }
                 $completion['content'] = $this->normalizeGeneratedFileReply($completion['content'], $actions);
                 $completion['content'] = $this->appendOutputLinks($completion['content'], $actions);
                 $completion['content'] = $this->prependAgentKnowledgeScopeNotice($completion['content'], $ctx['agentKnowledgeOutOfScope'] && ! ($completion['connected_knowledge_used'] ?? false));
@@ -379,6 +392,7 @@ class ChatMessageController extends Controller
                     ...$actions,
                 ]);
             } catch (\Throwable $e) {
+                $performance->fail();
                 Log::error('Streaming chat response failed', [
                     'conversation_id' => $ctx['conversation']->id,
                     'exception' => get_class($e),
@@ -920,7 +934,7 @@ class ChatMessageController extends Controller
             ];
         }
 
-        [$systemPrompt, $agentKnowledgeOutOfScope] = $this->buildSystemPrompt($conversation, $knowledgeService, $schoolKnowledgeService, $request->message, $workUsePolicy);
+        [$systemPrompt, $agentKnowledgeOutOfScope] = app(ChatPerformance::class)->measure('knowledge_retrieval', fn () => $this->buildSystemPrompt($conversation, $knowledgeService, $schoolKnowledgeService, $request->message, $workUsePolicy));
         $sourceCodeFile = $this->latestAttachedSourceCode($conversation);
         $sourceCodeToolAvailable = $sourceCodeFile !== null && $sourceCodeFile['complete_source'];
         $sourceCodeTools = $sourceCodeToolAvailable ? [$this->sourceCodePatchTool()] : [];
