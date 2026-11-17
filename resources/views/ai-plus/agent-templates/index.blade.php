@@ -170,7 +170,7 @@
     background: var(--input-bg);
     border: 1px solid var(--input-border);
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 16px;
     color: var(--input-text);
     transition: border-color 0.15s, box-shadow 0.15s, background 0.3s, color 0.3s;
   }
@@ -196,13 +196,13 @@
     color: var(--text-main);
   }
 
-  .catalog-filter{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-soft);}
+  .catalog-filter{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--text-soft);}
   .catalog-filter select{max-width:220px;padding:9px 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--input-text);}
-  .template-category-path{margin:-4px 0 12px;color:var(--sage);font-size:11px;font-weight:600;}
+  .template-category-path{margin:-4px 0 12px;color:var(--sage);font-size:13px;font-weight:600;}
   .template-category-path span{padding:0 4px;color:var(--text-soft);}
   .sort-group {display:flex;align-items:center;gap:8px;margin-left:auto;}
   .sort-label {
-    font-size: 13px;
+    font-size: 15px;
     color: var(--text-soft);
     white-space: nowrap;
   }
@@ -215,7 +215,7 @@
     background: var(--chip-bg);
     border: 1px solid var(--chip-border);
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--chip-text);
     cursor: pointer;
     transition: all 0.15s;
@@ -243,7 +243,7 @@
     padding: 0 4px;
   }
   .results-count {
-    font-size: 14px;
+    font-size: 16px;
     color: var(--text-soft);
   }
 
@@ -294,7 +294,7 @@
     backdrop-filter: blur(8px);
     padding: 4px 10px;
     border-radius: 6px;
-    font-size: 11px;
+    font-size: 13px;
     font-family: 'IBM Plex Mono', monospace;
     color: #fff;
   }
@@ -313,7 +313,7 @@
     margin-bottom: 8px;
   }
   .template-desc {
-    font-size: 14px;
+    font-size: 16px;
     color: var(--text-soft);
     margin-bottom: 16px;
     line-height: 1.5;
@@ -326,7 +326,7 @@
     margin-bottom: 16px;
   }
   .feature-tag {
-    font-size: 11px;
+    font-size: 13px;
     padding: 4px 8px;
     background: var(--input-bg);
     border-radius: 4px;
@@ -345,7 +345,7 @@
     color: #fff;
     border: none;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.15s;
@@ -376,7 +376,7 @@
     color: #fff;
     border: none;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     cursor: pointer;
   }
@@ -399,7 +399,7 @@
   }
 
   .pagination{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:16px;padding-top:12px;border-top:1px solid var(--surface-border);}
-  .pagination-link,.pagination-current,.pagination-ellipsis{min-width:30px;height:30px;padding:0 6px;border:1px solid var(--surface-border);border-radius:4px;font-size:11px;color: var(--text-main);text-decoration:none;background: var(--surface);transition: all 0.15s;line-height:1;display:flex;align-items:center;justify-content:center;}
+  .pagination-link,.pagination-current,.pagination-ellipsis{min-width:30px;height:30px;padding:0 6px;border:1px solid var(--surface-border);border-radius:4px;font-size:13px;color: var(--text-main);text-decoration:none;background: var(--surface);transition: all 0.15s;line-height:1;display:flex;align-items:center;justify-content:center;}
   .pagination-link:hover{background: var(--input-bg);border-color:var(--navy);color:var(--navy);}
   .pagination-current{background: var(--navy);color:#fff;border-color:var(--navy);}
   .pagination-ellipsis{color: var(--text-soft);border-color:transparent;background:transparent;cursor:default;}

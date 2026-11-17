@@ -15,7 +15,7 @@
   })();
 </script>
 <!-- Fonts are self-hosted via @font-face in ai-plus.css -->
-<link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}">
+<link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}?v={{ filemtime(public_path('css/ai-plus.css')) }}">
 @stack('styles')
 <meta name="csrf-token" content="{{ csrf_token() }}">
 @include('partials.session-timeout-monitor')

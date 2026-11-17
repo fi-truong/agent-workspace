@@ -125,13 +125,13 @@
   .ai-guide-trigger:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 16px 34px rgba(22,59,52,.34);}.ai-guide-trigger img{width:100%;height:100%;object-fit:contain;display:block;}
   .ai-guide-panel{width:min(360px,calc(100vw - 32px));margin-bottom:10px;background:#fff;border:1px solid #d9e8e3;border-radius:16px;box-shadow:0 18px 50px rgba(22,59,52,.22);overflow:hidden;}
   .ai-guide-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:15px 16px;background:#163b34;color:#fff;}
-  .ai-guide-title{display:flex;align-items:center;gap:9px;}.ai-guide-avatar{width:35px;height:35px;object-fit:contain;}.ai-guide-head strong,.ai-guide-head span{display:block;}.ai-guide-head span{font-size:12px;color:#cce3de;margin-top:2px;}
+  .ai-guide-title{display:flex;align-items:center;gap:9px;}.ai-guide-avatar{width:35px;height:35px;object-fit:contain;}.ai-guide-head strong,.ai-guide-head span{display:block;}.ai-guide-head span{font-size:14px;color:#cce3de;margin-top:2px;}
   .ai-guide-close{border:0;background:transparent;color:#fff;font-size:25px;line-height:1;cursor:pointer;}
   .ai-guide-messages{max-height:310px;overflow-y:auto;padding:14px;background:#f4fbf9;display:flex;flex-direction:column;gap:10px;}
-  .ai-guide-message{max-width:90%;padding:10px 12px;border-radius:12px;font-size:13px;line-height:1.45;white-space:pre-wrap;}
+  .ai-guide-message{max-width:90%;padding:10px 12px;border-radius:12px;font-size:15px;line-height:1.45;white-space:pre-wrap;}
   .ai-guide-message.assistant{align-self:flex-start;background:#fff;color:#1b2e2a;border:1px solid #d9e8e3;}.ai-guide-message.user{align-self:flex-end;background:#1f5147;color:#fff;}.ai-guide-message.error{color:#9d2e23;}
-  .ai-guide-form{display:flex;gap:8px;padding:12px;border-top:1px solid #d9e8e3;}.ai-guide-form textarea{flex:1;resize:none;border:1px solid #c6d9d3;border-radius:9px;padding:8px;font:13px inherit;color:#1b2e2a;background:#fff;}.ai-guide-form textarea::placeholder{color:#657772;opacity:1;}.ai-guide-form button{border:0;border-radius:9px;background:#d89b34;color:#1b2e2a;padding:0 12px;font:600 13px inherit;cursor:pointer;}.ai-guide-form button:disabled{opacity:.6;cursor:wait;}
-  .ai-guide-login{display:block;padding:15px 16px;color:#1f5147;font-size:13px;font-weight:600;text-decoration:none;}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+  .ai-guide-form{display:flex;gap:8px;padding:12px;border-top:1px solid #d9e8e3;}.ai-guide-form textarea{flex:1;resize:none;border:1px solid #c6d9d3;border-radius:9px;padding:8px;font:15px inherit;color:#1b2e2a;background:#fff;}.ai-guide-form textarea::placeholder{color:#657772;opacity:1;}.ai-guide-form button{border:0;border-radius:9px;background:#d89b34;color:#1b2e2a;padding:0 12px;font:600 15px inherit;cursor:pointer;}.ai-guide-form button:disabled{opacity:.6;cursor:wait;}
+  .ai-guide-login{display:block;padding:15px 16px;color:#1f5147;font-size:15px;font-weight:600;text-decoration:none;}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
   body:has(.ai-guide) .theme-switcher{left:20px;right:auto;}
   @media (max-width:640px){.ai-guide{right:12px;bottom:60px;}.ai-guide-panel{width:calc(100vw - 24px);}body:has(.ai-guide) .theme-switcher{left:12px;right:auto;}}
 </style>

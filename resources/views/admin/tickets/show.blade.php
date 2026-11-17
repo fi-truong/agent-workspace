@@ -9,7 +9,7 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--line);">
             <div>
                 <h2 style="font-family:'Fraunces',serif;font-size:22px;margin:0 0 8px;">{{ $ticket->subject }}</h2>
-                <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink-soft);">
+                <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:15px;color:var(--ink-soft);">
                     <span><strong>User:</strong> {{ $ticket->user?->name ?? $ticket->name }} ({{ $ticket->user?->email ?? $ticket->email }})</span>
                     <span><strong>Created:</strong> {{ $ticket->created_at->format('d/m/Y H:i') }}</span>
                     <span><strong>Priority:</strong> <span class="badge {{ $ticket->priority === 'high' ? 'pending' : ($ticket->priority === 'medium' ? 'new' : 'published') }}">{{ ucfirst($ticket->priority) }}</span></span>
@@ -34,12 +34,12 @@
             <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:0 0 14px;">Conversation</h3>
             <div style="display:grid;gap:12px;">
                 <div style="border:1px solid var(--line);border-radius:8px;padding:14px;background:var(--paper);">
-                    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:7px;"><strong>{{ $ticket->name }}</strong> · {{ $ticket->created_at->format('d/m/Y H:i') }}</div>
+                    <div style="font-size:14px;color:var(--ink-soft);margin-bottom:7px;"><strong>{{ $ticket->name }}</strong> · {{ $ticket->created_at->format('d/m/Y H:i') }}</div>
                     <div style="white-space:pre-wrap;">{{ $ticket->details }}</div>
                 </div>
                 @forelse($ticket->replies as $reply)
                     <div style="border:1px solid #b9decf;border-radius:8px;padding:14px;background:#f1faf6;">
-                        <div style="font-size:12px;color:var(--ink-soft);margin-bottom:7px;"><strong>{{ $reply->author_id === $ticket->user_id ? ($reply->author?->name ?? $ticket->name) : ($reply->author?->name ?? 'Former staff member') }}</strong> · {{ $reply->created_at->format('d/m/Y H:i') }} · {{ $reply->author_id === $ticket->user_id ? 'Requester follow-up' : 'Public reply' }}</div>
+                        <div style="font-size:14px;color:var(--ink-soft);margin-bottom:7px;"><strong>{{ $reply->author_id === $ticket->user_id ? ($reply->author?->name ?? $ticket->name) : ($reply->author?->name ?? 'Former staff member') }}</strong> · {{ $reply->created_at->format('d/m/Y H:i') }} · {{ $reply->author_id === $ticket->user_id ? 'Requester follow-up' : 'Public reply' }}</div>
                         <div style="white-space:pre-wrap;">{{ $reply->body }}</div>
                         @if($reply->attachments->isNotEmpty())
                             <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;">
@@ -97,18 +97,18 @@
                 </div>
                 <input type="file" name="images[]" accept="image/jpeg,image/png,image/webp" multiple hidden data-public-reply-images>
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-                    <button type="button" class="btn-secondary" style="padding:7px 12px;font-size:13px;" data-choose-reply-images>Attach images</button>
-                    <span class="text-muted" style="font-size:12px;">Paste or select up to 4 JPG, PNG, or WebP images (4 MB each; 16 MB total).</span>
+                    <button type="button" class="btn-secondary" style="padding:7px 12px;font-size:15px;" data-choose-reply-images>Attach images</button>
+                    <span class="text-muted" style="font-size:14px;">Paste or select up to 4 JPG, PNG, or WebP images (4 MB each; 16 MB total).</span>
                 </div>
-                <p class="text-muted" style="font-size:12px;margin:0 0 10px;">Images are visible to the requester and support admins. Avoid including sensitive student or family information.</p>
+                <p class="text-muted" style="font-size:14px;margin:0 0 10px;">Images are visible to the requester and support admins. Avoid including sensitive student or family information.</p>
                 <div data-reply-image-error role="status" class="field-error" style="display:none;margin-bottom:8px;"></div>
                 <div data-reply-image-preview style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;"></div>
                 @error('images')<div class="field-error">{{ $message }}</div>@enderror
                 @error('images.*')<div class="field-error">{{ $message }}</div>@enderror
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;cursor:pointer;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:15px;margin-bottom:12px;cursor:pointer;">
                     <input type="checkbox" name="resolve" value="1"> Mark this ticket as resolved after posting
                 </label>
-                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:13px;">Post Reply</button>
+                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:15px;">Post Reply</button>
             </form>
 
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -120,7 +120,7 @@
                 <div class="form-group" style="margin-bottom:12px;">
                     <textarea name="admin_notes" class="form-textarea" placeholder="Internal notes for admin team..." rows="4">{{ $ticket->admin_notes }}</textarea>
                 </div>
-                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:13px;">Save Notes</button>
+                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:15px;">Save Notes</button>
             </form>
         </div>
     </div>
@@ -177,7 +177,7 @@
             });
             const name = document.createElement('div');
             name.textContent = file.name;
-            name.style.cssText = 'font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;';
+            name.style.cssText = 'font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;';
             item.append(image, remove, name);
             preview.append(item);
         });

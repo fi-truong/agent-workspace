@@ -148,7 +148,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 14px;
+    font-size: 16px;
     color: var(--page-header-muted);
   }
   .header-stat strong {
@@ -195,7 +195,7 @@
     background: var(--input-bg);
     border: 1px solid var(--input-border);
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 16px;
     color: var(--input-text);
     transition: border-color 0.15s, box-shadow 0.15s, background 0.3s, color 0.3s;
   }
@@ -227,7 +227,7 @@
     gap: 8px;
   }
   .filter-label {
-    font-size: 13px;
+    font-size: 15px;
     color: var(--text-soft);
     white-space: nowrap;
   }
@@ -241,7 +241,7 @@
     background: var(--chip-bg);
     border: 1px solid var(--chip-border);
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--chip-text);
     cursor: pointer;
     transition: all 0.15s;
@@ -263,7 +263,7 @@
     gap: 8px;
   }
   .view-label {
-    font-size: 13px;
+    font-size: 15px;
     color: var(--text-soft);
     white-space: nowrap;
   }
@@ -277,7 +277,7 @@
     background: var(--chip-bg);
     border: 1px solid var(--chip-border);
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--chip-text);
     cursor: pointer;
     transition: all 0.15s;
@@ -305,7 +305,7 @@
     padding: 0 4px;
   }
   .results-count {
-    font-size: 14px;
+    font-size: 16px;
     color: var(--text-soft);
   }
 
@@ -357,13 +357,13 @@
     font-size: 16px;
   }
   .author-info h3 {
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 600;
     color: var(--text-main);
     margin: 0;
   }
   .author-info span {
-    font-size: 12px;
+    font-size: 14px;
     color: var(--text-soft);
   }
   .showcase-badge {
@@ -371,7 +371,7 @@
     background: var(--sage-badge-bg);
     color: var(--sage-badge-text);
     border-radius: 6px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 500;
   }
 
@@ -389,7 +389,7 @@
     margin-bottom: 8px;
   }
   .showcase-desc {
-    font-size: 14px;
+    font-size: 16px;
     color: var(--text-soft);
     line-height: 1.6;
     margin-bottom: 16px;
@@ -405,7 +405,7 @@
     padding: 4px 10px;
     background: var(--input-bg);
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--text-soft);
   }
   .showcase-stats {
@@ -419,7 +419,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 13px;
+    font-size: 15px;
     color: var(--text-soft);
   }
   .stat-item .icon {
@@ -436,7 +436,7 @@
     color: #fff;
     border: none;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.15s;
@@ -468,7 +468,7 @@
     color: #fff;
     border: none;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     cursor: pointer;
   }
@@ -517,7 +517,7 @@
     padding: 0 6px;
     border: 1px solid var(--surface-border);
     border-radius: 4px;
-    font-size: 11px;
+    font-size: 13px;
     color: var(--text-main);
     text-decoration: none;
     background: var(--surface);

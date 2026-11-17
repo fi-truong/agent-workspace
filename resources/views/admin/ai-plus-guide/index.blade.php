@@ -19,7 +19,7 @@
       <input type="hidden" name="enabled" value="0">
       <input type="checkbox" name="enabled" value="1" {{ $enabled ? 'checked' : '' }} style="width:18px;height:18px;margin-top:2px;">
       <span>
-        <strong style="display:block;font-size:15px;">Show AI Plus Guide on the homepage</strong>
+        <strong style="display:block;font-size:17px;">Show AI Plus Guide on the homepage</strong>
         <span class="text-muted" style="display:block;margin-top:4px;">When enabled, signed-in users can ask the guide where to find AI+ features. The guide cannot open files or perform actions for users.</span>
       </span>
     </label>

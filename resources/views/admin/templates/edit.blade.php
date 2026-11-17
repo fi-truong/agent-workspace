@@ -62,7 +62,7 @@
         <div class="form-group" style="border-top:1px solid var(--line);padding-top:20px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                 <label>Features</label>
-                <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="addFeatureRow()">+ Add Feature</button>
+                <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:14px;" onclick="addFeatureRow()">+ Add Feature</button>
             </div>
             <div id="featuresContainer">
                 @php
@@ -75,8 +75,8 @@
                         <textarea name="features[{{ $idx }}][description]" class="form-textarea" placeholder="Description (optional)" style="flex:1;min-height:60px;">{{ old("features.{$idx}.description", $feature->description) }}</textarea>
                         <input type="text" name="features[{{ $idx }}][icon]" class="form-input" placeholder="Icon (emoji/class)" style="width:120px;" value="{{ old("features.{$idx}.icon", $feature->icon) }}">
                         <div style="display:flex;flex-direction:column;gap:4px;margin-top:30px;">
-                            <button type="button" class="action-btn danger" onclick="this.closest('.feature-row').remove()" style="padding:4px 8px;font-size:11px;">Remove</button>
-                            <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+                            <button type="button" class="action-btn danger" onclick="this.closest('.feature-row').remove()" style="padding:4px 8px;font-size:13px;">Remove</button>
+                            <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;">
                                 <input type="checkbox" name="features[{{ $idx }}][_delete]" value="1" style="width:14px;height:14px;"> Delete
                             </label>
                         </div>

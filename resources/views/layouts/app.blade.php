@@ -18,7 +18,7 @@
 </script>
 <!-- Fonts are self-hosted via @font-face in ai-plus.css -->
 @vite('resources/css/app.css')
-<link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}">
+<link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}?v={{ filemtime(public_path('css/ai-plus.css')) }}">
 @stack('styles')
 </head>
 <body>

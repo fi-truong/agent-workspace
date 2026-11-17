@@ -41,14 +41,14 @@
 .account-page { max-width: 480px; margin: 0 auto; padding: 40px 24px; }
 .account-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: 16px; padding: 28px 32px; }
 .account-title { font-family: 'Fraunces', serif; font-size: 26px; color: var(--navy); margin: 0 0 6px; }
-.account-sub { color: var(--ink-soft); margin: 0 0 24px; font-size: 14px; }
+.account-sub { color: var(--ink-soft); margin: 0 0 24px; font-size: 16px; }
 #password-form { display: flex; flex-direction: column; gap: 16px; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
-.form-group label { font-weight: 500; color: var(--ink); font-size: 14px; }
-.form-group input { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; font-family: inherit; font-size: 14px; color: var(--ink); background: var(--card-bg); }
+.form-group label { font-weight: 500; color: var(--ink); font-size: 16px; }
+.form-group input { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; font-family: inherit; font-size: 16px; color: var(--ink); background: var(--card-bg); }
 .form-group input:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px rgba(31,56,100,0.1); }
-.form-hint { font-size: 12px; color: var(--ink-soft); }
-.form-error { background: #FDF3E0; color: #9A6B1F; border: 1px solid #E5C88A; padding: 10px 14px; border-radius: 8px; font-size: 13px; }
+.form-hint { font-size: 14px; color: var(--ink-soft); }
+.form-error { background: #FDF3E0; color: #9A6B1F; border: 1px solid #E5C88A; padding: 10px 14px; border-radius: 8px; font-size: 15px; }
 .account-actions { display: flex; justify-content: flex-end; }
 </style>
 @endpush

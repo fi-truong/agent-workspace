@@ -5,7 +5,7 @@
     <title>Access Pending — AI+</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     @include('partials.favicon')
-    <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}?v={{ filemtime(public_path('css/ai-plus.css')) }}">
     <style>
         *{box-sizing:border-box;margin:0;padding:0}
         body{font-family:'Inter',sans-serif;background:var(--body-bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:var(--text-main)}
@@ -13,10 +13,10 @@
         .logo{font-family:'Fraunces',serif;font-size:28px;font-weight:600;color:var(--navy);margin-bottom:6px}
         .icon{font-size:52px;margin:20px 0 16px}
         h1{font-family:'Fraunces',serif;font-size:22px;font-weight:600;color:var(--text-main);margin-bottom:10px}
-        p{color:var(--text-soft);font-size:14px;line-height:1.6;margin-bottom:8px}
-        .btn{display:inline-block;margin-top:22px;padding:12px 26px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none;transition:background .15s}
+        p{color:var(--text-soft);font-size:16px;line-height:1.6;margin-bottom:8px}
+        .btn{display:inline-block;margin-top:22px;padding:12px 26px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:500;cursor:pointer;text-decoration:none;transition:background .15s}
         .btn:hover{background:var(--navy-deep)}
-        .hint{margin-top:18px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-soft);letter-spacing:.04em}
+        .hint{margin-top:18px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-soft);letter-spacing:.04em}
     </style>
 </head>
 <body>

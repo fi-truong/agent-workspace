@@ -63,7 +63,7 @@
         <div class="form-group" style="border-top:1px solid var(--line);padding-top:20px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                 <label>Features</label>
-                <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="addFeatureRow()">+ Add Feature</button>
+                <button type="button" class="btn-secondary" style="padding:6px 12px;font-size:14px;" onclick="addFeatureRow()">+ Add Feature</button>
             </div>
             <div id="featuresContainer">
                 <div class="feature-row" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;padding:12px;background:var(--paper);border-radius:8px;">

@@ -41,7 +41,7 @@
     </div>
     <div style="padding:0 20px 12px;">
         @forelse($recentActivity as $activity)
-        <div style="display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;">
+        <div style="display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--line);font-size:16px;">
             <span><strong>{{ $activity->user?->name ?? 'System' }}</strong> · {{ str_replace('.', ' ', $activity->event) }}</span>
             <span class="text-muted">{{ $activity->created_at->diffForHumans() }}</span>
         </div>

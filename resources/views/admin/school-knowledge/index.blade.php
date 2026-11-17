@@ -20,7 +20,7 @@
   <form method="POST" action="{{ route('admin.school-knowledge.update') }}" style="padding:22px 24px;">@csrf @method('PUT')
     <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
       <input type="hidden" name="enabled" value="0"><input type="checkbox" name="enabled" value="1" {{ $enabled ? 'checked' : '' }} style="width:18px;height:18px;margin-top:2px;">
-      <span><strong style="display:block;font-size:15px;">Use School Knowledge Base in every Chat and Agent</strong><span class="text-muted" style="display:block;margin-top:4px;">AI+ retrieves only the most relevant excerpts for each request. This material is treated as reference, never as instructions.</span></span>
+      <span><strong style="display:block;font-size:17px;">Use School Knowledge Base in every Chat and Agent</strong><span class="text-muted" style="display:block;margin-top:4px;">AI+ retrieves only the most relevant excerpts for each request. This material is treated as reference, never as instructions.</span></span>
     </label>
     <div style="margin-top:18px;"><button type="submit" class="btn-primary">Save availability</button> <span class="badge {{ $enabled ? 'published' : 'draft' }}">{{ $enabled ? 'Enabled' : 'Disabled' }}</span></div>
   </form>
@@ -36,8 +36,8 @@
     </form>
     <div style="padding:0 24px 22px;">
       <div style="border-top:1px solid var(--line);padding-top:16px;">
-        <strong style="font-size:14px;">Import basic school information</strong>
-        <p class="text-muted" style="margin:5px 0 11px;line-height:1.45;font-size:13px;">Add the core public information from the official school website. Existing sources are refreshed safely without creating duplicates.</p>
+        <strong style="font-size:16px;">Import basic school information</strong>
+        <p class="text-muted" style="margin:5px 0 11px;line-height:1.45;font-size:15px;">Add the core public information from the official school website. Existing sources are refreshed safely without creating duplicates.</p>
         <form method="POST" action="{{ route('admin.school-knowledge.import-introduction') }}">@csrf<button type="submit" class="btn-outline">Import basic school information</button></form>
       </div>
     </div>
@@ -53,14 +53,14 @@
 </div>
 
 <section class="table-section" style="margin-top:22px;max-width:1120px;">
-  <div class="table-toolbar"><h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Indexed sources <span class="text-muted" style="font-family:inherit;font-size:14px;font-weight:400;">({{ $sources->count() }})</span></h3></div>
+  <div class="table-toolbar"><h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Indexed sources <span class="text-muted" style="font-family:inherit;font-size:16px;font-weight:400;">({{ $sources->count() }})</span></h3></div>
   @if($sources->isEmpty())
     <div style="padding:30px 24px;" class="text-muted">No shared sources yet. Add an official LSTS page or upload an approved school document.</div>
   @else
     <div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Source</th><th>Type</th><th>Status</th><th>Indexed</th><th>Chunks</th><th style="text-align:right;">Actions</th></tr></thead><tbody>
       @foreach($sources as $source)
       <tr>
-        <td><strong>{{ $source->title }}</strong>@if($source->source_url)<a href="{{ $source->source_url }}" target="_blank" rel="noopener noreferrer" class="text-muted" style="display:block;font-size:12px;margin-top:4px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $source->source_url }}</a>@elseif($source->original_name)<span class="text-muted" style="display:block;font-size:12px;margin-top:4px;">Uploaded by {{ $source->creator?->name ?? 'a former administrator' }}</span>@endif @if($source->failure_reason)<small style="display:block;color:#a33;max-width:360px;margin-top:5px;">{{ $source->failure_reason }}</small>@endif</td>
+        <td><strong>{{ $source->title }}</strong>@if($source->source_url)<a href="{{ $source->source_url }}" target="_blank" rel="noopener noreferrer" class="text-muted" style="display:block;font-size:14px;margin-top:4px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $source->source_url }}</a>@elseif($source->original_name)<span class="text-muted" style="display:block;font-size:14px;margin-top:4px;">Uploaded by {{ $source->creator?->name ?? 'a former administrator' }}</span>@endif @if($source->failure_reason)<small style="display:block;color:#a33;max-width:360px;margin-top:5px;">{{ $source->failure_reason }}</small>@endif</td>
         <td><span class="badge {{ $source->type === 'website' ? 'published' : 'draft' }}">{{ $source->type === 'website' ? 'Website' : 'Document' }}</span></td>
         <td><span class="badge {{ $source->status === 'ready' ? 'published' : 'draft' }}">{{ ucfirst($source->status) }}</span></td>
         <td>{{ $source->last_synced_at?->format('d M Y, H:i') ?? 'Never' }}</td>
