@@ -71,7 +71,7 @@ class PromptLibraryController extends Controller
             'totalPrompts' => (clone $query)->count(),
             'totalSubjects' => Tag::where('category', 'subject')->count(),
             'categoryGroups' => AiPlusCatalogCategories::GROUPS,
-            'catalogCategories' => AiPlusCatalogCategories::CATEGORIES,
+            'catalogCategories' => AiPlusCatalogCategories::promptCategories(),
         ]);
     }
 }

@@ -80,6 +80,10 @@
         <div class="prompt-category-path">{{ $categoryGroups[$prompt['category_group']] ?? $prompt['category_group'] }} <span>›</span> {{ $catalogCategories[$prompt['category_group']][$prompt['category']] ?? $prompt['category'] }}</div>
         @endif
         <div class="prompt-preview">{{ $prompt['preview'] }}</div>
+        <details class="prompt-details">
+          <summary>View full prompt</summary>
+          <div class="prompt-full-text">{{ $prompt['preview'] }}</div>
+        </details>
         <div class="prompt-footer">
           <button class="copy-btn" data-prompt="{{ $prompt['preview'] }}">Copy Prompt</button>
         </div>
@@ -134,12 +138,12 @@
   .section-title{font-family:'Fraunces', serif;font-size:22px;font-weight:600;color: var(--section-title);margin-bottom:20px;display:flex;align-items:center;gap:10px;}
   .section-title .count{font-family:'IBM Plex Mono', monospace;font-size:13px;color: var(--text-soft);font-weight:400;}
 
-  .prompt-grid{display:grid;grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));gap:20px;}
+  .prompt-grid{display:grid;grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));gap:20px;align-items:start;}
   .prompt-card{background: var(--surface);border:1px solid var(--surface-border);border-radius:12px;padding:20px;transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;}
   .prompt-card:hover{transform:translateY(-2px);box-shadow: 0 12px 24px -12px rgba(31,56,100,0.2);border-color: var(--surface-border);}
-  .prompt-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
+  .prompt-header{display:flex;flex-direction:column;gap:10px;align-items:flex-start;margin-bottom:12px;}
   .prompt-title{font-weight:600;font-size:16px;color: var(--text-main);}
-  .prompt-badges{display:flex;gap:6px;}
+  .prompt-badges{display:flex;gap:6px;flex-wrap:wrap;}
   .badge{font-family:'IBM Plex Mono', monospace;font-size:10px;padding:3px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:0.03em;}
   .badge.subject{background:var(--brand-badge-bg);color:var(--brand-badge-text);}
   .badge.role{background:var(--brand-badge-bg);color:var(--brand-badge-text);}
@@ -149,6 +153,10 @@
   .prompt-category-path span{padding:0 4px;color:var(--text-soft);}
   .prompt-preview{background: var(--input-bg);border:1px solid var(--input-border);border-radius:8px;padding:12px;font-family:'IBM Plex Mono', monospace;font-size:12px;color: var(--text-soft);margin-bottom:16px;max-height:80px;overflow:hidden;position:relative;}
   .prompt-preview::after{content:"";position:absolute;bottom:0;left:0;right:0;height:30px;background: linear-gradient(transparent, var(--input-bg));}
+  .prompt-details{margin-bottom:16px;font-size:13px;color:var(--text-main);}
+  .prompt-details summary{cursor:pointer;font-weight:600;color:var(--sage);}
+  .prompt-full-text{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px;line-height:1.6;}
+  .prompt-title,.prompt-desc,.prompt-category-path,.prompt-preview,.badge{overflow-wrap:anywhere;}
   .prompt-footer{display:flex;justify-content:space-between;align-items:center;}
   .copy-btn{padding:8px 16px;background: var(--navy);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition: background 0.15s;}
   .copy-btn:hover{background: var(--navy-deep);}
