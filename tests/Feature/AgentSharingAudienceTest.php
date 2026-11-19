@@ -23,6 +23,8 @@ beforeEach(function () {
 function createAudienceAgent($test, string $scope = 'users', string $access = 'use_only'): Agent
 {
     $response = $test->actingAs($test->owner)->postJson(route('ai-plus.agent-workspace.agents.store'), [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Limited planning assistant', 'description' => 'LIMITED_DESCRIPTION',
         'system_prompt' => 'PRIVATE_INSTRUCTIONS', 'is_shared' => true,
         'sharing_scope' => $scope, 'sharing_access' => $access,
@@ -89,9 +91,9 @@ it('rechecks access after a recipient is removed or changes department', functio
     expect($conversation->fresh())->not->toBeNull();
 })->with(['department', 'users']);
 
-it('prevents calling a restricted specialist through a school shared parent', function () {
+it('prevents calling another owner’s restricted specialist through a school shared parent', function () {
     $child = createAudienceAgent($this);
-    $parent = $this->owner->agents()->create(['title' => 'Shared coordinator', 'is_shared' => true, 'sharing_access' => 'use_only']);
+    $parent = User::factory()->create()->agents()->create(['title' => 'Shared coordinator', 'is_shared' => true, 'sharing_access' => 'use_only']);
     $parent->connectedAgents()->attach($child->id);
     expect(app(AgentConnectionService::class)->forAgent($parent, $this->recipient))->toHaveCount(1)
         ->and(app(AgentConnectionService::class)->forAgent($parent, $this->outsider))->toBeEmpty();
@@ -211,6 +213,8 @@ it('combines department and individual audiences across discovery chat and conne
     $this->recipient->update(['department' => 'AA']);
     $colleague = User::factory()->create(['department' => 'CIEC']);
     $response = $this->actingAs($this->owner)->postJson(route('ai-plus.agent-workspace.agents.store'), [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Combined audience assistant', 'is_shared' => true, 'sharing_access' => $access,
         'sharing_scopes' => ['department', 'users'], 'sharing_user_ids' => [$this->recipient->id],
     ])->assertCreated();
@@ -270,11 +274,15 @@ it('retains department and named people when adding and then removing school-wid
 it('rejects empty invalid and repeated audiences instead of widening access', function () {
     foreach ([[], ['invalid'], ['users', 'users']] as $scopes) {
         $this->actingAs($this->owner)->postJson(route('ai-plus.agent-workspace.agents.store'), [
+            'category_group' => 'teaching',
+            'category' => 'lesson_planning',
             'title' => 'Invalid share', 'is_shared' => true, 'sharing_access' => 'use_only',
             'sharing_scopes' => $scopes,
         ])->assertUnprocessable();
     }
     $this->postJson(route('ai-plus.agent-workspace.agents.store'), [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'No audience', 'is_shared' => true, 'sharing_access' => 'use_only', 'sharing_audience_configured' => true,
     ])->assertUnprocessable()->assertJsonValidationErrors('sharing_scopes');
     expect(Agent::count())->toBe(0);

@@ -22,6 +22,9 @@ const fixture = `<!doctype html><html><head><meta name="csrf-token" content="tes
 <div id="agent-modal" style="display:none"><h3 id="modal-title"></h3><button id="modal-close">Close</button>
 <form id="agent-form"><input id="form-method" name="_method"><input id="agent-id" name="agent_id">
 <input id="title" name="title" required><textarea id="description"></textarea><textarea id="system_prompt"></textarea>
+<input type="hidden" id="agent-template-id" name="template_id">
+<select id="agent-category-group" name="category_group"><option value=""></option><option value="teaching">Teaching</option><option value="school_operations">School Operations</option></select>
+<select id="agent-category" name="category"></select><small id="agent-category-hint"></small>
 <input type="checkbox" id="is_shared" name="is_shared" value="1">
 <div id="sharing-audience-group" hidden><label class="sharing-audience-choice"><input type="checkbox" id="sharing-school" name="sharing_scopes[]" value="school" checked>Everyone at school</label><label class="sharing-audience-choice"><input type="checkbox" id="sharing-department" name="sharing_scopes[]" value="department">My department</label><label class="sharing-audience-choice"><input type="checkbox" id="sharing-users" name="sharing_scopes[]" value="users">Specific people</label><div id="sharing-people-picker" hidden><input id="sharing-user-search" type="search"></div><small id="sharing-department-hint" hidden></small><div id="sharing-search-status"></div><div id="sharing-search-results"></div><div id="sharing-selected-users"></div></div><fieldset id="sharing-access-group" hidden><input type="radio" name="sharing_access" value="use_only" checked><input type="radio" name="sharing_access" value="copy"></fieldset>
 <fieldset id="agent-connections-field" class="form-group agent-connections-field" hidden><input id="agent-connections-search" type="search"><div id="agent-connections-list"></div><div id="agent-connections-status"></div></fieldset>
@@ -105,6 +108,10 @@ async function setup(
             sharingUsersUrl: '/ai-plus/agent-workspace/agents/sharing-users',
             department: 'CIEC',
             maxConnections: 10,
+            categories: {
+                teaching: { lesson_planning: 'Lesson Planning', other: 'Other' },
+                school_operations: { budgeting_procurement: 'Budgeting & Procurement', other: 'Other' },
+            },
         };
     });
     await page.addScriptTag({ content: script });
@@ -114,6 +121,21 @@ async function setup(
 
     return page;
 }
+
+test('requires the new Agent category and resets it when the group changes', async (t) => {
+    const page = await setup(t);
+    await page.locator('#create-agent-btn').click();
+    await page.locator('#title').fill('Planning Agent');
+    const group = page.locator('#agent-category-group');
+    const category = page.locator('#agent-category');
+    assert.equal(await category.isDisabled(), true);
+    await group.selectOption('teaching');
+    await category.selectOption('lesson_planning');
+    await group.selectOption('school_operations');
+    assert.equal(await category.inputValue(), '');
+    assert.equal(await category.locator('option[value=lesson_planning]').count(), 0);
+    assert.equal(await category.evaluate((select) => select.validity.valueMissing), true);
+});
 
 test('selects Agents, keeps roles during search, and submits multipart edit using POST', async (t) => {
     const page = await setup(t, {
@@ -237,6 +259,8 @@ test('shows the people search beside the audience and submits only selected reci
     const page = await setup(t);
     await page.locator('#create-agent-btn').click();
     await page.locator('#title').fill('Shared planner');
+    await page.locator('#agent-category-group').selectOption('teaching');
+    await page.locator('#agent-category').selectOption('lesson_planning');
     await page.locator('#is_shared').check();
     await page.locator('#sharing-school').uncheck();
     await page.locator('#sharing-users').check();
@@ -299,7 +323,7 @@ test('keeps a selected person when adding department sharing and clears them onl
     );
     assert.equal(
         await page.locator('#sharing-department-hint').innerText(),
-        'Shared within: CIEC',
+        '· CIEC',
     );
     const request = page.waitForRequest(
         (request) => request.method() === 'POST',

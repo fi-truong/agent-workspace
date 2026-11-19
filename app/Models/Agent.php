@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\AgentCategories;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -15,6 +16,9 @@ use Illuminate\Support\Carbon;
  * @property int|null $copied_from_agent_id
  * @property string $title
  * @property string|null $description
+ * @property string|null $category_group
+ * @property string|null $category
+ * @property-read string $classification_label
  * @property string|null $avatar_path
  * @property string|null $system_prompt
  * @property string|null $knowledge
@@ -26,7 +30,7 @@ use Illuminate\Support\Carbon;
  */
 class Agent extends Model
 {
-    protected $fillable = ['user_id', 'copied_from_agent_id', 'title', 'description', 'avatar_path', 'system_prompt', 'knowledge', 'is_shared', 'sharing_access', 'shared_with_team_id', 'sharing_scope', 'sharing_department'];
+    protected $fillable = ['user_id', 'copied_from_agent_id', 'title', 'description', 'category_group', 'category', 'avatar_path', 'system_prompt', 'knowledge', 'is_shared', 'sharing_access', 'shared_with_team_id', 'sharing_scope', 'sharing_department'];
 
     protected $attributes = ['sharing_scope' => 'school'];
 
@@ -159,6 +163,14 @@ class Agent extends Model
             'users' => 'Specific people',
             default => 'Private',
         };
+    }
+
+    public function getClassificationLabelAttribute(): string
+    {
+        $group = AgentCategories::GROUPS[$this->category_group] ?? null;
+        $category = AgentCategories::CATEGORIES[$this->category_group][$this->category] ?? null;
+
+        return $group === null || $category === null ? 'Unclassified' : $group.' · '.$category;
     }
 
     public function getAvatarUrlAttribute(): ?string

@@ -12,6 +12,8 @@ test('sharing an agent publishes it to the school showcase', function () {
 
     $this->actingAs($owner)
         ->postJson(route('ai-plus.agent-workspace.agents.store'), [
+            'category_group' => 'teaching',
+            'category' => 'lesson_planning',
             'title' => 'Science Lesson Planner',
             'description' => 'Creates lesson plans for science classes.',
             'system_prompt' => 'Be a helpful science curriculum assistant.',

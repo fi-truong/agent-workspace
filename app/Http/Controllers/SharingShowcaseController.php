@@ -8,6 +8,7 @@ use App\Models\ShowcaseUse;
 use App\Models\ShowcaseView;
 use App\Services\KnowledgeService;
 use App\Services\PiiFilterService;
+use App\Support\AgentCategories;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,13 +17,26 @@ class SharingShowcaseController extends Controller
 {
     public function index(Request $request)
     {
-        $query = ShowcasePost::with(['author', 'tags'])
+        $query = ShowcasePost::with(['author', 'tags', 'sourceAgent:id,category_group,category'])
             ->withCount('comments')
             ->where('status', 'published')->visibleTo($request->user());
 
+        $group = $request->string('group')->toString();
+        $category = $request->string('category')->toString();
+        $group = isset(AgentCategories::GROUPS[$group]) ? $group : '';
+        $category = AgentCategories::contains($group, $category) ? $category : '';
+        if ($group !== '') {
+            $query->whereHas('sourceAgent', function ($agent) use ($group, $category): void {
+                $agent->where('category_group', $group);
+                if ($category !== '') {
+                    $agent->where('category', $category);
+                }
+            });
+        }
+
         // Search (title, description, author name, department)
-        if ($request->filled('search')) {
-            $search = $request->search;
+        $search = $request->string('search')->trim()->toString();
+        if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%")
@@ -65,6 +79,7 @@ class SharingShowcaseController extends Controller
                 'department' => $post->department,
                 'title' => $post->title,
                 'description' => $post->description,
+                'classification' => $post->sourceAgent?->classification_label,
                 'tags' => $post->tags->pluck('name')->toArray(),
                 'views' => $post->views_count,
                 'comments' => $post->comments_count,
@@ -83,6 +98,10 @@ class SharingShowcaseController extends Controller
             'showcases' => collect($showcases),
             'paginator' => $paginator,
             'departments' => $departments,
+            'groups' => AgentCategories::GROUPS,
+            'categories' => AgentCategories::CATEGORIES,
+            'selectedGroup' => $group,
+            'selectedCategory' => $category,
             'view' => $view,
             'viewingAs' => 'Teacher / Staff',
             'totalAgents' => ShowcasePost::where('status', 'published')->visibleTo($request->user())->count(),
@@ -95,6 +114,7 @@ class SharingShowcaseController extends Controller
     {
         // Only published posts are viewable on the public side
         abort_unless(ShowcasePost::whereKey($showcase->id)->where('status', 'published')->visibleTo($request->user())->exists(), 404);
+        $showcase->load('sourceAgent:id,category_group,category');
 
         // Count one view per signed-in user per Showcase per calendar day.
         $created = ShowcaseView::query()->insertOrIgnore([
@@ -115,6 +135,7 @@ class SharingShowcaseController extends Controller
             'department' => $showcase->department,
             'title' => $showcase->title,
             'description' => $showcase->description,
+            'classification' => $showcase->sourceAgent?->classification_label,
             'tags' => $showcase->tags->pluck('name')->toArray(),
             'views' => $showcase->views_count,
             'comments' => $showcase->comments()->count(),
@@ -258,6 +279,8 @@ class SharingShowcaseController extends Controller
                 'copied_from_agent_id' => $source->id,
                 'title' => $source->title,
                 'description' => $source->description,
+                'category_group' => $source->category_group,
+                'category' => $source->category,
                 'system_prompt' => $source->system_prompt,
                 'is_shared' => false,
             ]);

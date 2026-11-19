@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreAgentRequest;
 use App\Http\Requests\UpdateAgentRequest;
 use App\Models\Agent;
+use App\Models\AgentTemplate;
 use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\ShowcaseUse;
@@ -14,6 +15,7 @@ use App\Services\AgentConnectionService;
 use App\Services\AgentSharingService;
 use App\Services\KnowledgeService;
 use App\Services\SharedAgentTemplateSyncService;
+use App\Support\AgentCategories;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +24,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -111,6 +114,8 @@ class AgentController extends Controller
         $agent = $user->agents()->create([
             'title' => $request->input('title'),
             'description' => $request->input('description'),
+            'category_group' => $request->validated('category_group'),
+            'category' => $request->validated('category'),
             'system_prompt' => $request->input('system_prompt'),
             ...$sharingSettings['attributes'],
         ]);
@@ -124,6 +129,11 @@ class AgentController extends Controller
         $this->agentConnections->sync($agent, $request->input('connections', []));
         $agent->refresh();
         $this->sharedAgentTemplateSyncService->sync($agent);
+
+        if ($templateId = $request->integer('template_id')) {
+            AgentTemplate::query()->where('status', 'published')->whereNull('source_agent_id')
+                ->find($templateId)?->recordUse($user);
+        }
 
         if ($request->wantsJson()) {
             return response()->json($agent, 201);
@@ -150,6 +160,15 @@ class AgentController extends Controller
     {
         $this->authorize('update', $agent);
         $sharingSettings = $this->sharing->settings($request, $agent);
+        $category = $request->validated('category');
+        $group = $request->validated('category_group');
+        $newSchoolShare = $sharingSettings['attributes']['is_shared']
+            && $sharingSettings['attributes']['sharing_scope'] === 'school'
+            && (! $agent->is_shared || $agent->sharing_scope !== 'school');
+
+        if ($newSchoolShare && ! AgentCategories::contains($group ?? $agent->category_group, $category ?? $agent->category)) {
+            throw ValidationException::withMessages(['category_group' => 'Choose a Group and Category before sharing this Agent with everyone at school.']);
+        }
 
         if ($request->has('connections') || $request->boolean('connections_configured')) {
             $this->agentConnections->validate($request->input('connections', []), $request->user(), $agent);
@@ -163,6 +182,7 @@ class AgentController extends Controller
             'title' => $request->input('title'),
             'description' => $request->input('description'),
             'system_prompt' => $request->input('system_prompt'),
+            ...($category === null ? [] : ['category_group' => $group, 'category' => $category]),
         ]);
 
         $this->sharing->save($agent, $sharingSettings);

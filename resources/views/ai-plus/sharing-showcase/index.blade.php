@@ -19,37 +19,49 @@
 
 <section class="filters-section">
   <div class="wrap">
-    <div class="filters-toolbar">
-      <div class="search-box">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"></circle>
-          <path d="M21 21l-4.35-4.35"></path>
-        </svg>
-        <input type="text" id="searchInput" placeholder="Search showcases..." value="{{ request('search') }}" autocomplete="off">
-        <button id="clearSearch" class="clear-btn" aria-label="Clear search" style="display: none;">×</button>
-      </div>
-
-      <div class="filter-group">
-        <span class="filter-label">Department:</span>
-        <div class="filter-chips" id="deptFilters">
-          <button class="filter-chip {{ request('department') === '' ? 'active' : '' }}" data-department="">All Departments</button>
-          @foreach($departments as $dept)
-          <button class="filter-chip {{ request('department') == $dept ? 'active' : '' }}" data-department="{{ $dept }}">{{ $dept }}</button>
-          @endforeach
+    <form class="filters-toolbar" id="showcaseFilters" action="{{ route('ai-plus.sharing-showcase.index') }}" method="GET">
+      <div class="showcase-search">
+        <label for="searchInput">Search</label>
+        <div class="showcase-search-input">
+          <input type="search" id="searchInput" name="search" placeholder="Search showcases…" value="{{ request()->string('search') }}" autocomplete="off">
+          <button type="submit" class="view-btn">Search</button>
         </div>
       </div>
-
-      <div class="view-group">
-        <span class="view-label">View:</span>
-        <div class="view-tabs" id="viewTabs">
-          <button class="view-tab {{ request('view', 'all') === 'all' ? 'active' : '' }}" data-view="all">All</button>
-          <button class="view-tab {{ request('view') === 'trending' ? 'active' : '' }}" data-view="trending">🔥 Trending</button>
-          <button class="view-tab {{ request('view') === 'new' ? 'active' : '' }}" data-view="new">✨ New</button>
-          <button class="view-tab {{ request('view') === 'mostused' ? 'active' : '' }}" data-view="mostused">⭐ Most Used</button>
-        </div>
+      <div class="showcase-filter-controls">
+        <label for="showcaseGroup">Group
+          <select id="showcaseGroup" name="group">
+            <option value="">All groups</option>
+            @foreach($groups as $key => $label)
+              <option value="{{ $key }}" @selected($selectedGroup === $key)>{{ $label }}</option>
+            @endforeach
+          </select>
+        </label>
+        <label for="showcaseCategory">Category
+          <select id="showcaseCategory" name="category" @disabled($selectedGroup === '')>
+            <option value="">{{ $selectedGroup === '' ? 'Select a group first' : 'All categories' }}</option>
+            @foreach(($categories[$selectedGroup] ?? []) as $key => $label)
+              <option value="{{ $key }}" @selected($selectedCategory === $key)>{{ $label }}</option>
+            @endforeach
+          </select>
+        </label>
+        <label for="showcaseDepartment">Department
+          <select id="showcaseDepartment" name="department">
+            <option value="">All departments</option>
+            @foreach($departments as $dept)
+              <option value="{{ $dept }}" @selected(request('department') === $dept)>{{ $dept }}</option>
+            @endforeach
+          </select>
+        </label>
+        <label for="showcaseView">View
+          <select id="showcaseView" name="view">
+            <option value="all" @selected($view === 'all')>All</option>
+            <option value="trending" @selected($view === 'trending')>Trending</option>
+            <option value="new" @selected($view === 'new')>New</option>
+            <option value="mostused" @selected($view === 'mostused')>Most Used</option>
+          </select>
+        </label>
       </div>
-
-    </div>
+    </form>
   </div>
 </section>
 
@@ -67,9 +79,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M9.172 16.172a4 4 0 0 1 5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
         </svg>
-        <p>{{ $paginator->total() === 0 ? 'No showcases shared yet. Be the first!' : 'No showcases match your search.' }}</p>
-        @if($paginator->total() !== 0)
-          <button class="clear-filters-btn" id="clearFiltersBtn">Clear all filters</button>
+        <p>{{ $totalAgents === 0 ? 'No showcases shared yet. Be the first!' : 'No showcases match your filters.' }}</p>
+        @if($totalAgents > 0)
+          <a class="view-btn" href="{{ route('ai-plus.sharing-showcase.index') }}" data-showcase-reset>Clear all filters</a>
         @endif
       </div>
       @else
@@ -91,6 +103,9 @@
             <h2 class="showcase-title">{{ $showcase['title'] }}</h2>
             <p class="showcase-desc">{{ $showcase['description'] }}</p>
             <div class="showcase-tags">
+              @if($showcase['classification'])
+              <span class="tag">{{ $showcase['classification'] }}</span>
+              @endif
               @foreach($showcase['tags'] as $tag)
               <span class="tag">{{ $tag }}</span>
               @endforeach
@@ -166,132 +181,38 @@
   }
 
   .filters-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    align-items: center;
-    justify-content: space-between;
+    display: grid;
+    gap: 12px;
   }
-
-  .search-box {
-    position: relative;
-    flex: 1;
-    min-width: 240px;
-    max-width: 400px;
+  .showcase-search { max-width: 480px; }
+  .showcase-search-input { display: flex; gap: 8px; }
+  .showcase-filter-controls {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) minmax(220px, 1.6fr) minmax(140px, 1fr) minmax(110px, .8fr);
+    gap: 12px;
   }
-  .search-icon {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 20px;
-    height: 20px;
+  .filters-toolbar label {
+    display: block;
     color: var(--text-soft);
-    pointer-events: none;
+    font-size: 14px;
+    font-weight: 600;
   }
-  .search-box input {
+  .filters-toolbar input,
+  .filters-toolbar select {
+    display: block;
     width: 100%;
-    padding: 10px 44px 10px 44px;
+    min-width: 0;
+    box-sizing: border-box;
+    margin-top: 4px;
+    padding: 8px 10px;
     background: var(--input-bg);
-    border: 1px solid var(--input-border);
-    border-radius: 8px;
-    font-size: 16px;
-    color: var(--input-text);
-    transition: border-color 0.15s, box-shadow 0.15s, background 0.3s, color 0.3s;
-  }
-  .search-box input:focus {
-    outline: none;
-    border-color: var(--navy);
-    box-shadow: 0 0 0 3px rgba(31, 56, 100, 0.15);
-  }
-  .search-box .clear-btn {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    font-size: 18px;
-    color: var(--text-soft);
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-  }
-  .search-box .clear-btn:hover {
     color: var(--text-main);
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    font: inherit;
   }
-
-  .filter-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .filter-label {
-    font-size: 15px;
-    color: var(--text-soft);
-    white-space: nowrap;
-  }
-  .filter-chips {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .filter-chip {
-    padding: 6px 12px;
-    background: var(--chip-bg);
-    border: 1px solid var(--chip-border);
-    border-radius: 20px;
-    font-size: 14px;
-    color: var(--chip-text);
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .filter-chip:hover {
-    background: var(--surface);
-    border-color: var(--navy);
-  }
-  .filter-chip.active {
-    background: var(--chip-active-bg);
-    color: var(--chip-active-text);
-    border-color: var(--chip-active-bg);
-  }
-
-  .view-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .view-label {
-    font-size: 15px;
-    color: var(--text-soft);
-    white-space: nowrap;
-  }
-  .view-tabs {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .view-tab {
-    padding: 6px 12px;
-    background: var(--chip-bg);
-    border: 1px solid var(--chip-border);
-    border-radius: 20px;
-    font-size: 14px;
-    color: var(--chip-text);
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .view-tab:hover {
-    background: var(--surface);
-    border-color: var(--navy);
-  }
-  .view-tab.active {
-    background: var(--chip-active-bg);
-    color: var(--chip-active-text);
-    border-color: var(--chip-active-bg);
-  }
+  .showcase-search-input .view-btn { align-self: end; }
+  .filters-toolbar select:disabled { opacity: .75; }
 
   .content {
     padding: 24px 0 40px;
@@ -462,34 +383,12 @@
     font-size: 16px;
     margin-bottom: 16px;
   }
-  .clear-filters-btn {
-    padding: 10px 20px;
-    background: var(--navy);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-  .clear-filters-btn:hover {
-    background: var(--navy-deep);
-  }
-
   @media (max-width: 900px) {
-    .filters-toolbar {
-      flex-direction: column;
-      align-items: stretch;
+    .showcase-filter-controls {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
     }
-    .search-box {
-      max-width: none;
-    }
-    .filter-group {
-      flex-wrap: wrap;
-    }
-    .view-group {
-      flex-wrap: wrap;
-    }
+    .filters-section { position: static; }
   }
   @media (max-width: 700px) {
     .showcase-grid {
@@ -550,222 +449,76 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const searchInput = document.getElementById('searchInput');
-  const clearSearchBtn = document.getElementById('clearSearch');
-  const deptFilters = document.getElementById('deptFilters');
-  const viewTabs = document.getElementById('viewTabs');
-  const showcaseGrid = document.getElementById('showcaseGrid');
-  const resultsCount = document.getElementById('resultsCount');
-  const emptyState = document.getElementById('emptyState');
-  const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+  const form = document.getElementById('showcaseFilters');
+  const search = document.getElementById('searchInput');
+  const group = document.getElementById('showcaseGroup');
+  const category = document.getElementById('showcaseCategory');
+  const content = document.querySelector('main.content');
+  const categories = {{ Illuminate\Support\Js::from($categories) }};
+  let currentRequest;
+  let searchTimer;
 
-  // State
-  let currentSearch = searchInput.value;
-  let currentDepartment = '{{ request('department') }}';
-  let currentView = '{{ request('view', 'all') }}';
-  let currentPage = 1;
-  let listLoading = false;
-  let lastSuccessfulListUrl = window.location.href;
-
-  function debounce(fn, delay) {
-    let timer;
-    return (...args) => {
-      clearTimeout(timer);
-      timer = setTimeout(() => fn(...args), delay);
-    };
+  function setCategories() {
+    const options = categories[group.value] || {};
+    category.replaceChildren(new Option(group.value ? 'All categories' : 'Select a group first', ''));
+    Object.entries(options).forEach(([value, label]) => category.add(new Option(label, value)));
+    category.disabled = !group.value;
   }
 
-  function buildUrl(page = currentPage) {
-    const params = new URLSearchParams();
-    if (currentSearch) params.set('search', currentSearch);
-    if (currentDepartment) params.set('department', currentDepartment);
-    if (currentView && currentView !== 'all') params.set('view', currentView);
-    if (page > 1) params.set('page', page);
-    return '{{ route('ai-plus.sharing-showcase.index') }}?' + params.toString();
-  }
-
-  async function fetchShowcases() {
-    if (listLoading) return;
-    listLoading = true;
-    WebUI.setPageLoading(true, 'Updating showcase…');
-    const url = buildUrl();
+  async function showResults(url) {
+    clearTimeout(searchTimer);
+    currentRequest?.abort();
+    const request = new AbortController();
+    currentRequest = request;
+    content.setAttribute('aria-busy', 'true');
     try {
-    const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
-    if (!res.ok) throw new Error();
-    const html = await res.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const newGrid = doc.getElementById('showcaseGrid');
-    const newCount = doc.getElementById('resultsCount');
-    const newEmptyState = doc.getElementById('emptyState');
-    const newPagination = doc.querySelector('.pagination');
-    if (newGrid) {
-      showcaseGrid.innerHTML = newGrid.innerHTML;
-    }
-    if (newCount) {
-      resultsCount.textContent = newCount.textContent;
-    }
-    if (newEmptyState) {
-      emptyState.style.display = newEmptyState.style.display;
-      emptyState.innerHTML = newEmptyState.innerHTML;
-    }
-    // Replace pagination
-    const paginationContainer = document.querySelector('.pagination');
-    if (newPagination && paginationContainer) {
-      paginationContainer.innerHTML = newPagination.innerHTML;
-      attachPaginationLinks();
-    } else if (newPagination) {
-      const parent = showcaseGrid.parentElement;
-      parent.insertAdjacentHTML('beforeend', newPagination.outerHTML);
-      attachPaginationLinks();
-    } else if (paginationContainer) {
-      paginationContainer.remove();
-    }
-    window.history.replaceState({}, '', url);
-    lastSuccessfulListUrl = url;
-    } catch (_) {
-      WebUI.setPageLoading(false);
-      await WebUI.notice('The showcase list could not be updated. Check your connection and try again.', { title: 'Could not update showcase' });
-      window.location.assign(lastSuccessfulListUrl);
+      const response = await fetch(url, { signal: request.signal });
+      if (!response.ok) throw new Error();
+      const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const results = page.querySelector('main.content');
+      if (!results) throw new Error();
+      if (request.signal.aborted) return;
+      content.replaceChildren(...results.childNodes);
+      window.history.replaceState({}, '', url);
+    } catch (error) {
+      if (!request.signal.aborted) window.location.assign(url);
     } finally {
-      listLoading = false;
-      WebUI.setPageLoading(false);
+      if (currentRequest === request) content.removeAttribute('aria-busy');
     }
   }
 
-  const debouncedSearch = debounce(() => {
-    currentSearch = searchInput.value.trim();
-    clearSearchBtn.style.display = currentSearch ? 'block' : 'none';
-    currentPage = 1;
-    fetchShowcases();
-  }, 300);
-
-  searchInput.addEventListener('input', debouncedSearch);
-
-  clearSearchBtn.addEventListener('click', () => {
-    searchInput.value = '';
-    currentSearch = '';
-    clearSearchBtn.style.display = 'none';
-    currentPage = 1;
-    fetchShowcases();
-    searchInput.focus();
-  });
-
-  // Department filter
-  deptFilters.addEventListener('click', (e) => {
-    const chip = e.target.closest('.filter-chip');
-    if (!chip) return;
-    currentDepartment = chip.dataset.department || '';
-    deptFilters.querySelectorAll('.filter-chip').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.department === currentDepartment);
-    });
-    currentPage = 1;
-    fetchShowcases();
-  });
-
-  // View tabs
-  viewTabs.addEventListener('click', (e) => {
-    const tab = e.target.closest('.view-tab');
-    if (!tab) return;
-    currentView = tab.dataset.view || 'all';
-    viewTabs.querySelectorAll('.view-tab').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.view === currentView);
-    });
-    currentPage = 1;
-    fetchShowcases();
-  });
-
-  if (clearFiltersBtn) {
-    clearFiltersBtn.addEventListener('click', () => {
-      currentSearch = '';
-      currentDepartment = '';
-      currentView = 'all';
-      currentPage = 1;
-
-      searchInput.value = '';
-      clearSearchBtn.style.display = 'none';
-      deptFilters.querySelectorAll('.filter-chip').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.department === '');
-      });
-      viewTabs.querySelectorAll('.view-tab').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.view === 'all');
-      });
-
-      fetchShowcases();
-    });
-  }
-
-  searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      searchInput.blur();
-      if (currentSearch) {
-        searchInput.value = '';
-        currentSearch = '';
-        clearSearchBtn.style.display = 'none';
-        currentPage = 1;
-        fetchShowcases();
-      }
+  function applyFilters() {
+    const url = new URL(form.action);
+    for (const [name, value] of new FormData(form)) {
+      if (value && !(name === 'view' && value === 'all')) url.searchParams.set(name, value);
     }
-  });
-
-  function attachPaginationLinks() {
-    document.querySelectorAll('.pagination a').forEach(link => {
-      link.addEventListener('click', async (e) => {
-        e.preventDefault();
-        if (listLoading) return;
-        listLoading = true;
-        WebUI.setPageLoading(true, 'Loading showcase page…');
-        const url = link.href;
-        const urlObj = new URL(url, window.location.origin);
-        const pageParam = urlObj.searchParams.get('page');
-        if (pageParam) currentPage = parseInt(pageParam, 10);
-
-        try {
-        const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
-        if (!res.ok) throw new Error();
-        const html = await res.text();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const newGrid = doc.getElementById('showcaseGrid');
-        const newCount = doc.getElementById('resultsCount');
-        const newEmptyState = doc.getElementById('emptyState');
-        const newPagination = doc.querySelector('.pagination');
-        if (newGrid) {
-          showcaseGrid.innerHTML = newGrid.innerHTML;
-        }
-        if (newCount) {
-          resultsCount.textContent = newCount.textContent;
-        }
-        if (newEmptyState) {
-          emptyState.style.display = newEmptyState.style.display;
-          emptyState.innerHTML = newEmptyState.innerHTML;
-        }
-        const paginationContainer = document.querySelector('.pagination');
-        if (newPagination && paginationContainer) {
-          paginationContainer.innerHTML = newPagination.innerHTML;
-          attachPaginationLinks();
-        } else if (newPagination) {
-          const parent = showcaseGrid.parentElement;
-          parent.insertAdjacentHTML('beforeend', newPagination.outerHTML);
-          attachPaginationLinks();
-        } else if (paginationContainer) {
-          paginationContainer.remove();
-        }
-        window.history.replaceState({}, '', url);
-        lastSuccessfulListUrl = url;
-        } catch (_) {
-          WebUI.setPageLoading(false);
-          await WebUI.notice('The showcase page could not be loaded. Check your connection and try again.', { title: 'Could not load page' });
-          window.location.assign(lastSuccessfulListUrl);
-        } finally {
-          listLoading = false;
-          WebUI.setPageLoading(false);
-        }
-      });
-    });
+    showResults(url);
   }
 
-  attachPaginationLinks();
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    applyFilters();
+  });
+  group.addEventListener('change', setCategories);
+  form.querySelectorAll('select').forEach((select) => select.addEventListener('change', applyFilters));
+  search.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(applyFilters, 300);
+  });
+  content.addEventListener('click', (event) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest('.pagination a, [data-showcase-reset]');
+    if (!link) return;
+    event.preventDefault();
+    if (link.hasAttribute('data-showcase-reset')) {
+      search.value = '';
+      group.value = '';
+      setCategories();
+      document.getElementById('showcaseDepartment').value = '';
+      document.getElementById('showcaseView').value = 'all';
+    }
+    showResults(link.href);
+  });
 });
 </script>
 @endpush

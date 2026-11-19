@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\AgentTemplate;
-use App\Models\UsageLog;
 use App\Models\User;
+use App\Support\AgentCategories;
 use App\Support\AiPlusCatalogCategories;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class AgentTemplateController extends Controller
 {
@@ -105,20 +104,21 @@ class AgentTemplateController extends Controller
         abort_if($template->status !== 'published', 404);
 
         abort_if($template->source_agent_id !== null, 404);
-        $agent = $user->agents()->create([
+        $draft = [
             'title' => $template->name,
             'description' => $template->description,
             'system_prompt' => $template->system_prompt ?: 'You are '.$template->name.".\n\n".$template->description,
-            'is_shared' => false,
-        ]);
+            'category_group' => $template->category_group,
+            'category' => AgentCategories::templateCategory($template->category_group, $template->category),
+        ];
 
-        $template->increment('uses_count');
-        UsageLog::create([
-            'user_id' => $user->id,
-            'activity_title' => 'Used template: '.Str::limit($template->name, 80),
-            'source' => 'template_used',
-            'related_agent_template_id' => $template->id,
-        ]);
+        if ($draft['category'] === null) {
+            return redirect()->route('ai-plus.agent-workspace.agents.index')
+                ->with('agent_template_draft', [...$draft, 'template_id' => $template->id]);
+        }
+
+        $agent = $user->agents()->create([...$draft, 'is_shared' => false]);
+        $template->recordUse($user);
 
         return redirect()->route('ai-plus.agent-workspace.index', ['agent_id' => $agent->id])
             ->with('success', 'Agent added to your workspace. You can start chatting now.');

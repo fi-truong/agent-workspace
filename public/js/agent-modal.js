@@ -10,6 +10,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const modalTitle = document.getElementById('modal-title');
   const formMethod = document.getElementById('form-method');
   const agentIdInput = document.getElementById('agent-id');
+  const templateIdInput = document.getElementById('agent-template-id');
+  const categoryGroup = document.getElementById('agent-category-group');
+  const category = document.getElementById('agent-category');
+  const categoryHint = document.getElementById('agent-category-hint');
   const titleInput = document.getElementById('title');
   const descInput = document.getElementById('description');
   const promptInput = document.getElementById('system_prompt');
@@ -21,6 +25,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const sharingAudienceGroup = document.getElementById('sharing-audience-group');
   const sharingAudiences = document.querySelectorAll('input[name="sharing_scopes[]"]');
   const sharingUsers = document.getElementById('sharing-users');
+  const sharingSchool = document.getElementById('sharing-school');
   const sharingDepartmentInput = document.getElementById('sharing-department');
   const departmentAvailable = sharingDepartmentInput ? !sharingDepartmentInput.disabled : false;
   const sharingPeoplePicker = document.getElementById('sharing-people-picker');
@@ -34,6 +39,8 @@ document.addEventListener('DOMContentLoaded', function () {
   let sharingSearchTimer = null;
   let sharingSearchController = null;
   let sharingSearchVersion = 0;
+  let editingClassifiedAgent = false;
+  let previouslySchoolShared = false;
   const connectionsField = document.getElementById('agent-connections-field');
   const connectionsList = document.getElementById('agent-connections-list');
   const connectionsSearch = document.getElementById('agent-connections-search');
@@ -283,15 +290,33 @@ document.addEventListener('DOMContentLoaded', function () {
     return div.innerHTML;
   }
 
-  function openModal(agent = null) {
+  function setCategoryOptions(selected = '') {
+    const options = window.AgentModalConfig.categories[categoryGroup.value] || {};
+    category.replaceChildren(new Option(categoryGroup.value ? 'Select a category' : 'Select a group first', ''));
+    for (const [value, label] of Object.entries(options)) {
+      category.add(new Option(label, value));
+    }
+    category.value = Object.hasOwn(options, selected) ? selected : '';
+    category.disabled = !categoryGroup.value;
+  }
+
+  categoryGroup.addEventListener('change', () => setCategoryOptions());
+
+  function openModal(agent = null, draft = null) {
     modal.style.display = 'flex';
     form.reset();
+    templateIdInput.value = '';
+    const classification = agent || draft;
+    categoryGroup.value = classification?.category_group || '';
+    setCategoryOptions(classification?.category || '');
+    editingClassifiedAgent = !!agent?.category;
     clearKnowledgeUI();
     resetAvatarUI(agent);
     cancelSharingSearch();
     selectedSharingUsers = new Map((agent?.sharing_users || []).map((user) => [Number(user.id), user]));
     sharingDepartment = agent?.sharing_department || window.AgentModalConfig?.department || '';
     const savedAudiences = agent?.sharing_scopes || (agent?.is_shared ? [agent.sharing_scope || 'school'] : ['school']);
+    previouslySchoolShared = !!agent?.is_shared && savedAudiences.includes('school');
     if (agent?.sharing_department && !savedAudiences.includes('department')) savedAudiences.push('department');
     if (selectedSharingUsers.size && !savedAudiences.includes('users')) savedAudiences.push('users');
     sharingAudiences.forEach((input) => { input.checked = savedAudiences.includes(input.value); });
@@ -313,6 +338,12 @@ document.addEventListener('DOMContentLoaded', function () {
       modalTitle.textContent = 'Create Agent';
       formMethod.value = 'POST';
       agentIdInput.value = '';
+      if (draft) {
+        templateIdInput.value = draft.template_id;
+        titleInput.value = draft.title || '';
+        descInput.value = draft.description || '';
+        promptInput.value = draft.system_prompt || '';
+      }
     }
     syncSharedKnowledgeControl();
     loadConnections(agent);
@@ -398,6 +429,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function syncSharedKnowledgeControl() {
     const isShared = !!sharedInput?.checked;
+    const newSchoolShare = isShared && !!sharingSchool?.checked && !previouslySchoolShared;
+    categoryGroup.required = category.required = !agentIdInput.value || editingClassifiedAgent || newSchoolShare;
+    categoryHint.textContent = agentIdInput.value && !editingClassifiedAgent
+      ? (newSchoolShare ? 'Choose a Group and Category before sharing with everyone at school.' : 'This Agent is unclassified. Choose a Group and Category to make it easier to find.')
+      : 'Choose the category that best describes what this Agent helps people do.';
     if (sharingAudienceGroup) sharingAudienceGroup.hidden = !isShared;
     sharingAudiences.forEach((input) => {
       input.disabled = !isShared || (input.value === 'department' && !departmentAvailable && !sharingDepartment);
@@ -750,6 +786,11 @@ document.addEventListener('DOMContentLoaded', function () {
       });
 
       if (res.ok) {
+        if (!isEdit && formData.get('template_id')) {
+          const saved = await res.json();
+          window.location.assign('/ai-plus/agent-workspace?agent_id=' + encodeURIComponent(saved.id));
+          return;
+        }
         closeModal(true);
         showToast('✅ Agent saved successfully');
         setTimeout(() => window.location.reload(), 1200);
@@ -781,4 +822,5 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Expose cho các context khác (vd Save as Agent từ chat muốn mở với title)
   window.openAgentModal = openModal;
+  if (window.AgentModalConfig?.templateDraft) openModal(null, window.AgentModalConfig.templateDraft);
 });

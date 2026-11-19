@@ -74,6 +74,7 @@
         <div class="agent-icon">@if($agent->avatar_url)<img src="{{ $agent->avatar_url }}" alt="">@else 🤖 @endif</div>
         <div class="agent-title">{{ $agent->title }}</div>
       </div>
+      <p class="agent-classification">{{ $agent->classification_label }}</p>
       <div class="agent-description-wrap">
         @if($agent->description)
         <p class="agent-description is-collapsed" id="agent-description-{{ $agent->id }}">{{ $agent->description }}</p>
@@ -101,6 +102,7 @@
         <div class="agent-icon">@if($agent->avatar_url)<img src="{{ $agent->avatar_url }}" alt="">@else 🤖 @endif</div>
         <div class="agent-title">{{ $agent->title }}</div>
       </div>
+      <p class="agent-classification">{{ $agent->classification_label }}</p>
       <div class="agent-description-wrap">
         @if($agent->description)
         <p class="agent-description is-collapsed" id="agent-description-{{ $agent->id }}">{{ $agent->description }}</p>
@@ -188,6 +190,7 @@
 .agent-description-toggle { margin: 5px 0 0; padding: 0; border: 0; background: transparent; color: var(--navy); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
 .agent-description-toggle:hover { text-decoration: underline; }
 .agent-meta { display: flex; align-items: center; gap: 10px; min-height: 52px; box-sizing: border-box; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); }
+.agent-classification { color: var(--text-soft); font-size: 14px; margin: 0 0 8px; overflow-wrap: anywhere; }
 .badge { font-family: 'IBM Plex Mono', monospace; font-size: 13px; padding: 3px 8px; border-radius: 999px; font-weight: 500; }
 .badge.shared { background: var(--sage); color: #fff; }
 .badge.private { background: var(--paper); color: var(--ink-soft); border: 1px solid var(--line); }

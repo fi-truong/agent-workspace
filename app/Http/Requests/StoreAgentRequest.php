@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Services\KnowledgeService;
+use App\Support\AgentCategories;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,6 +22,8 @@ class StoreAgentRequest extends FormRequest
         return [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
+            ...AgentCategories::rules($this->input('category_group'), required: true),
+            'template_id' => ['nullable', 'integer', Rule::exists('agent_templates', 'id')->where('status', 'published')->whereNull('source_agent_id')],
             'system_prompt' => 'nullable|string',
             'avatar' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'is_shared' => 'nullable|boolean',

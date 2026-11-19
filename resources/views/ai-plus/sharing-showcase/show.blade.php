@@ -30,6 +30,9 @@
     <span class="post-badge">{{ $post['badge'] }}</span>
     @endif
     <div class="post-tags">
+      @if($post['classification'])
+      <span class="tag">{{ $post['classification'] }}</span>
+      @endif
       @foreach($post['tags'] as $tag)
       <span class="tag">{{ $tag }}</span>
       @endforeach

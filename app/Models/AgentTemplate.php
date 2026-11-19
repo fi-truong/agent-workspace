@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 /**
  * @property-read Agent|null $sourceAgent
@@ -29,5 +30,16 @@ class AgentTemplate extends Model
     public function usageLogs(): HasMany
     {
         return $this->hasMany(UsageLog::class, 'related_agent_template_id');
+    }
+
+    public function recordUse(User $user): void
+    {
+        $this->increment('uses_count');
+
+        $this->usageLogs()->create([
+            'user_id' => $user->id,
+            'activity_title' => 'Used template: '.Str::limit($this->name, 80),
+            'source' => 'template_used',
+        ]);
     }
 }

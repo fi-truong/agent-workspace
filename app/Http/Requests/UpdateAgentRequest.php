@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Services\KnowledgeService;
+use App\Support\AgentCategories;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,6 +22,7 @@ class UpdateAgentRequest extends FormRequest
         return [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
+            ...AgentCategories::rules($this->input('category_group'), required: false),
             'system_prompt' => 'nullable|string',
             'avatar' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'remove_avatar' => 'nullable|boolean',

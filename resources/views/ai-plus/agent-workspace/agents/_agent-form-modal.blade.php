@@ -9,6 +9,7 @@
       @csrf
       <input type="hidden" name="_method" value="POST" id="form-method">
       <input type="hidden" name="agent_id" id="agent-id">
+      <input type="hidden" name="template_id" id="agent-template-id">
       <div class="form-group">
         <label for="title">Title <span class="required">*</span></label>
         <input type="text" id="title" name="title" required maxlength="255" placeholder="e.g., Math Quiz Generator">
@@ -17,6 +18,24 @@
         <label for="description">Description</label>
         <textarea id="description" name="description" rows="3" placeholder="What does this agent do?"></textarea>
       </div>
+      <div class="agent-classification-fields">
+        <div class="form-group">
+          <label for="agent-category-group">Group</label>
+          <select id="agent-category-group" name="category_group" aria-describedby="agent-category-hint">
+            <option value="">Select a group</option>
+            @foreach(\App\Support\AgentCategories::GROUPS as $group => $label)
+              <option value="{{ $group }}">{{ $label }}</option>
+            @endforeach
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="agent-category">Category</label>
+          <select id="agent-category" name="category" aria-describedby="agent-category-hint" disabled>
+            <option value="">Select a group first</option>
+          </select>
+        </div>
+      </div>
+      <small class="form-hint" id="agent-category-hint">Choose the category that best describes what this Agent helps people do.</small>
       <div class="form-group agent-avatar-field">
         <label for="agent-avatar">Agent avatar <span class="form-hint">(optional)</span></label>
         <div class="agent-avatar-editor">
@@ -100,12 +119,33 @@
   window.AgentModalConfig.sharingUsersUrl = @json(route('ai-plus.agent-workspace.agents.sharing-users'));
   window.AgentModalConfig.department = @json(trim(auth()->user()?->department ?? ''));
   window.AgentModalConfig.maxConnections = {{ config('agent_connections.max_connections', 10) }};
+  window.AgentModalConfig.categories = {{ Illuminate\Support\Js::from(\App\Support\AgentCategories::CATEGORIES) }};
+  window.AgentModalConfig.templateDraft = {{ Illuminate\Support\Js::from(session('agent_template_draft')) }};
 </script>
 <script src="{{ asset('js/agent-modal.js') }}?v={{ filemtime(public_path('js/agent-modal.js')) }}"></script>
 @endpush
 
 @pushOnce('styles')
 <style>
+  .agent-classification-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .agent-classification-fields .form-group { margin-bottom: 4px; }
+  .agent-classification-fields select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--ink);
+    font: inherit;
+  }
+  #agent-category-hint { display: block; margin-bottom: 16px; }
+  @media (max-width: 540px) {
+    .agent-classification-fields { grid-template-columns: 1fr; gap: 6px; }
+  }
   #agent-connections-field[hidden]{display:none}.agent-connections-field{border:1px solid var(--line,#ddd);border-radius:10px;padding:12px;color:var(--ink,#22303f)}#agent-connections-list{max-height:240px;overflow-y:auto;margin-top:10px}.agent-connection-row{padding:10px 0;border-bottom:1px solid var(--line,#ddd)}.agent-connection-choice{display:flex;align-items:center;gap:8px}.agent-connection-choice input{width:auto;flex:none}.agent-connection-role{display:block;margin-top:8px;width:100%;box-sizing:border-box}#agent-connections-search{margin-top:10px;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:10px;background:var(--card-bg,#fff);color:var(--ink,#22303f);font:inherit}.agent-connections-field legend{font-weight:600}
   #sharing-audience-group[hidden],#sharing-people-picker[hidden],#sharing-department-hint[hidden]{display:none}#sharing-audience-label{font-size:18px;font-weight:600;color:var(--ink,#22303f)}#sharing-audience-group>.form-hint{line-height:1.45}.sharing-audience-options{display:grid;gap:8px;margin:4px 0 8px}.sharing-audience-choice{display:flex;align-items:center;gap:10px;min-height:44px;box-sizing:border-box;margin:0;padding:9px 12px;border:1px solid var(--line,#ddd);border-radius:10px;background:var(--card-bg,#fff);color:var(--ink,#22303f);font-size:15px;cursor:pointer}.sharing-audience-choice:hover{border-color:var(--sage,#2a6f61);background:var(--paper,#f4fbf9)}.sharing-audience-choice input{width:18px;height:18px;flex:none;margin:0;accent-color:var(--sage,#2a6f61)}.sharing-department-detail{margin-left:auto;color:var(--ink-soft,#4f6a63);font-size:13px;font-weight:500}.sharing-people-option{display:grid;gap:8px}.sharing-people-option>#sharing-people-picker{margin:0 0 4px 28px;padding-left:14px;border-left:2px solid var(--line,#ddd)}#sharing-people-picker .sharing-search-label{display:block;margin:0 0 6px;font-size:14px;font-weight:500}#sharing-user-search{box-sizing:border-box;width:100%;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:8px;background:var(--input-bg,#fff);color:var(--ink,#22303f);font:inherit}#sharing-search-status:not(:empty){margin-top:6px}#sharing-search-results{max-height:200px;overflow-y:auto}.sharing-person-result{display:block;text-align:left;width:100%;padding:10px;border:0;border-bottom:1px solid var(--line,#ddd);background:var(--card-bg,#fff);color:var(--ink,#22303f);font:inherit;cursor:pointer}.sharing-person-result:hover,.sharing-person-result:focus-visible{background:var(--paper,#f4fbf9)}.sharing-person-result small{display:block;overflow-wrap:anywhere;color:var(--ink-soft,#4f6a63)}#sharing-selected-users{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.sharing-person-chip{display:inline-flex;gap:6px;align-items:center;max-width:100%;padding:5px 9px;border:1px solid var(--line,#ddd);border-radius:8px;background:var(--paper,#f4fbf9);font-size:14px;overflow-wrap:anywhere}.sharing-person-chip button{border:0;background:transparent;color:inherit;cursor:pointer;font:inherit}
   .agent-avatar-editor{display:flex;align-items:center;gap:12px}.agent-avatar-preview{width:56px;height:56px;border-radius:14px;overflow:hidden;background:var(--navy,#1f3864);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;flex:none}.agent-avatar-preview img{width:100%;height:100%;object-fit:cover}#agent-avatar + .form-hint{display:block;margin-top:6px}

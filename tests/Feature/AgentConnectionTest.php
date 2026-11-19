@@ -31,6 +31,8 @@ it('lists owned and saved use-only Agents without exposing their configuration',
 it('creates edits preserves and clears connected Agent setup', function () {
     $child = $this->user->agents()->create(['title' => 'Reviewer']);
     $response = $this->postJson(route('ai-plus.agent-workspace.agents.store'), [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Coordinator', 'connections' => [['agent_id' => $child->id, 'role' => 'Review objectives']],
     ])->assertCreated();
     $id = $response->json('id');
@@ -72,6 +74,8 @@ it('allows ten connected Agents on creation and edit but rejects an eleventh', f
         return ['agent_id' => $child->id, 'role' => 'Specialist role '.$index];
     })->all();
     $response = $this->postJson(route('ai-plus.agent-workspace.agents.store'), [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Ten-Agent coordinator', 'connections' => array_slice($connections, 0, 10),
     ])->assertCreated();
     $parent = $this->user->agents()->findOrFail($response->json('id'));
@@ -80,6 +84,8 @@ it('allows ten connected Agents on creation and edit but rejects an eleventh', f
         'title' => 'Updated coordinator', 'connections' => array_slice($connections, 0, 10),
     ])->assertOk();
     $this->postJson(route('ai-plus.agent-workspace.agents.store'), [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Too many connections', 'connections' => $connections,
     ])->assertUnprocessable()->assertJsonValidationErrors('connections');
     $this->putJson(route('ai-plus.agent-workspace.agents.update', $parent), [

@@ -19,6 +19,8 @@ it('stores uploaded txt file into knowledge path', function () {
     $file = UploadedFile::fake()->create('tai-lieu.txt', 10, 'text/plain');
 
     $response = $this->post('/ai-plus/agent-workspace/agents', [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Agent test',
         'system_prompt' => 'Bạn là trợ lý.',
         'knowledge' => [$file],
@@ -41,6 +43,8 @@ it('stores a pdf file with correct mime', function () {
     $file = UploadedFile::fake()->create('tai-lieu.pdf', 20, 'application/pdf');
 
     $response = $this->post('/ai-plus/agent-workspace/agents', [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Agent pdf',
         'knowledge' => [$file],
     ], ['Accept' => 'application/json']);
@@ -53,6 +57,8 @@ it('accepts a JPG image as Agent Knowledge for OCR indexing', function () {
     $file = UploadedFile::fake()->image('campus-notice.jpg', 1200, 800);
 
     $this->post('/ai-plus/agent-workspace/agents', [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Image Knowledge Agent',
         'knowledge' => [$file],
     ], ['Accept' => 'application/json'])
@@ -68,6 +74,8 @@ it('accepts an HTML file as Agent Knowledge', function () {
     $file = UploadedFile::fake()->createWithContent('saved-page.html', '<h1>School guide</h1><script>alert(1)</script><p>Useful content.</p>');
 
     $this->post('/ai-plus/agent-workspace/agents', [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Agent HTML',
         'knowledge' => [$file],
     ], ['Accept' => 'application/json'])
@@ -90,6 +98,8 @@ it('accepts Agent Knowledge files larger than the previous client-side five MB l
     $file = UploadedFile::fake()->create('large-reference.txt', 6000, 'text/plain');
 
     $this->post('/ai-plus/agent-workspace/agents', [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Large Knowledge Agent',
         'knowledge' => [$file],
     ], ['Accept' => 'application/json'])
@@ -102,6 +112,8 @@ it('stores a normalized private avatar for an Agent and allows the owner to view
     $avatar = UploadedFile::fake()->image('agent-avatar.png', 640, 400);
 
     $this->post('/ai-plus/agent-workspace/agents', [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Avatar Agent',
         'avatar' => $avatar,
     ], ['Accept' => 'application/json'])
@@ -134,6 +146,8 @@ it('rejects disallowed file extension', function () {
     $file = UploadedFile::fake()->create('malware.exe', 10, 'application/x-msdownload');
 
     $response = $this->post('/ai-plus/agent-workspace/agents', [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Agent test',
         'knowledge' => [$file],
     ], ['Accept' => 'application/json']);
@@ -150,6 +164,8 @@ it('limits each agent to ten Knowledge files', function () {
         ->all();
 
     $this->post('/ai-plus/agent-workspace/agents', [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Too many files',
         'knowledge' => $files,
     ], ['Accept' => 'application/json'])
@@ -165,6 +181,8 @@ it('limits new Agent Knowledge to fifty MB in total', function () {
         ->all();
 
     $this->post('/ai-plus/agent-workspace/agents', [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
         'title' => 'Too much Knowledge',
         'knowledge' => $files,
     ], ['Accept' => 'application/json'])
