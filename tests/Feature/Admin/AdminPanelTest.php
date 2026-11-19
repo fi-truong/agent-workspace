@@ -338,6 +338,58 @@ test('administrators can open the user create and edit forms with department cho
         ->assertOk()
         ->assertSee('Edit User')
         ->assertSee('CIEC');
+
+    $this->get(route('admin.users.index'))
+        ->assertOk()
+        ->assertSee(route('admin.users.edit', $user), false)
+        ->assertSee('Edit user '.e($user->name), false);
+});
+
+test('administrators can create a unit and assign it while editing a user', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $user = User::factory()->create(['role' => 'staff', 'department' => null]);
+
+    $this->actingAs($admin)
+        ->post(route('admin.users.units.store'), ['unit_name' => 'Human Resources'])
+        ->assertRedirect(route('admin.users.index'))
+        ->assertSessionHas('success', 'Unit created successfully.');
+
+    $setting = AppSetting::query()->where('key', 'ai_plus_organization_units')->firstOrFail();
+    expect(json_decode($setting->value, true))->toContain('Human Resources');
+
+    $this->get(route('admin.users.create'))
+        ->assertOk()
+        ->assertSee('value="Human Resources"', false)
+        ->assertSee('>Human Resources</option>', false);
+
+    $this->get(route('admin.users.edit', $user))
+        ->assertOk()
+        ->assertSee('value="Human Resources"', false)
+        ->assertSee('>Human Resources</option>', false);
+
+    $this->put(route('admin.users.update', $user), [
+        'name' => $user->name,
+        'email' => $user->email,
+        'role' => $user->role,
+        'department' => 'Human Resources',
+        'employee_id' => $user->employee_id,
+        'is_active' => '1',
+    ])->assertRedirect(route('admin.users.index'));
+
+    $this->assertDatabaseHas('users', ['id' => $user->id, 'department' => 'Human Resources']);
+});
+
+test('administrators cannot create a duplicate unit with different casing or spacing', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+
+    $this->actingAs($admin)->post(route('admin.users.units.store'), ['unit_name' => 'Human Resources'])->assertRedirect();
+    $this->from(route('admin.users.index'))
+        ->post(route('admin.users.units.store'), ['unit_name' => ' human   resources '])
+        ->assertRedirect(route('admin.users.index'))
+        ->assertSessionHasErrors('unit_name');
+
+    $units = json_decode(AppSetting::value('ai_plus_organization_units'), true);
+    expect($units)->toHaveCount(1)->toContain('Human Resources');
 });
 
 test('the user list uses the Admin delete dialog instead of a browser confirmation', function () {

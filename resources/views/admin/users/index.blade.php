@@ -15,7 +15,7 @@
     'searchValue' => request('search'),
     'filters' => [
         ['key' => 'role', 'label' => 'Role', 'options' => collect($roles)->mapWithKeys(fn($r) => [$r => ucfirst($r)])->all(), 'selected' => request('role')],
-        ['key' => 'department', 'label' => 'Department', 'options' => collect($departments)->mapWithKeys(fn($d) => [$d => $d])->all(), 'selected' => request('department')],
+        ['key' => 'department', 'label' => 'Unit / Department', 'options' => collect($departments)->mapWithKeys(fn($d) => [$d => $d])->all(), 'selected' => request('department')],
         ['key' => 'active', 'label' => 'Account status', 'options' => $activeStatuses, 'selected' => request('active')],
     ],
     'sortOptions' => ['newest' => 'Newest', 'oldest' => 'Oldest', 'alpha' => 'A–Z'] + (request()->filled('sort_by') ? ['column' => 'Column sort'] : []),
@@ -23,6 +23,30 @@
     'createUrl' => route('admin.users.create'),
     'createLabel' => 'Add User',
 ])
+
+<section class="organization-unit-manager" aria-labelledby="organizationUnitsHeading">
+    <div class="organization-unit-copy">
+        <h2 id="organizationUnitsHeading">Organization units</h2>
+        <p>Create units here, then select them when creating or editing a user.</p>
+    </div>
+    <form action="{{ route('admin.users.units.store') }}" method="POST" class="organization-unit-form">
+        @csrf
+        <label for="newOrganizationUnit">New unit</label>
+        <div class="organization-unit-input-row">
+            <input id="newOrganizationUnit" name="unit_name" class="form-input" maxlength="100" required value="{{ old('unit_name') }}" placeholder="e.g. Human Resources">
+            <button type="submit" class="btn-primary">Add unit</button>
+        </div>
+        @include('admin.partials.field-error', ['field' => 'unit_name'])
+    </form>
+    <div class="organization-unit-list" aria-label="Available units">
+        <span class="organization-unit-list-label">Available units</span>
+        @forelse($departments as $department)
+            <span class="organization-unit-chip">{{ $department }}</span>
+        @empty
+            <span class="text-muted">No units created yet.</span>
+        @endforelse
+    </div>
+</section>
 
 <form action="{{ route('admin.users.token-quota.update') }}" method="POST" class="token-quota-bulk" id="tokenQuotaBulkForm">
     @csrf
@@ -35,7 +59,7 @@
 @if($errors->has('credit_quota_limit'))<p class="text-danger" style="margin:0 0 16px;">{{ $errors->first('credit_quota_limit') }}</p>@endif
 
 @include('admin.partials.table', [
-    'headers' => ['Select', 'Name', 'Email', 'Role', 'Last sign-in', 'Department', 'Credit quota', 'Active', 'Created', 'Actions'],
+    'headers' => ['Select', 'Name', 'Email', 'Role', 'Last sign-in', 'Unit / Department', 'Credit quota', 'Active', 'Created', 'Actions'],
     'rows' => $users,
     'renderRow' => function($user) use ($defaultTokenQuota) {
         $roleBadge = match($user->role) {
@@ -78,7 +102,7 @@
             '<span class="badge ' . ($user->is_active ? 'published' : 'draft') . '">' . ($user->is_active ? 'Active' : 'Inactive') . '</span>',
             $user->created_at?->format('d/m/Y') ?? '—',
             '<div class="action-group">
-                <a href="' . route('admin.users.edit', $user) . '" class="action-btn">Edit</a>
+                <a href="' . route('admin.users.edit', $user) . '" class="action-btn" aria-label="Edit user ' . e($user->name) . '">Edit user</a>
                 ' . $deleteForm . '
             </div>',
         ];
@@ -159,6 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 @push('styles')
 <style>
+.organization-unit-manager{display:grid;grid-template-columns:minmax(200px,.8fr) minmax(300px,1fr);gap:14px 24px;align-items:start;margin:0 0 20px;padding:18px 20px;border:1px solid var(--line);border-radius:14px;background:var(--card-bg)}.organization-unit-copy h2{margin:0 0 5px;font:600 20px 'Fraunces',serif;color:var(--ink)}.organization-unit-copy p{margin:0;color:var(--ink-soft);font-size:14px;line-height:1.45}.organization-unit-form>label{display:block;margin-bottom:6px;font-size:14px;font-weight:700;color:var(--ink)}.organization-unit-input-row{display:flex;gap:8px}.organization-unit-input-row input{flex:1;min-width:0}.organization-unit-input-row button{white-space:nowrap}.organization-unit-list{grid-column:1/-1;display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)}.organization-unit-list-label{margin-right:4px;color:var(--ink-soft);font-size:13px;font-weight:700}.organization-unit-chip{padding:4px 9px;border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink);font-size:13px}@media(max-width:700px){.organization-unit-manager{grid-template-columns:1fr}.organization-unit-list{grid-column:auto}.organization-unit-input-row{align-items:stretch;flex-direction:column}}
 .token-quota-bulk{display:grid;grid-template-columns:minmax(220px,1.1fr) minmax(260px,1fr) minmax(150px,.52fr) auto;gap:16px;align-items:end;margin:0 0 20px;padding:20px 22px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(135deg,#f4faf7,#fff)}.token-quota-bulk h2{margin:2px 0 5px;font:600 20px 'Fraunces',serif}.token-quota-bulk p{margin:0;color:var(--ink-soft);font-size:14px;line-height:1.45}.token-quota-eyebrow{font-size:12px!important;font-weight:700;letter-spacing:.1em;color:#246352!important}.token-quota-bulk label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:700;color:var(--ink)}.token-quota-bulk input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px;font:15px inherit;color:var(--ink)}.token-quota-selected{min-height:42px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;padding:9px;border:1px dashed #b5cfc5;border-radius:8px;background:#fff;font-size:14px;color:var(--ink-soft)}.token-quota-selected span:not(:only-child){padding:3px 7px;border-radius:99px;background:#e0f1e9;color:#1e5d4c;font-weight:600}.token-quota-actions{display:flex;flex-direction:column;gap:8px}.token-quota-actions button{white-space:nowrap}.data-table th:first-child,.data-table td:first-child{width:34px;text-align:center}@media(max-width:1100px){.token-quota-bulk{grid-template-columns:1fr 1fr}.token-quota-bulk>div:first-child{grid-column:1/-1}}@media(max-width:640px){.token-quota-bulk{grid-template-columns:1fr}}
 </style>
 @endpush

@@ -71,7 +71,7 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 
 ### 4.4 Admin Panel
 
-- Manage users, roles, departments and account status.
+- Manage users, roles, units/departments, account status and quota. Admins can create units from Users & Roles; existing units and departments already in use remain available in user create/edit forms.
 - Manage prompts, templates, showcase content, FAQs and support tickets.
 - Audit logging for administrative actions.
 - Admin shortcut from AI Plus.

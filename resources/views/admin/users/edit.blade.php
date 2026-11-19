@@ -44,16 +44,12 @@
                 @endif
             </div>
             <div class="form-group">
-                <label>Department</label>
+                <label>Unit / Department</label>
                 <select name="department" class="form-select">
-                    <option value="">— Select Department —</option>
+                    <option value="">— Select Unit / Department —</option>
                     @foreach($departments as $d)
                     <option value="{{ $d }}" {{ (old('department', $user->department) ?? '') == $d ? 'selected' : '' }}>{{ $d }}</option>
                     @endforeach
-                    <option value="CIEC" {{ (old('department', $user->department) ?? '') == 'CIEC' ? 'selected' : '' }}>CIEC</option>
-                    <option value="IT" {{ (old('department', $user->department) ?? '') == 'IT' ? 'selected' : '' }}>IT</option>
-                    <option value="Academic" {{ (old('department', $user->department) ?? '') == 'Academic' ? 'selected' : '' }}>Academic</option>
-                    <option value="Admin" {{ (old('department', $user->department) ?? '') == 'Admin' ? 'selected' : '' }}>Admin</option>
                 </select>
                 @include('admin.partials.field-error', ['field' => 'department'])
             </div>

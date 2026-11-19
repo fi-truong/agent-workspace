@@ -4,13 +4,21 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminAuditLog;
+use App\Models\AppSetting;
 use App\Models\User;
 use App\Services\ChatModelService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
+    private const ORGANIZATION_UNITS_SETTING = 'ai_plus_organization_units';
+
+    private const DEFAULT_UNITS = ['CIEC', 'IT', 'Academic', 'Admin'];
+
     public function index(Request $request)
     {
         $defaultTokenQuota = max((int) (config('usage.token_limits.'.config('usage.phase', 'testing')) ?? config('usage.token_limits.testing', 20_000_000)), 1);
@@ -66,11 +74,33 @@ class UserController extends Controller
 
         $users = $query->paginate(15)->withQueryString();
         $roles = ['admin', 'staff', 'teacher', 'student'];
-        $departments = User::distinct()->pluck('department')->filter()->all();
+        $departments = $this->departments();
 
         $activeStatuses = ['1' => 'Active', '0' => 'Inactive'];
 
         return view('admin.users.index', compact('users', 'roles', 'departments', 'activeStatuses', 'defaultTokenQuota'));
+    }
+
+    public function storeUnit(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'unit_name' => ['required', 'string', 'max:100'],
+        ]);
+        $unit = preg_replace('/\s+/u', ' ', trim($data['unit_name'])) ?? trim($data['unit_name']);
+        $existing = array_map(mb_strtolower(...), $this->departments());
+        if (in_array(mb_strtolower($unit), $existing, true)) {
+            throw ValidationException::withMessages(['unit_name' => 'This unit already exists.']);
+        }
+
+        $units = [...$this->managedUnits(), $unit];
+        $units = $this->normaliseUnits($units);
+        $setting = AppSetting::updateOrCreate(
+            ['key' => self::ORGANIZATION_UNITS_SETTING],
+            ['value' => json_encode($units, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)],
+        );
+        AdminAuditLog::record('organization_unit.created', $setting, ['unit' => $unit]);
+
+        return redirect()->route('admin.users.index')->with('success', 'Unit created successfully.');
     }
 
     public function create()
@@ -88,7 +118,7 @@ class UserController extends Controller
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|in:admin,staff,teacher,student',
-            'department' => 'nullable|string|max:100',
+            'department' => ['nullable', 'string', 'max:100', Rule::in($this->departments())],
             'employee_id' => 'nullable|string|max:50',
             'is_active' => 'boolean',
             'token_quota_limit' => 'nullable|integer|min:1|max:1000000000',
@@ -122,7 +152,7 @@ class UserController extends Controller
             'email' => 'required|email|max:255|unique:users,email,'.$user->id,
             'password' => 'nullable|string|min:8|confirmed',
             'role' => 'required|in:admin,staff,teacher,student',
-            'department' => 'nullable|string|max:100',
+            'department' => ['nullable', 'string', 'max:100', Rule::in($this->departments())],
             'employee_id' => 'nullable|string|max:50',
             'is_active' => 'boolean',
             'token_quota_limit' => 'nullable|integer|min:1|max:1000000000',
@@ -156,7 +186,7 @@ class UserController extends Controller
     }
 
     /** Apply a custom monthly quota or restore the phase default for selected users. */
-    public function updateTokenQuota(Request $request)
+    public function updateTokenQuota(Request $request): RedirectResponse
     {
         $this->normaliseCreditQuota($request);
         $data = $request->validate([
@@ -231,13 +261,43 @@ class UserController extends Controller
      */
     private function departments(): array
     {
-        return User::query()
+        $usedByUsers = User::query()
             ->whereNotNull('department')
             ->where('department', '!=', '')
             ->distinct()
-            ->orderBy('department')
             ->pluck('department')
             ->all();
+
+        return $this->normaliseUnits([...self::DEFAULT_UNITS, ...$this->managedUnits(), ...$usedByUsers]);
+    }
+
+    /** @return array<int, string> */
+    private function managedUnits(): array
+    {
+        $decoded = json_decode(AppSetting::value(self::ORGANIZATION_UNITS_SETTING, '[]') ?? '[]', true);
+
+        return is_array($decoded) ? $this->normaliseUnits($decoded) : [];
+    }
+
+    /** @param array<int, mixed> $units
+     * @return array<int, string>
+     */
+    private function normaliseUnits(array $units): array
+    {
+        $unique = [];
+        foreach ($units as $unit) {
+            if (! is_string($unit) || trim($unit) === '') {
+                continue;
+            }
+            $unit = preg_replace('/\s+/u', ' ', trim($unit)) ?? trim($unit);
+            $key = mb_strtolower($unit);
+            $unique[$key] ??= $unit;
+        }
+
+        $normalised = array_values($unique);
+        usort($normalised, 'strnatcasecmp');
+
+        return $normalised;
     }
 
     /**
