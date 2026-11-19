@@ -117,7 +117,7 @@ it('rejects invalid recipients and missing departments before updating an Agent'
     $this->owner->update(['department' => null]);
     $this->putJson(route('ai-plus.agent-workspace.agents.update', $agent), [
         'title' => 'Changed', 'is_shared' => true, 'sharing_access' => 'use_only', 'sharing_scope' => 'department',
-    ])->assertUnprocessable()->assertJsonValidationErrors('sharing_scope');
+    ])->assertUnprocessable()->assertJsonValidationErrors('sharing_scopes');
     expect($agent->fresh()->title)->toBe('Unchanged')->and($agent->fresh()->is_shared)->toBeFalse();
 });
 
@@ -205,4 +205,77 @@ it('rolls back limited shares to private instead of school-wide access', functio
     } finally {
         $migration->up();
     }
+});
+
+it('combines department and individual audiences across discovery chat and connected Agents', function (string $access) {
+    $this->recipient->update(['department' => 'AA']);
+    $colleague = User::factory()->create(['department' => 'CIEC']);
+    $response = $this->actingAs($this->owner)->postJson(route('ai-plus.agent-workspace.agents.store'), [
+        'title' => 'Combined audience assistant', 'is_shared' => true, 'sharing_access' => $access,
+        'sharing_scopes' => ['department', 'users'], 'sharing_user_ids' => [$this->recipient->id],
+    ])->assertCreated();
+    $agent = Agent::findOrFail($response->json('id'));
+    $post = $agent->showcasePosts()->firstOrFail();
+    expect($agent->sharingAudiences())->toBe(['department', 'users']);
+    $this->getJson(route('ai-plus.agent-workspace.agents.show', $agent))->assertOk()
+        ->assertJsonPath('sharing_scopes', ['department', 'users'])
+        ->assertJsonPath('sharing_users.0.id', $this->recipient->id);
+    foreach ([$this->recipient, $colleague] as $allowed) {
+        $this->actingAs($allowed)->get(route('ai-plus.sharing-showcase.show', $post))->assertOk();
+        $this->post(route('ai-plus.sharing-showcase.use', $post))->assertRedirect();
+        expect(app(AgentConnectionService::class)->canUse($allowed, $agent))->toBe($access === 'use_only');
+    }
+    $this->actingAs($this->outsider)->get(route('ai-plus.sharing-showcase.index'))->assertDontSee('Combined audience assistant');
+    $this->get(route('ai-plus.sharing-showcase.show', $post))->assertNotFound();
+    $this->postJson('/ai-plus/agent-workspace/send', ['message' => 'Help plan a school lesson', 'agent_id' => $agent->id])->assertGone();
+
+    // An explicit removal of people sharing leaves department access in place.
+    $this->actingAs($this->owner)->putJson(route('ai-plus.agent-workspace.agents.update', $agent), [
+        'title' => $agent->title, 'is_shared' => true, 'sharing_access' => $access,
+        'sharing_scopes' => ['department'], 'sharing_audience_configured' => true,
+    ])->assertOk();
+    expect($agent->sharedRecipients()->count())->toBe(0)
+        ->and(app(AgentSharingService::class)->canView($this->recipient, $agent->fresh()))->toBeFalse()
+        ->and(app(AgentSharingService::class)->canView($colleague, $agent->fresh()))->toBeTrue();
+})->with(['use_only', 'copy']);
+
+it('retains named people when a department is added using an older single-scope form', function () {
+    $agent = createAudienceAgent($this);
+    $this->actingAs($this->owner)->putJson(route('ai-plus.agent-workspace.agents.update', $agent), [
+        'title' => $agent->title, 'is_shared' => true, 'sharing_access' => 'use_only', 'sharing_scope' => 'department',
+    ])->assertOk();
+    $this->getJson(route('ai-plus.agent-workspace.agents.show', $agent))
+        ->assertOk()->assertJsonPath('sharing_scopes', ['department', 'users'])
+        ->assertJsonPath('sharing_users.0.id', $this->recipient->id);
+});
+
+it('retains department and named people when adding and then removing school-wide sharing', function () {
+    $agent = createAudienceAgent($this);
+    $this->actingAs($this->owner)->putJson(route('ai-plus.agent-workspace.agents.update', $agent), [
+        'title' => $agent->title, 'is_shared' => true, 'sharing_access' => 'use_only',
+        'sharing_scopes' => ['school', 'department', 'users'], 'sharing_user_ids' => [$this->recipient->id],
+    ])->assertOk();
+    expect(app(AgentSharingService::class)->canView($this->outsider, $agent->fresh()))->toBeTrue();
+    $this->getJson(route('ai-plus.agent-workspace.agents.show', $agent))
+        ->assertOk()->assertJsonPath('sharing_scopes', ['school', 'department', 'users']);
+    $this->putJson(route('ai-plus.agent-workspace.agents.update', $agent), [
+        'title' => $agent->title, 'is_shared' => true, 'sharing_access' => 'use_only',
+        'sharing_scopes' => ['department', 'users'],
+    ])->assertOk();
+    expect($agent->fresh()->sharingAudiences())->toBe(['department', 'users'])
+        ->and(app(AgentSharingService::class)->canView($this->outsider, $agent->fresh()))->toBeFalse()
+        ->and($agent->sharedRecipients()->pluck('users.id')->all())->toBe([$this->recipient->id]);
+});
+
+it('rejects empty invalid and repeated audiences instead of widening access', function () {
+    foreach ([[], ['invalid'], ['users', 'users']] as $scopes) {
+        $this->actingAs($this->owner)->postJson(route('ai-plus.agent-workspace.agents.store'), [
+            'title' => 'Invalid share', 'is_shared' => true, 'sharing_access' => 'use_only',
+            'sharing_scopes' => $scopes,
+        ])->assertUnprocessable();
+    }
+    $this->postJson(route('ai-plus.agent-workspace.agents.store'), [
+        'title' => 'No audience', 'is_shared' => true, 'sharing_access' => 'use_only', 'sharing_audience_configured' => true,
+    ])->assertUnprocessable()->assertJsonValidationErrors('sharing_scopes');
+    expect(Agent::count())->toBe(0);
 });

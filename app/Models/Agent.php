@@ -124,16 +124,40 @@ class Agent extends Model
         return $decoded;
     }
 
-    public function getSharingAudienceLabelAttribute(): string
+    /** @return array<int, string> */
+    public function sharingAudiences(): array
     {
         if (! $this->is_shared) {
-            return 'Private';
+            return [];
+        }
+        $scopes = [];
+        if ($this->sharing_scope === 'school') {
+            $scopes[] = 'school';
+        }
+        if ($this->sharing_department) {
+            $scopes[] = 'department';
+        }
+        $hasRecipients = $this->relationLoaded('sharedRecipients')
+            ? $this->sharedRecipients->isNotEmpty() : $this->sharedRecipients()->exists();
+        if ($this->sharing_scope === 'users' || $hasRecipients) {
+            $scopes[] = 'users';
         }
 
-        return match ($this->sharing_scope) {
+        return $scopes;
+    }
+
+    public function getSharingAudienceLabelAttribute(): string
+    {
+        $scopes = $this->sharingAudiences();
+        if (count($scopes) > 1) {
+            return 'Multiple audiences';
+        }
+
+        return match ($scopes[0] ?? null) {
+            'school' => 'School',
             'department' => 'Department · '.$this->sharing_department,
             'users' => 'Specific people',
-            default => 'School',
+            default => 'Private',
         };
     }
 

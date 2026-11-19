@@ -23,7 +23,7 @@ const fixture = `<!doctype html><html><head><meta name="csrf-token" content="tes
 <form id="agent-form"><input id="form-method" name="_method"><input id="agent-id" name="agent_id">
 <input id="title" name="title" required><textarea id="description"></textarea><textarea id="system_prompt"></textarea>
 <input type="checkbox" id="is_shared" name="is_shared" value="1">
-<div id="sharing-audience-group" hidden><select id="sharing-scope" name="sharing_scope"><option value="school">Everyone at school</option><option value="department">My department</option><option value="users">Specific people</option></select><div id="sharing-people-picker" hidden><input id="sharing-user-search" type="search"></div><small id="sharing-department-hint" hidden></small><div id="sharing-search-status"></div><div id="sharing-search-results"></div><div id="sharing-selected-users"></div></div><fieldset id="sharing-access-group" hidden><input type="radio" name="sharing_access" value="use_only" checked><input type="radio" name="sharing_access" value="copy"></fieldset>
+<div id="sharing-audience-group" hidden><label class="sharing-audience-choice"><input type="checkbox" id="sharing-school" name="sharing_scopes[]" value="school" checked>Everyone at school</label><label class="sharing-audience-choice"><input type="checkbox" id="sharing-department" name="sharing_scopes[]" value="department">My department</label><label class="sharing-audience-choice"><input type="checkbox" id="sharing-users" name="sharing_scopes[]" value="users">Specific people</label><div id="sharing-people-picker" hidden><input id="sharing-user-search" type="search"></div><small id="sharing-department-hint" hidden></small><div id="sharing-search-status"></div><div id="sharing-search-results"></div><div id="sharing-selected-users"></div></div><fieldset id="sharing-access-group" hidden><input type="radio" name="sharing_access" value="use_only" checked><input type="radio" name="sharing_access" value="copy"></fieldset>
 <fieldset id="agent-connections-field" class="form-group agent-connections-field" hidden><input id="agent-connections-search" type="search"><div id="agent-connections-list"></div><div id="agent-connections-status"></div></fieldset>
 <button type="button" id="modal-cancel">Cancel</button><button type="submit" id="modal-submit">Save</button></form></div></body></html>`;
 
@@ -238,7 +238,8 @@ test('shows the people search beside the audience and submits only selected reci
     await page.locator('#create-agent-btn').click();
     await page.locator('#title').fill('Shared planner');
     await page.locator('#is_shared').check();
-    await page.locator('#sharing-scope').selectOption('users');
+    await page.locator('#sharing-school').uncheck();
+    await page.locator('#sharing-users').check();
     assert.equal(
         await page.locator('#sharing-people-picker').isVisible(),
         true,
@@ -264,13 +265,13 @@ test('shows the people search beside the audience and submits only selected reci
     );
     await page.locator('#modal-submit').click();
     const sent = (await request).postData();
-    assert.match(sent, /name="sharing_scope"\r\n\r\nusers/);
+    assert.match(sent, /name="sharing_scopes\[\]"\r\n\r\nusers/);
     assert.match(sent, /name="sharing_recipients_configured"\r\n\r\n1/);
     assert.match(sent, /name="sharing_user_ids\[\]"\r\n\r\n42/);
     assert.doesNotMatch(sent, /name="sharing_user_ids\[\]"\r\n\r\n41/);
 });
 
-test('restores a limited share on edit and hides people search when switching audience', async (t) => {
+test('keeps a selected person when adding department sharing and clears them only when unchecked', async (t) => {
     const page = await setup(t, {
         sharing: {
             is_shared: true,
@@ -290,11 +291,11 @@ test('restores a limited share on edit and hides people search when switching au
         .locator('#sharing-selected-users')
         .getByText('Example Colleague · example@example.test')
         .waitFor();
-    assert.equal(await page.locator('#sharing-scope').inputValue(), 'users');
-    await page.locator('#sharing-scope').selectOption('department');
+    assert.equal(await page.locator('#sharing-users').isChecked(), true);
+    await page.locator('#sharing-department').check();
     assert.equal(
         await page.locator('#sharing-people-picker').isVisible(),
-        false,
+        true,
     );
     assert.equal(
         await page.locator('#sharing-department-hint').innerText(),
@@ -305,6 +306,30 @@ test('restores a limited share on edit and hides people search when switching au
     );
     await page.locator('#modal-submit').click();
     const sent = (await request).postData();
-    assert.match(sent, /name="sharing_scope"\r\n\r\ndepartment/);
-    assert.doesNotMatch(sent, /name="sharing_user_ids/);
+    assert.match(sent, /name="sharing_scopes\[\]"\r\n\r\ndepartment/);
+    assert.match(sent, /name="sharing_scopes\[\]"\r\n\r\nusers/);
+    assert.match(sent, /name="sharing_user_ids\[\]"\r\n\r\n41/);
+
+    // Dismiss the fixture's validation notice before editing again.
+    await page
+        .getByText('Test validation response keeps this form open.')
+        .waitFor();
+    await page
+        .getByRole('button', { name: 'Close', exact: true })
+        .last()
+        .click();
+    // Unchecking people is the explicit removal action; simply adding a unit must preserve them.
+    await page.locator('#sharing-users').uncheck();
+    assert.equal(
+        await page.locator('#sharing-people-picker').isVisible(),
+        false,
+    );
+    const removedRequest = page.waitForRequest(
+        (request) => request.method() === 'POST',
+    );
+    await page.locator('#modal-submit').click();
+    assert.doesNotMatch(
+        (await removedRequest).postData(),
+        /name="sharing_user_ids/,
+    );
 });

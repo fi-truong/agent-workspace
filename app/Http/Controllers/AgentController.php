@@ -45,7 +45,7 @@ class AgentController extends Controller
             $agents = collect();
             $usedSharedAgents = collect();
         } else {
-            $agents = $user->agents()->latest()->get();
+            $agents = $user->agents()->with('sharedRecipients:users.id')->latest()->get();
             $usedSharedAgents = ShowcaseUse::query()
                 ->where('user_id', $user->id)
                 ->with('showcase.sourceAgent.sharedRecipients:users.id')
@@ -138,7 +138,9 @@ class AgentController extends Controller
         $this->authorize('view', $agent);
 
         if (request()->wantsJson()) {
-            return response()->json([...$agent->toArray(), 'sharing_users' => $agent->sharedRecipients()->get(['users.id', 'users.name', 'users.email', 'users.department', 'users.is_active'])->map(fn (User $user): array => $user->only(['id', 'name', 'email', 'department', 'is_active']))->all(), 'connections' => $this->agentConnections->setup($agent)]);
+            $agent->load('sharedRecipients:users.id,users.name,users.email,users.department,users.is_active');
+
+            return response()->json([...$agent->attributesToArray(), 'sharing_scopes' => $agent->sharingAudiences(), 'sharing_users' => $agent->sharedRecipients->map(fn (User $user): array => $user->only(['id', 'name', 'email', 'department', 'is_active']))->all(), 'connections' => $this->agentConnections->setup($agent)]);
         }
 
         return view('ai-plus.agent-workspace.agents.show', ['agent' => $agent]);

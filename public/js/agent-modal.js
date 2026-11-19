@@ -19,7 +19,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const sharingAccessGroup = document.getElementById('sharing-access-group');
   const sharingAccessInputs = document.querySelectorAll('input[name="sharing_access"]');
   const sharingAudienceGroup = document.getElementById('sharing-audience-group');
-  const sharingScope = document.getElementById('sharing-scope');
+  const sharingAudiences = document.querySelectorAll('input[name="sharing_scopes[]"]');
+  const sharingUsers = document.getElementById('sharing-users');
+  const sharingDepartmentInput = document.getElementById('sharing-department');
+  const departmentAvailable = sharingDepartmentInput ? !sharingDepartmentInput.disabled : false;
   const sharingPeoplePicker = document.getElementById('sharing-people-picker');
   const sharingSearch = document.getElementById('sharing-user-search');
   const sharingResults = document.getElementById('sharing-search-results');
@@ -288,7 +291,10 @@ document.addEventListener('DOMContentLoaded', function () {
     cancelSharingSearch();
     selectedSharingUsers = new Map((agent?.sharing_users || []).map((user) => [Number(user.id), user]));
     sharingDepartment = agent?.sharing_department || window.AgentModalConfig?.department || '';
-    if (sharingScope) sharingScope.value = agent?.sharing_scope || 'school';
+    const savedAudiences = agent?.sharing_scopes || (agent?.is_shared ? [agent.sharing_scope || 'school'] : ['school']);
+    if (agent?.sharing_department && !savedAudiences.includes('department')) savedAudiences.push('department');
+    if (selectedSharingUsers.size && !savedAudiences.includes('users')) savedAudiences.push('users');
+    sharingAudiences.forEach((input) => { input.checked = savedAudiences.includes(input.value); });
     if (sharingSearch) sharingSearch.value = '';
     renderSharingUsers();
 
@@ -393,15 +399,17 @@ document.addEventListener('DOMContentLoaded', function () {
   function syncSharedKnowledgeControl() {
     const isShared = !!sharedInput?.checked;
     if (sharingAudienceGroup) sharingAudienceGroup.hidden = !isShared;
-    if (sharingScope) sharingScope.disabled = !isShared;
-    const people = isShared && sharingScope?.value === 'users';
+    sharingAudiences.forEach((input) => {
+      input.disabled = !isShared || (input.value === 'department' && !departmentAvailable && !sharingDepartment);
+    });
+    const people = isShared && !!sharingUsers?.checked;
     if (sharingPeoplePicker) sharingPeoplePicker.hidden = !people;
     if (sharingSearch) sharingSearch.disabled = !people;
     if (sharingSelected) sharingSelected.hidden = !people;
     if (sharingResults) sharingResults.hidden = !people;
     if (sharingStatus) sharingStatus.hidden = !people;
     if (sharingDepartmentHint) {
-      sharingDepartmentHint.hidden = !isShared || sharingScope?.value !== 'department';
+      sharingDepartmentHint.hidden = !isShared || !sharingDepartmentInput?.checked;
       sharingDepartmentHint.textContent = 'Shared within: ' + sharingDepartment;
     }
     cancelSharingSearch();
@@ -488,7 +496,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 250);
   });
 
-  sharingScope?.addEventListener('change', syncSharedKnowledgeControl);
+  sharingAudiences.forEach((input) => input.addEventListener('change', syncSharedKnowledgeControl));
   sharedInput?.addEventListener('change', syncSharedKnowledgeControl);
 
   function closeModal(force = false) {
@@ -713,7 +721,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const formData = new FormData(form);
     formData.set('_method', isEdit ? 'PUT' : 'POST');
     formData.set('is_shared', sharedInput && sharedInput.checked ? '1' : '0');
-    if (sharedInput?.checked && sharingScope?.value === 'users') {
+    if (sharedInput?.checked) formData.set('sharing_audience_configured', '1');
+    if (sharedInput?.checked && sharingUsers?.checked) {
       formData.set('sharing_recipients_configured', '1');
       selectedSharingUsers.forEach((user, id) => formData.append('sharing_user_ids[]', String(id)));
     }
