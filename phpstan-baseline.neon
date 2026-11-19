@@ -349,12 +349,6 @@ parameters:
 			path: app/Http/Controllers/AgentTemplateController.php
 
 		-
-			message: '#^Method App\\Http\\Controllers\\AiPlusController\:\:index\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Http/Controllers/AiPlusController.php
-
-		-
 			message: '#^Method App\\Http\\Controllers\\AiPolicyController\:\:index\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1

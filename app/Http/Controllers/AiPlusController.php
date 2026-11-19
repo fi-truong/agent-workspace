@@ -6,10 +6,16 @@ use App\Models\AgentTemplate;
 use App\Models\AppSetting;
 use App\Models\PromptLibraryPrompt;
 use App\Models\ShowcasePost;
+use App\Support\HomepageQuotes;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\View\View;
 
 class AiPlusController extends Controller
 {
-    public function index()
+    private const HOMEPAGE_QUOTE_COOKIE = 'lsts_ai_plus_quote';
+
+    public function index(Request $request): View
     {
         // Số liệu thật từ DB cho các mục thống kê (không còn mock).
         $publishedShowcases = ShowcasePost::where('status', 'published')->visibleTo(request()->user());
@@ -83,7 +89,12 @@ class AiPlusController extends Controller
             ],
         ];
 
+        $previousQuoteId = $request->cookie(self::HOMEPAGE_QUOTE_COOKIE);
+        $homepageQuote = HomepageQuotes::choose(is_string($previousQuoteId) ? $previousQuoteId : null);
+        Cookie::queue(self::HOMEPAGE_QUOTE_COOKIE, $homepageQuote['id'], 0, '/ai-plus');
+
         return view('ai-plus.index', [
+            'homepageQuote' => $homepageQuote,
             'createCards' => $createCards,
             'communityCards' => $communityCards,
             'guidanceCards' => $guidanceCards,

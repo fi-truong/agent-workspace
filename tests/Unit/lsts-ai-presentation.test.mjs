@@ -39,20 +39,28 @@ async function pageFor(t, width) {
     return browser.newPage({ viewport: { width, height: 740 } });
 }
 
-test('balances the homepage header in two columns and stacks it on mobile', async (t) => {
+test('places the homepage quote alongside the introduction and stacks it on mobile', async (t) => {
     const page = await pageFor(t, 1280);
     const homepage = await read('resources/views/ai-plus/index.blade.php');
     const hero = homepage.match(/<header class="hero">[\s\S]*?<\/header>/)?.[0];
     assert.ok(hero);
+    const sampleQuote = {
+        text: 'AI is an incredible technology, but great tools require work at the intersection of technology, design, and understanding people and the world.',
+        name: 'Sam Altman',
+        role: 'Co-founder, OpenAI',
+    };
+    const markup = hero.replace(
+        /{{ \$homepageQuote\['(text|name|role)'\] }}/g,
+        (_, field) => sampleQuote[field],
+    );
     await page.setContent(
-        `<style>${base}${presentation}</style><body class="lsts-ai-ui lsts-ai-home">${hero}</body>`,
+        `<style>${base}${presentation}</style><body class="lsts-ai-ui lsts-ai-home">${markup}</body>`,
     );
 
     const title = page.getByRole('heading', { name: 'LSTS AI+' });
     const description = page.locator('.hero .sub');
-    const workspaceLink = page.getByRole('link', {
-        name: 'Open Agent Workspace',
-    });
+    const quote = page.locator('.hero-quote');
+    assert.equal(await page.locator('.hero a').count(), 0);
     assert.equal(
         await title.evaluate((heading) => getComputedStyle(heading).fontWeight),
         '750',
@@ -62,18 +70,17 @@ test('balances the homepage header in two columns and stacks it on mobile', asyn
         await page.setViewportSize({ width, height: 740 });
         const titleBox = await title.boundingBox();
         const descriptionBox = await description.boundingBox();
-        const linkBox = await workspaceLink.boundingBox();
+        const quoteBox = await quote.boundingBox();
 
         if (width >= 800) {
-            assert.ok(titleBox.x + titleBox.width < descriptionBox.x);
-            assert.equal(descriptionBox.x, linkBox.x);
+            assert.ok(titleBox.x + titleBox.width < quoteBox.x);
         } else {
-            assert.equal(titleBox.x, descriptionBox.x);
-            assert.ok(titleBox.y + titleBox.height < descriptionBox.y);
+            assert.equal(titleBox.x, quoteBox.x);
+            assert.ok(descriptionBox.y + descriptionBox.height < quoteBox.y);
         }
 
-        assert.ok(descriptionBox.y + descriptionBox.height < linkBox.y);
-        assert.ok(linkBox.x + linkBox.width <= width);
+        assert.equal(titleBox.x, descriptionBox.x);
+        assert.ok(titleBox.y + titleBox.height < descriptionBox.y);
         assert.equal(
             await page.evaluate(() => document.documentElement.scrollWidth),
             width,

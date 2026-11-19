@@ -6,9 +6,17 @@
 
   <header class="hero">
     <div class="wrap">
-      <h1 class="title">LSTS AI+</h1>
-      <p class="sub">AI tools for teaching and school operations</p>
-      <a href="{{ route('ai-plus.agent-workspace.index') }}" class="lsts-primary-link">Open Agent Workspace <span aria-hidden="true">→</span></a>
+      <div class="hero-intro">
+        <h1 class="title">LSTS AI+</h1>
+        <p class="sub">AI tools for teaching and school operations</p>
+      </div>
+      <figure class="hero-quote">
+        <blockquote>“{{ $homepageQuote['text'] }}”</blockquote>
+        <figcaption>
+          <span class="hero-quote-name">{{ $homepageQuote['name'] }}</span>
+          <span class="hero-quote-role">{{ $homepageQuote['role'] }}</span>
+        </figcaption>
+      </figure>
     </div>
   </header>
 

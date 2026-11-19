@@ -141,3 +141,29 @@ it('links each full homepage card to its destination', function () {
             ->and($card->getAttribute('aria-labelledby'))->toBe($heading->getAttribute('id'));
     }
 });
+
+it('shows a different homepage quote on reload with the author and role as plain text', function () {
+    $user = User::factory()->create(['is_active' => true]);
+    $firstPage = $this->actingAs($user)->get(route('ai-plus.index'))->assertOk();
+    $previousQuote = $firstPage->viewData('homepageQuote');
+    $quoteCookie = $firstPage->getCookie('lsts_ai_plus_quote');
+
+    expect($quoteCookie->getValue())->toBe($previousQuote['id'])
+        ->and($quoteCookie->getPath())->toBe('/ai-plus')
+        ->and($quoteCookie->getExpiresTime())->toBe(0);
+
+    $nextPage = $this->withCookie('lsts_ai_plus_quote', $quoteCookie->getValue())
+        ->get(route('ai-plus.index'))
+        ->assertOk();
+    $nextQuote = $nextPage->viewData('homepageQuote');
+
+    expect($nextQuote['id'])->not->toBe($previousQuote['id']);
+    $nextPage->assertSeeInOrder([$nextQuote['text'], $nextQuote['name'], $nextQuote['role']]);
+
+    $document = new DOMDocument;
+    $document->loadHTML($nextPage->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+    $xpath = new DOMXPath($document);
+
+    expect($xpath->query('//figure[@class="hero-quote"]/blockquote')->length)->toBe(1)
+        ->and($xpath->query('//figure[@class="hero-quote"]//a')->length)->toBe(0);
+});

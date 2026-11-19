@@ -104,6 +104,10 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 - Support and the homepage do not display a workshop materials link. The sixteen-agent sample ZIP remains available through its direct download route.
 - The simulated training package ships with the source in `resources/training`, outside the public directory. Its download route uses the same sign-in and AI Policy acceptance requirements as Support; the homepage does not advertise the link. No migration or separate environment setting is required.
 
+### 4.9 Homepage
+
+- The homepage displays one of 10 curated AI quotes with the speaker’s name and role. Each page load randomly selects a quote and excludes the one most recently shown in the same browser session.
+
 ## 5. AI Tools and Artifacts Phase 1
 
 ### 5.1 File creation

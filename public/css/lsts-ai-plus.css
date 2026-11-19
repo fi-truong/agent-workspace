@@ -68,14 +68,16 @@
 }
 
 .lsts-ai-home header.hero {
-    padding: clamp(32px, 5vw, 64px) 0;
+    padding: clamp(28px, 4vw, 52px) 0;
     background: var(--lsts-highlight);
     border-bottom: 1px solid var(--surface-border);
 }
 
 .lsts-ai-home .hero > .wrap {
     display: grid;
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    gap: 24px;
 }
 
 .lsts-ai-home header.hero::after {
@@ -92,26 +94,39 @@
 
 .lsts-ai-home .hero .sub {
     color: var(--text-soft);
-    margin: 0;
+    margin: 12px 0 0;
 }
 
-.lsts-ai-home .hero .lsts-primary-link {
-    justify-self: start;
+.lsts-ai-home .hero-quote {
+    margin: 0;
+    padding-inline-start: clamp(12px, 2vw, 24px);
+    border-inline-start: 2px solid var(--navy);
+}
+
+.lsts-ai-home .hero-quote blockquote {
+    margin: 0;
+    color: var(--text-main);
+    font-size: clamp(16px, 1.6vw, 21px);
+    line-height: 1.5;
+}
+
+.lsts-ai-home .hero-quote figcaption {
+    display: grid;
+    gap: 2px;
+    margin-top: 12px;
+    color: var(--text-soft);
+    font-size: 14px;
+}
+
+.lsts-ai-home .hero-quote-name {
+    color: var(--text-main);
+    font-weight: 600;
 }
 
 @media (min-width: 800px) {
     .lsts-ai-home .hero > .wrap {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        column-gap: clamp(24px, 4vw, 48px);
-    }
-
-    .lsts-ai-home .hero .title {
-        grid-row: span 2;
-        align-self: center;
-    }
-
-    .lsts-ai-home .hero .sub {
-        align-self: end;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: clamp(24px, 4vw, 48px);
     }
 }
 
