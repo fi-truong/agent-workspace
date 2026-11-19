@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (sharingStatus) sharingStatus.hidden = !people;
     if (sharingDepartmentHint) {
       sharingDepartmentHint.hidden = !isShared || !sharingDepartmentInput?.checked;
-      sharingDepartmentHint.textContent = 'Shared within: ' + sharingDepartment;
+      sharingDepartmentHint.textContent = '· ' + sharingDepartment;
     }
     cancelSharingSearch();
     if (sharingAccessGroup) sharingAccessGroup.hidden = !isShared;

@@ -59,20 +59,21 @@
       </div>
       <div class="form-group" id="sharing-audience-group" hidden>
         <span id="sharing-audience-label">Who can access this Agent?</span>
-        <small class="form-hint">Select one or more audiences. People can access this Agent if they belong to any selected audience.</small>
-        <label class="sharing-audience-choice"><input type="checkbox" id="sharing-school" name="sharing_scopes[]" value="school" checked> Everyone at school</label>
-        <label class="sharing-audience-choice"><input type="checkbox" id="sharing-department" name="sharing_scopes[]" value="department" @disabled(! trim(auth()->user()?->department ?? ''))> My department / unit</label>
-        <div class="sharing-audience-row">
-          <label class="sharing-audience-choice"><input type="checkbox" id="sharing-users" name="sharing_scopes[]" value="users"> Specific people</label>
-          <div id="sharing-people-picker" hidden>
-            <label for="sharing-user-search" class="form-hint">Find people</label>
-            <input type="search" id="sharing-user-search" autocomplete="off" maxlength="100" placeholder="Search name or email…" aria-describedby="sharing-search-status" aria-controls="sharing-search-results">
+        <small class="form-hint" id="sharing-audience-description">Select every audience that should have access. A person can match any selected option.</small>
+        <div class="sharing-audience-options" role="group" aria-labelledby="sharing-audience-label" aria-describedby="sharing-audience-description">
+          <label class="sharing-audience-choice"><input type="checkbox" id="sharing-school" name="sharing_scopes[]" value="school" checked> <span>Everyone at school</span></label>
+          <label class="sharing-audience-choice"><input type="checkbox" id="sharing-department" name="sharing_scopes[]" value="department" @disabled(! trim(auth()->user()?->department ?? ''))> <span>My department / unit</span><small class="sharing-department-detail" id="sharing-department-hint" hidden></small></label>
+          <div class="sharing-people-option">
+            <label class="sharing-audience-choice" for="sharing-users"><input type="checkbox" id="sharing-users" name="sharing_scopes[]" value="users"> <span>Specific people</span></label>
+            <div id="sharing-people-picker" hidden>
+              <label for="sharing-user-search" class="form-hint sharing-search-label">Find people</label>
+              <input type="search" id="sharing-user-search" autocomplete="off" maxlength="100" placeholder="Search name or email…" aria-describedby="sharing-search-status" aria-controls="sharing-search-results">
+              <div id="sharing-search-status" class="form-hint" role="status" aria-live="polite"></div>
+              <div id="sharing-search-results" aria-label="Matching people"></div>
+              <div id="sharing-selected-users" aria-label="Selected people"></div>
+            </div>
           </div>
         </div>
-        <small class="form-hint" id="sharing-department-hint" hidden></small>
-        <div id="sharing-search-status" class="form-hint" role="status" aria-live="polite"></div>
-        <div id="sharing-search-results" aria-label="Matching people"></div>
-        <div id="sharing-selected-users" aria-label="Selected people"></div>
         <small class="form-hint">Only your chosen audience can discover this Agent in Sharing &amp; Showcase. Removing access stops future use of the original Agent; copies already created remain with their owners.</small>
       </div>
       <fieldset class="form-group" id="sharing-access-group" hidden>
@@ -106,7 +107,7 @@
 @pushOnce('styles')
 <style>
   #agent-connections-field[hidden]{display:none}.agent-connections-field{border:1px solid var(--line,#ddd);border-radius:10px;padding:12px;color:var(--ink,#22303f)}#agent-connections-list{max-height:240px;overflow-y:auto;margin-top:10px}.agent-connection-row{padding:10px 0;border-bottom:1px solid var(--line,#ddd)}.agent-connection-choice{display:flex;align-items:center;gap:8px}.agent-connection-choice input{width:auto;flex:none}.agent-connection-role{display:block;margin-top:8px;width:100%;box-sizing:border-box}#agent-connections-search{margin-top:10px;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:10px;background:var(--card-bg,#fff);color:var(--ink,#22303f);font:inherit}.agent-connections-field legend{font-weight:600}
-  #sharing-audience-group[hidden],#sharing-people-picker[hidden],#sharing-department-hint[hidden]{display:none}.sharing-audience-row{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.sharing-audience-choice{display:flex;align-items:center;gap:8px;margin:0}.sharing-audience-choice input{width:auto;flex:none}.sharing-audience-row>.sharing-audience-choice{flex:1;min-width:180px}#sharing-user-search{box-sizing:border-box;width:100%;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:8px;background:var(--input-bg,#fff);color:var(--ink,#22303f);font:inherit}#sharing-people-picker{flex:1;min-width:220px}#sharing-search-results{max-height:200px;overflow-y:auto}.sharing-person-result{display:block;text-align:left;width:100%;padding:10px;border:0;border-bottom:1px solid var(--line,#ddd);background:var(--card-bg,#fff);color:var(--ink,#22303f);font:inherit;cursor:pointer}.sharing-person-result:hover,.sharing-person-result:focus-visible{background:var(--paper,#f4fbf9)}.sharing-person-result small{display:block;overflow-wrap:anywhere;color:var(--ink-soft,#4f6a63)}#sharing-selected-users{display:flex;gap:6px;flex-wrap:wrap}.sharing-person-chip{display:inline-flex;gap:6px;align-items:center;max-width:100%;padding:5px 9px;border:1px solid var(--line,#ddd);border-radius:8px;background:var(--paper,#f4fbf9);font-size:14px;overflow-wrap:anywhere}.sharing-person-chip button{border:0;background:transparent;color:inherit;cursor:pointer;font:inherit}
+  #sharing-audience-group[hidden],#sharing-people-picker[hidden],#sharing-department-hint[hidden]{display:none}#sharing-audience-label{font-size:18px;font-weight:600;color:var(--ink,#22303f)}#sharing-audience-group>.form-hint{line-height:1.45}.sharing-audience-options{display:grid;gap:8px;margin:4px 0 8px}.sharing-audience-choice{display:flex;align-items:center;gap:10px;min-height:44px;box-sizing:border-box;margin:0;padding:9px 12px;border:1px solid var(--line,#ddd);border-radius:10px;background:var(--card-bg,#fff);color:var(--ink,#22303f);font-size:15px;cursor:pointer}.sharing-audience-choice:hover{border-color:var(--sage,#2a6f61);background:var(--paper,#f4fbf9)}.sharing-audience-choice input{width:18px;height:18px;flex:none;margin:0;accent-color:var(--sage,#2a6f61)}.sharing-department-detail{margin-left:auto;color:var(--ink-soft,#4f6a63);font-size:13px;font-weight:500}.sharing-people-option{display:grid;gap:8px}.sharing-people-option>#sharing-people-picker{margin:0 0 4px 28px;padding-left:14px;border-left:2px solid var(--line,#ddd)}#sharing-people-picker .sharing-search-label{display:block;margin:0 0 6px;font-size:14px;font-weight:500}#sharing-user-search{box-sizing:border-box;width:100%;padding:10px 12px;border:1px solid var(--line,#ddd);border-radius:8px;background:var(--input-bg,#fff);color:var(--ink,#22303f);font:inherit}#sharing-search-status:not(:empty){margin-top:6px}#sharing-search-results{max-height:200px;overflow-y:auto}.sharing-person-result{display:block;text-align:left;width:100%;padding:10px;border:0;border-bottom:1px solid var(--line,#ddd);background:var(--card-bg,#fff);color:var(--ink,#22303f);font:inherit;cursor:pointer}.sharing-person-result:hover,.sharing-person-result:focus-visible{background:var(--paper,#f4fbf9)}.sharing-person-result small{display:block;overflow-wrap:anywhere;color:var(--ink-soft,#4f6a63)}#sharing-selected-users{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.sharing-person-chip{display:inline-flex;gap:6px;align-items:center;max-width:100%;padding:5px 9px;border:1px solid var(--line,#ddd);border-radius:8px;background:var(--paper,#f4fbf9);font-size:14px;overflow-wrap:anywhere}.sharing-person-chip button{border:0;background:transparent;color:inherit;cursor:pointer;font:inherit}
   .agent-avatar-editor{display:flex;align-items:center;gap:12px}.agent-avatar-preview{width:56px;height:56px;border-radius:14px;overflow:hidden;background:var(--navy,#1f3864);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;flex:none}.agent-avatar-preview img{width:100%;height:100%;object-fit:cover}#agent-avatar + .form-hint{display:block;margin-top:6px}
 </style>
 @endPushOnce
