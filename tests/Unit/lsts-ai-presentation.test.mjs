@@ -39,6 +39,48 @@ async function pageFor(t, width) {
     return browser.newPage({ viewport: { width, height: 740 } });
 }
 
+test('balances the homepage header in two columns and stacks it on mobile', async (t) => {
+    const page = await pageFor(t, 1280);
+    const homepage = await read('resources/views/ai-plus/index.blade.php');
+    const hero = homepage.match(/<header class="hero">[\s\S]*?<\/header>/)?.[0];
+    assert.ok(hero);
+    await page.setContent(
+        `<style>${base}${presentation}</style><body class="lsts-ai-ui lsts-ai-home">${hero}</body>`,
+    );
+
+    const title = page.getByRole('heading', { name: 'LSTS AI+' });
+    const description = page.locator('.hero .sub');
+    const workspaceLink = page.getByRole('link', {
+        name: 'Open Agent Workspace',
+    });
+    assert.equal(
+        await title.evaluate((heading) => getComputedStyle(heading).fontWeight),
+        '750',
+    );
+
+    for (const width of [1280, 800, 390, 320]) {
+        await page.setViewportSize({ width, height: 740 });
+        const titleBox = await title.boundingBox();
+        const descriptionBox = await description.boundingBox();
+        const linkBox = await workspaceLink.boundingBox();
+
+        if (width >= 800) {
+            assert.ok(titleBox.x + titleBox.width < descriptionBox.x);
+            assert.equal(descriptionBox.x, linkBox.x);
+        } else {
+            assert.equal(titleBox.x, descriptionBox.x);
+            assert.ok(titleBox.y + titleBox.height < descriptionBox.y);
+        }
+
+        assert.ok(descriptionBox.y + descriptionBox.height < linkBox.y);
+        assert.ok(linkBox.x + linkBox.width <= width);
+        assert.equal(
+            await page.evaluate(() => document.documentElement.scrollWidth),
+            width,
+        );
+    }
+});
+
 test('lays out Agent records in rows and keeps actions inside them at narrow widths', async (t) => {
     const page = await pageFor(t, 1024);
     await page.setContent(
