@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ShowcasePost;
 use App\Models\ShowcaseComment;
+use App\Models\ShowcasePost;
 use App\Models\ShowcaseUse;
 use App\Models\ShowcaseView;
 use App\Services\KnowledgeService;
@@ -18,7 +18,7 @@ class SharingShowcaseController extends Controller
     {
         $query = ShowcasePost::with(['author', 'tags'])
             ->withCount('comments')
-            ->where('status', 'published');
+            ->where('status', 'published')->visibleTo($request->user());
 
         // Search (title, description, author name, department)
         if ($request->filled('search')) {
@@ -76,7 +76,7 @@ class SharingShowcaseController extends Controller
 
         // Departments for filter chips
         $departments = ShowcasePost::select('department')->distinct()
-            ->where('status', 'published')->whereNotNull('department')
+            ->where('status', 'published')->visibleTo($request->user())->whereNotNull('department')
             ->orderBy('department')->pluck('department')->toArray();
 
         return view('ai-plus.sharing-showcase.index', [
@@ -85,16 +85,16 @@ class SharingShowcaseController extends Controller
             'departments' => $departments,
             'view' => $view,
             'viewingAs' => 'Teacher / Staff',
-            'totalAgents' => ShowcasePost::where('status', 'published')->count(),
+            'totalAgents' => ShowcasePost::where('status', 'published')->visibleTo($request->user())->count(),
             'totalDepartments' => count($departments),
-            'totalComments' => ShowcaseComment::whereHas('showcase', fn ($query) => $query->where('status', 'published'))->count(),
+            'totalComments' => ShowcaseComment::whereIn('showcase_post_id', ShowcasePost::query()->where('status', 'published')->visibleTo($request->user())->select('id'))->count(),
         ]);
     }
 
     public function show(Request $request, ShowcasePost $showcase)
     {
         // Only published posts are viewable on the public side
-        abort_if($showcase->status !== 'published', 404);
+        abort_unless(ShowcasePost::whereKey($showcase->id)->where('status', 'published')->visibleTo($request->user())->exists(), 404);
 
         // Count one view per signed-in user per Showcase per calendar day.
         $created = ShowcaseView::query()->insertOrIgnore([
@@ -124,7 +124,7 @@ class SharingShowcaseController extends Controller
         ];
 
         // Related showcases (same department or shared tags), max 3
-        $related = ShowcasePost::where('status', 'published')
+        $related = ShowcasePost::where('status', 'published')->visibleTo($request->user())
             ->where('id', '!=', $showcase->id)
             ->where(function ($q) use ($showcase) {
                 $q->where('department', $showcase->department)
@@ -146,7 +146,7 @@ class SharingShowcaseController extends Controller
                     'title' => $r->title,
                     'description' => $r->description,
                     'views' => $r->views_count,
-                'comments' => $r->comments_count,
+                    'comments' => $r->comments_count,
                     'uses' => $r->uses_count,
                     'badge' => $this->badgeFor($r),
                     'url' => route('ai-plus.sharing-showcase.show', $r->id),
@@ -166,9 +166,9 @@ class SharingShowcaseController extends Controller
         ]);
     }
 
-    public function storeComment(Request $request, ShowcasePost $showcase, PiiFilterService $piiFilter)
+    public function storeComment(Request $request, ShowcasePost $showcase, PiiFilterService $piiFilter): RedirectResponse
     {
-        abort_if($showcase->status !== 'published', 404);
+        abort_unless(ShowcasePost::whereKey($showcase->id)->where('status', 'published')->visibleTo($request->user())->exists(), 404);
 
         $data = $request->validate([
             'content' => ['required', 'string', 'min:3', 'max:2000'],
@@ -193,8 +193,9 @@ class SharingShowcaseController extends Controller
             ->withFragment('comments');
     }
 
-    public function destroyComment(Request $request, ShowcasePost $showcase, ShowcaseComment $comment)
+    public function destroyComment(Request $request, ShowcasePost $showcase, ShowcaseComment $comment): RedirectResponse
     {
+        abort_unless(ShowcasePost::whereKey($showcase->id)->where('status', 'published')->visibleTo($request->user())->exists(), 404);
         abort_if($comment->showcase_post_id !== $showcase->id, 404);
         abort_unless(
             $comment->user_id === $request->user()->id || $request->user()->role === 'admin',
@@ -210,9 +211,9 @@ class SharingShowcaseController extends Controller
             ->withFragment('comments');
     }
 
-    public function use(Request $request, ShowcasePost $showcase, KnowledgeService $knowledgeService)
+    public function use(Request $request, ShowcasePost $showcase, KnowledgeService $knowledgeService): RedirectResponse
     {
-        abort_if($showcase->status !== 'published', 404);
+        abort_unless(ShowcasePost::whereKey($showcase->id)->where('status', 'published')->visibleTo($request->user())->exists(), 404);
         $showcase->load('sourceAgent');
 
         if (! $showcase->sourceAgent?->is_shared) {

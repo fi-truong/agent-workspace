@@ -18,6 +18,19 @@ document.addEventListener('DOMContentLoaded', function () {
   const sharedInput = document.getElementById('is_shared');
   const sharingAccessGroup = document.getElementById('sharing-access-group');
   const sharingAccessInputs = document.querySelectorAll('input[name="sharing_access"]');
+  const sharingAudienceGroup = document.getElementById('sharing-audience-group');
+  const sharingScope = document.getElementById('sharing-scope');
+  const sharingPeoplePicker = document.getElementById('sharing-people-picker');
+  const sharingSearch = document.getElementById('sharing-user-search');
+  const sharingResults = document.getElementById('sharing-search-results');
+  const sharingStatus = document.getElementById('sharing-search-status');
+  const sharingSelected = document.getElementById('sharing-selected-users');
+  const sharingDepartmentHint = document.getElementById('sharing-department-hint');
+  let sharingDepartment = window.AgentModalConfig?.department || '';
+  let selectedSharingUsers = new Map();
+  let sharingSearchTimer = null;
+  let sharingSearchController = null;
+  let sharingSearchVersion = 0;
   const connectionsField = document.getElementById('agent-connections-field');
   const connectionsList = document.getElementById('agent-connections-list');
   const connectionsSearch = document.getElementById('agent-connections-search');
@@ -272,6 +285,12 @@ document.addEventListener('DOMContentLoaded', function () {
     form.reset();
     clearKnowledgeUI();
     resetAvatarUI(agent);
+    cancelSharingSearch();
+    selectedSharingUsers = new Map((agent?.sharing_users || []).map((user) => [Number(user.id), user]));
+    sharingDepartment = agent?.sharing_department || window.AgentModalConfig?.department || '';
+    if (sharingScope) sharingScope.value = agent?.sharing_scope || 'school';
+    if (sharingSearch) sharingSearch.value = '';
+    renderSharingUsers();
 
     if (agent) {
       modalTitle.textContent = 'Edit Agent';
@@ -373,16 +392,110 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function syncSharedKnowledgeControl() {
     const isShared = !!sharedInput?.checked;
+    if (sharingAudienceGroup) sharingAudienceGroup.hidden = !isShared;
+    if (sharingScope) sharingScope.disabled = !isShared;
+    const people = isShared && sharingScope?.value === 'users';
+    if (sharingPeoplePicker) sharingPeoplePicker.hidden = !people;
+    if (sharingSearch) sharingSearch.disabled = !people;
+    if (sharingSelected) sharingSelected.hidden = !people;
+    if (sharingResults) sharingResults.hidden = !people;
+    if (sharingStatus) sharingStatus.hidden = !people;
+    if (sharingDepartmentHint) {
+      sharingDepartmentHint.hidden = !isShared || sharingScope?.value !== 'department';
+      sharingDepartmentHint.textContent = 'Shared within: ' + sharingDepartment;
+    }
+    cancelSharingSearch();
     if (sharingAccessGroup) sharingAccessGroup.hidden = !isShared;
     sharingAccessInputs.forEach((input) => { input.disabled = !isShared; });
   }
 
+  function cancelSharingSearch() {
+    clearTimeout(sharingSearchTimer);
+    sharingSearchController?.abort();
+    sharingSearchVersion++;
+    sharingResults?.replaceChildren();
+    if (sharingStatus) sharingStatus.textContent = '';
+  }
+
+  function renderSharingUsers() {
+    if (!sharingSelected) return;
+    sharingSelected.replaceChildren();
+    selectedSharingUsers.forEach((user, id) => {
+      const chip = document.createElement('span');
+      chip.className = 'sharing-person-chip';
+      const label = document.createElement('span');
+      label.textContent = user.name + ' · ' + user.email + (user.is_active === false ? ' (inactive — remove)' : '');
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = '×';
+      remove.setAttribute('aria-label', 'Remove ' + user.name);
+      remove.addEventListener('click', () => {
+        selectedSharingUsers.delete(id);
+        renderSharingUsers();
+        cancelSharingSearch();
+      });
+      chip.append(label, remove);
+      sharingSelected.appendChild(chip);
+    });
+  }
+
+  sharingSearch?.addEventListener('input', () => {
+    cancelSharingSearch();
+    const query = sharingSearch.value.trim();
+    if (query.length < 2) {
+      sharingStatus.textContent = 'Type at least 2 characters to find people.';
+      return;
+    }
+    const version = sharingSearchVersion;
+    sharingStatus.textContent = 'Searching…';
+    sharingSearchTimer = setTimeout(async () => {
+      sharingSearchController = new AbortController();
+      try {
+        const url = new URL(window.AgentModalConfig.sharingUsersUrl, window.location.origin);
+        url.searchParams.set('q', query);
+        const response = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store', signal: sharingSearchController.signal });
+        if (!response.ok) throw new Error('Search failed');
+        const data = await response.json();
+        if (version !== sharingSearchVersion) return;
+        const results = data.users.filter((user) => !selectedSharingUsers.has(Number(user.id)));
+        sharingStatus.textContent = results.length ? 'Select a person to add. Closest matches appear first.' : 'No other matching people found.';
+        sharingResults.replaceChildren();
+        results.forEach((user) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'sharing-person-result';
+          const name = document.createElement('span');
+          name.textContent = user.name;
+          const detail = document.createElement('small');
+          detail.textContent = user.email + (user.department ? ' · ' + user.department : '');
+          button.append(name, detail);
+          button.addEventListener('click', () => {
+            if (selectedSharingUsers.size >= 100) {
+              sharingStatus.textContent = 'Choose up to 100 people.';
+              return;
+            }
+            selectedSharingUsers.set(Number(user.id), user);
+            renderSharingUsers();
+            sharingSearch.value = '';
+            cancelSharingSearch();
+            sharingSearch.focus();
+          });
+          sharingResults.appendChild(button);
+        });
+      } catch (error) {
+        if (version === sharingSearchVersion && error.name !== 'AbortError') sharingStatus.textContent = 'People could not be loaded. Please try again.';
+      }
+    }, 250);
+  });
+
+  sharingScope?.addEventListener('change', syncSharedKnowledgeControl);
   sharedInput?.addEventListener('change', syncSharedKnowledgeControl);
 
   function closeModal(force = false) {
     if (isSaving && !force) return;
     setSaving(false);
     modal.style.display = 'none';
+    cancelSharingSearch();
     connectionLoadId++;
     form.reset();
     clearKnowledgeUI();
@@ -578,7 +691,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const knowledgeFileCount = activeSavedFiles().length + allFiles.length;
     if (sharedInput?.checked && sharingAccess === 'copy' && knowledgeFileCount > 0) {
       const shouldShareKnowledge = await confirmDialog(
-        `Anyone at LSTS who copies this agent will receive ${knowledgeFileCount} Knowledge file${knowledgeFileCount === 1 ? '' : 's'} in their own workspace. Continue?`,
+        `People in your selected audience who copy this agent will receive ${knowledgeFileCount} Knowledge file${knowledgeFileCount === 1 ? '' : 's'} in their own workspace. Continue?`,
         {
           title: 'Share Knowledge files',
           confirmText: 'Share and allow copying',
@@ -600,6 +713,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const formData = new FormData(form);
     formData.set('_method', isEdit ? 'PUT' : 'POST');
     formData.set('is_shared', sharedInput && sharedInput.checked ? '1' : '0');
+    if (sharedInput?.checked && sharingScope?.value === 'users') {
+      formData.set('sharing_recipients_configured', '1');
+      selectedSharingUsers.forEach((user, id) => formData.append('sharing_user_ids[]', String(id)));
+    }
     if (connectionsLoaded) {
       formData.set('connections_configured', '1');
       Array.from(selectedConnections.entries()).forEach(([id, role], index) => {

@@ -7,6 +7,7 @@ use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\ShowcaseUse;
 use App\Services\AgentConnectionService;
+use App\Services\AgentSharingService;
 use App\Services\ChatModelService;
 use App\Services\TokenQuotaService;
 use Illuminate\Http\Request;
@@ -41,7 +42,7 @@ class AgentWorkspaceController extends Controller
         if ($user) {
             $conversationModels = $user->conversations()
                 ->where('type', Conversation::TYPE_CHAT)
-                ->with('agent:id,title,user_id,avatar_path')
+                ->with(['agent:id,title,user_id,avatar_path,is_shared,sharing_access,sharing_scope,sharing_department', 'agent.sharedRecipients:users.id'])
                 ->latest('updated_at')
                 ->get();
             $conversations = $conversationModels->map(fn ($c) => [
@@ -63,12 +64,12 @@ class AgentWorkspaceController extends Controller
             // no setup or Knowledge is copied into the recipient account.
             ShowcaseUse::query()
                 ->where('user_id', $user->id)
-                ->with('showcase.sourceAgent')
+                ->with('showcase.sourceAgent.sharedRecipients:users.id')
                 ->latest('updated_at')
                 ->get()
-                ->each(function (ShowcaseUse $use) use ($myAgents): void {
+                ->each(function (ShowcaseUse $use) use ($myAgents, $user, $agentConnections): void {
                     $sharedAgent = $use->showcase?->sourceAgent;
-                    if (! $sharedAgent || ! $sharedAgent->is_shared || $sharedAgent->sharing_access === 'copy' || $myAgents->has($sharedAgent->id)) {
+                    if (! $sharedAgent || ! $agentConnections->canUse($user, $sharedAgent) || $myAgents->has($sharedAgent->id)) {
                         return;
                     }
 
@@ -87,8 +88,8 @@ class AgentWorkspaceController extends Controller
                 if (! $myAgents->has($conversation->agent_id)) {
                     $myAgents->put($conversation->agent_id, [
                         'id' => $conversation->agent->id,
-                        'title' => $conversation->agent->title,
-                        'avatar_url' => $conversation->agent->avatar_url,
+                        'title' => $agentConnections->canUse($user, $conversation->agent) ? $conversation->agent->title : 'Unavailable Agent',
+                        'avatar_url' => $agentConnections->canUse($user, $conversation->agent) ? $conversation->agent->avatar_url : null,
                         'type' => 'agent',
                         'is_owned' => false,
                         'is_used_shared' => false,
@@ -108,12 +109,11 @@ class AgentWorkspaceController extends Controller
             $userInitials = $user->initials;
 
             if ($request->filled('agent_id')) {
-                $requestedAgent = Agent::find($request->integer('agent_id'), ['id', 'user_id', 'title', 'avatar_path', 'is_shared', 'sharing_access']);
-                if ($requestedAgent?->user_id === $user->id
-                    || ($requestedAgent?->is_shared && $requestedAgent->sharing_access !== 'copy')) {
+                $requestedAgent = Agent::find($request->integer('agent_id'), ['id', 'user_id', 'title', 'avatar_path', 'is_shared', 'sharing_access', 'sharing_scope', 'sharing_department']);
+                if ($requestedAgent && $agentConnections->canUse($user, $requestedAgent)) {
                     $selectedAgentId = $requestedAgent->id;
                     $selectedAgentName = $requestedAgent->title;
-                } elseif ($requestedAgent?->is_shared) {
+                } elseif ($requestedAgent && app(AgentSharingService::class)->canView($user, $requestedAgent)) {
                     $agentAccessMessage = 'You do not own this agent. Find it in Sharing & Showcase and use Copy and edit to add it to your workspace.';
                 } else {
                     $agentAccessMessage = 'This agent is no longer available.';
@@ -165,6 +165,10 @@ class AgentWorkspaceController extends Controller
 
                     // Agent + tên prompt (conversation) gắn → hiển thị trong chat.
                     $activeAgent = $conversation->agent;
+                    if ($activeAgent && ! $agentConnections->canUse($user, $activeAgent)) {
+                        $activeAgent = null;
+                        $agentAccessMessage = 'This shared agent is no longer available. Your conversation history is kept.';
+                    }
                     $activeConversationTitle = $conversation->title;
                 }
             }
@@ -182,8 +186,8 @@ class AgentWorkspaceController extends Controller
                 $agentIds[] = $activeAgent->id;
             }
             $parents = Agent::query()->whereIn('id', $agentIds)
-                ->with('connectedAgents:agents.id,agents.title,agents.user_id,agents.is_shared,agents.sharing_access')
-                ->get(['id', 'user_id', 'is_shared', 'sharing_access']);
+                ->with(['connectedAgents:agents.id,agents.title,agents.user_id,agents.is_shared,agents.sharing_access,agents.sharing_scope,agents.sharing_department', 'sharedRecipients:users.id', 'connectedAgents.sharedRecipients:users.id'])
+                ->get(['id', 'user_id', 'is_shared', 'sharing_access', 'sharing_scope', 'sharing_department']);
             foreach ($parents as $parent) {
                 if (! $agentConnections->canUse($user, $parent)) {
                     continue;

@@ -84,7 +84,7 @@
       </div>
       <div class="agent-meta">
         <span class="badge {{ $agent->is_shared ? 'shared' : 'private' }}">
-          {{ $agent->is_shared ? 'Shared' : 'Private' }}
+          {{ $agent->is_shared ? 'Shared · '.$agent->sharing_audience_label : 'Private' }}
         </span>
         <span class="updated-at">Updated {{ $agent->updated_at->diffForHumans() }}</span>
       </div>

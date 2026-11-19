@@ -12,7 +12,7 @@ class AiPlusController extends Controller
     public function index()
     {
         // Số liệu thật từ DB cho các mục thống kê (không còn mock).
-        $publishedShowcases = ShowcasePost::where('status', 'published');
+        $publishedShowcases = ShowcasePost::where('status', 'published')->visibleTo(request()->user());
         $departmentsSharing = (clone $publishedShowcases)->whereNotNull('department')->distinct('department')->count('department');
         $totalPrompts = PromptLibraryPrompt::where('status', 'published')->count();
         $totalTemplates = AgentTemplate::where('status', 'published')->count();

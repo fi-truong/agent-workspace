@@ -61,7 +61,10 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 
 ### 4.3 Sharing and Showcase
 
-- An Agent selected as Share with school appears in Sharing and Showcase.
+- Shared Agents choose an audience: `school`, `department`, or `users`, independently of `use_only`/`copy` access. Existing shared Agents remain school-wide after migration.
+- Department sharing snapshots the owner's account department when selected. Recipients must currently belong to the same non-empty department. Changing the owner's department does not silently widen an existing share; selecting the audience again establishes a new department. Specific-person sharing requires at least one other active account and supports up to 100 recipients. Search accepts name/email queries of at least two characters, returns at most ten matches, and ranks exact, prefix and contains matches in that order.
+- Audience checks cover Showcase discovery/counts/related posts/comments, avatars, shortcuts, chat and connected Agents. Revocation stops future use of the original Agent while preserving the recipient's chat history. Previously authorized copies remain recipient-owned. Use-only shortcut JSON excludes Instructions and Knowledge paths.
+- The migration adds `sharing_scope`, `sharing_department` and `agent_share_recipients`. Schema rollback disables restricted shares and drafts their posts before removing the restrictions, preventing accidental school-wide sharing.
 - Shared Agents support `use_only` and `copy`; copying an Agent also copies knowledge only when its owner explicitly chose `copy` access.
 - New marks recent content; Popular marks Agents with substantial usage.
 

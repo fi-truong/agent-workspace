@@ -61,7 +61,10 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 
 ### 4.3 Sharing & Showcase
 
-- Agent chọn `Share with school` xuất hiện tại Sharing & Showcase.
+- Agent bật chia sẻ chọn phạm vi `school` (toàn trường), `department` (đơn vị/phòng ban) hoặc `users` (những người được chọn). Các Agent đã chia sẻ trước migration giữ phạm vi toàn trường. Phạm vi độc lập với quyền `use_only`/`copy`.
+- Phòng ban được chụp từ tài khoản chủ Agent khi bật phạm vi đó; người nhận phải có phòng ban hiện tại trùng khớp, không rỗng. Chủ Agent đổi phòng ban không tự mở rộng phạm vi cũ; muốn đổi đơn vị chia sẻ cần chọn lại phạm vi. Chia sẻ cá nhân yêu cầu ít nhất một tài khoản khác đang active; tìm theo tên/email từ 2 ký tự, trả tối đa 10 kết quả, ưu tiên khớp chính xác rồi tiền tố rồi chứa cụm tìm kiếm. Cho phép chọn tối đa 100 người.
+- Sharing & Showcase, số liệu, bài liên quan, bình luận, avatar, shortcut, chat và Agent kết nối đều kiểm tra phạm vi. Thu hồi quyền ngăn dùng lại Agent gốc nhưng giữ lịch sử chat của người nhận. Bản sao đã được tạo hợp lệ vẫn thuộc người nhận; không thu hồi bản sao. JSON cho shortcut Use-only không chứa Instructions hoặc đường dẫn Knowledge.
+- Migration thêm `sharing_scope`, `sharing_department` và bảng `agent_share_recipients`; rollback schema tắt các chia sẻ giới hạn và đưa bài tương ứng về draft trước khi bỏ ràng buộc, tránh biến thành chia sẻ toàn trường.
 - Agent chia sẻ có hai chế độ `use_only` và `copy`; chế độ `copy` cho phép tạo bản sao và chỉ sao chép knowledge khi chủ Agent chọn chế độ này.
 - Badge `New` cho nội dung mới và `Popular` cho Agent được sử dụng nhiều.
 

@@ -11,6 +11,7 @@ use App\Models\UsageLog;
 use App\Models\User;
 use App\Services\AgentConnectionService;
 use App\Services\AgentOrchestrationService;
+use App\Services\AgentSharingService;
 use App\Services\ArtifactService;
 use App\Services\ChatCompletionService;
 use App\Services\ChatModelService;
@@ -2608,16 +2609,16 @@ class ChatMessageController extends Controller
 
     private function canViewAgent(User $user, Agent $agent): bool
     {
-        return $user->id === $agent->user_id || $agent->is_shared;
+        return app(AgentSharingService::class)->canView($user, $agent);
     }
 
     private function agentAccessError(User $user, Agent $agent): ?JsonResponse
     {
-        if ($user->id === $agent->user_id || ($agent->is_shared && $agent->sharing_access !== 'copy')) {
+        if (app(AgentSharingService::class)->canUse($user, $agent)) {
             return null;
         }
 
-        if ($agent->is_shared) {
+        if ($this->canViewAgent($user, $agent) && $agent->is_shared) {
             return response()->json([
                 'error' => 'You do not own this agent. Find it in Sharing & Showcase and use Copy and edit to add it to your workspace.',
                 'agent_copy_required' => true,

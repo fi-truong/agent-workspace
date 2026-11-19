@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ShowcaseComment extends Model
 {
@@ -12,12 +13,14 @@ class ShowcaseComment extends Model
         'content',
     ];
 
-    public function showcase()
+    /** @return BelongsTo<ShowcasePost, $this> */
+    public function showcase(): BelongsTo
     {
         return $this->belongsTo(ShowcasePost::class, 'showcase_post_id');
     }
 
-    public function user()
+    /** @return BelongsTo<User, $this> */
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }

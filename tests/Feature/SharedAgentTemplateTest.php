@@ -298,7 +298,7 @@ test('My Agents truncates long descriptions and provides a More toggle', functio
         ->assertSee('.agent-card-header { display: flex; align-items: center; gap: 12px; min-height: 56px; }', false)
         ->assertSee('-webkit-line-clamp: 2', false)
         ->assertSee('.agent-meta { display: flex; align-items: center; gap: 10px; min-height: 52px;', false)
-        ->assertSee('.agent-description-wrap { min-width: 0; min-height: calc(4.5em + 20px); font-size: 14px; line-height: 1.5; }', false)
+        ->assertSee('.agent-description-wrap { min-width: 0; min-height: calc(4.5em + 20px); font-size: 16px; line-height: 1.5; }', false)
         ->assertSee('Short description Agent');
 
     expect(substr_count($response->getContent(), 'aria-expanded="false"'))->toBe(1);

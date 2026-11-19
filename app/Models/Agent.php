@@ -26,7 +26,15 @@ use Illuminate\Support\Carbon;
  */
 class Agent extends Model
 {
-    protected $fillable = ['user_id', 'copied_from_agent_id', 'title', 'description', 'avatar_path', 'system_prompt', 'knowledge', 'is_shared', 'sharing_access', 'shared_with_team_id'];
+    protected $fillable = ['user_id', 'copied_from_agent_id', 'title', 'description', 'avatar_path', 'system_prompt', 'knowledge', 'is_shared', 'sharing_access', 'shared_with_team_id', 'sharing_scope', 'sharing_department'];
+
+    protected $attributes = ['sharing_scope' => 'school'];
+
+    /** @return BelongsToMany<User, $this> */
+    public function sharedRecipients(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'agent_share_recipients');
+    }
 
     protected $casts = [
         'is_shared' => 'boolean',
@@ -44,11 +52,13 @@ class Agent extends Model
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsTo<Team, $this> */
     public function sharedWithTeam(): BelongsTo
     {
         return $this->belongsTo(Team::class, 'shared_with_team_id');
     }
 
+    /** @return BelongsTo<Agent, $this> */
     public function copiedFrom(): BelongsTo
     {
         return $this->belongsTo(self::class, 'copied_from_agent_id');
@@ -112,6 +122,19 @@ class Agent extends Model
         }
 
         return $decoded;
+    }
+
+    public function getSharingAudienceLabelAttribute(): string
+    {
+        if (! $this->is_shared) {
+            return 'Private';
+        }
+
+        return match ($this->sharing_scope) {
+            'department' => 'Department · '.$this->sharing_department,
+            'users' => 'Specific people',
+            default => 'School',
+        };
     }
 
     public function getAvatarUrlAttribute(): ?string

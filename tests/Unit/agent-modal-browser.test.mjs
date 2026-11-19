@@ -22,12 +22,20 @@ const fixture = `<!doctype html><html><head><meta name="csrf-token" content="tes
 <div id="agent-modal" style="display:none"><h3 id="modal-title"></h3><button id="modal-close">Close</button>
 <form id="agent-form"><input id="form-method" name="_method"><input id="agent-id" name="agent_id">
 <input id="title" name="title" required><textarea id="description"></textarea><textarea id="system_prompt"></textarea>
+<input type="checkbox" id="is_shared" name="is_shared" value="1">
+<div id="sharing-audience-group" hidden><select id="sharing-scope" name="sharing_scope"><option value="school">Everyone at school</option><option value="department">My department</option><option value="users">Specific people</option></select><div id="sharing-people-picker" hidden><input id="sharing-user-search" type="search"></div><small id="sharing-department-hint" hidden></small><div id="sharing-search-status"></div><div id="sharing-search-results"></div><div id="sharing-selected-users"></div></div><fieldset id="sharing-access-group" hidden><input type="radio" name="sharing_access" value="use_only" checked><input type="radio" name="sharing_access" value="copy"></fieldset>
 <fieldset id="agent-connections-field" class="form-group agent-connections-field" hidden><input id="agent-connections-search" type="search"><div id="agent-connections-list"></div><div id="agent-connections-status"></div></fieldset>
 <button type="button" id="modal-cancel">Cancel</button><button type="submit" id="modal-submit">Save</button></form></div></body></html>`;
 
 async function setup(
     t,
-    { optionsFail = false, enabled = true, saved = [], agents = null } = {},
+    {
+        optionsFail = false,
+        enabled = true,
+        saved = [],
+        agents = null,
+        sharing = {},
+    } = {},
 ) {
     const browser = await chromium.launch({ headless: true });
     t.after(() => browser.close());
@@ -39,7 +47,25 @@ async function setup(
         const request = route.request();
         const url = new URL(request.url());
 
-        if (url.pathname.endsWith('connection-options')) {
+        if (url.pathname.endsWith('sharing-users')) {
+            await route.fulfill({
+                json: {
+                    users: [
+                        {
+                            id: 41,
+                            name: 'Example Colleague',
+                            email: 'example@example.test',
+                            department: 'HR',
+                        },
+                        {
+                            id: 42,
+                            name: 'Another <img src=x onerror=bad()>',
+                            email: 'another@example.test',
+                        },
+                    ],
+                },
+            });
+        } else if (url.pathname.endsWith('connection-options')) {
             await route.fulfill({
                 status: optionsFail ? 503 : 200,
                 json: {
@@ -53,7 +79,12 @@ async function setup(
             });
         } else if (url.pathname.endsWith('/10') && request.method() === 'GET') {
             await route.fulfill({
-                json: { id: 10, title: 'Coordinator', connections: saved },
+                json: {
+                    id: 10,
+                    title: 'Coordinator',
+                    connections: saved,
+                    ...sharing,
+                },
             });
         } else if (request.method() === 'POST') {
             await route.fulfill({
@@ -71,6 +102,8 @@ async function setup(
         window.AgentModalConfig = {
             connectionOptionsUrl:
                 '/ai-plus/agent-workspace/agents/connection-options',
+            sharingUsersUrl: '/ai-plus/agent-workspace/agents/sharing-users',
+            department: 'CIEC',
             maxConnections: 10,
         };
     });
@@ -198,4 +231,80 @@ test('accepts ten selected Agents and prevents selecting an eleventh', async (t)
     const body = (await requestPromise).postData();
     assert.match(body, /name="connections\[9\]\[agent_id\]"/);
     assert.doesNotMatch(body, /name="connections\[10\]\[agent_id\]"/);
+});
+
+test('shows the people search beside the audience and submits only selected recipient IDs', async (t) => {
+    const page = await setup(t);
+    await page.locator('#create-agent-btn').click();
+    await page.locator('#title').fill('Shared planner');
+    await page.locator('#is_shared').check();
+    await page.locator('#sharing-scope').selectOption('users');
+    assert.equal(
+        await page.locator('#sharing-people-picker').isVisible(),
+        true,
+    );
+    await page.locator('#sharing-user-search').fill('ex');
+    await page
+        .getByRole('button', {
+            name: 'Example Colleague example@example.test · HR',
+        })
+        .click();
+    await page.locator('#sharing-user-search').fill('an');
+    await page
+        .getByRole('button', {
+            name: 'Another <img src=x onerror=bad()> another@example.test',
+        })
+        .click();
+    assert.equal(await page.locator('#sharing-selected-users img').count(), 0);
+    await page
+        .getByRole('button', { name: 'Remove Example Colleague', exact: true })
+        .click();
+    const request = page.waitForRequest(
+        (request) => request.method() === 'POST',
+    );
+    await page.locator('#modal-submit').click();
+    const sent = (await request).postData();
+    assert.match(sent, /name="sharing_scope"\r\n\r\nusers/);
+    assert.match(sent, /name="sharing_recipients_configured"\r\n\r\n1/);
+    assert.match(sent, /name="sharing_user_ids\[\]"\r\n\r\n42/);
+    assert.doesNotMatch(sent, /name="sharing_user_ids\[\]"\r\n\r\n41/);
+});
+
+test('restores a limited share on edit and hides people search when switching audience', async (t) => {
+    const page = await setup(t, {
+        sharing: {
+            is_shared: true,
+            sharing_access: 'use_only',
+            sharing_scope: 'users',
+            sharing_users: [
+                {
+                    id: 41,
+                    name: 'Example Colleague',
+                    email: 'example@example.test',
+                },
+            ],
+        },
+    });
+    await page.locator('.edit-agent').click();
+    await page
+        .locator('#sharing-selected-users')
+        .getByText('Example Colleague · example@example.test')
+        .waitFor();
+    assert.equal(await page.locator('#sharing-scope').inputValue(), 'users');
+    await page.locator('#sharing-scope').selectOption('department');
+    assert.equal(
+        await page.locator('#sharing-people-picker').isVisible(),
+        false,
+    );
+    assert.equal(
+        await page.locator('#sharing-department-hint').innerText(),
+        'Shared within: CIEC',
+    );
+    const request = page.waitForRequest(
+        (request) => request.method() === 'POST',
+    );
+    await page.locator('#modal-submit').click();
+    const sent = (await request).postData();
+    assert.match(sent, /name="sharing_scope"\r\n\r\ndepartment/);
+    assert.doesNotMatch(sent, /name="sharing_user_ids/);
 });

@@ -8,8 +8,10 @@ use App\Models\Agent;
 use App\Models\AppSetting;
 use App\Models\Conversation;
 use App\Models\ShowcaseUse;
+use App\Models\User;
 use App\Services\AgentAvatarService;
 use App\Services\AgentConnectionService;
+use App\Services\AgentSharingService;
 use App\Services\KnowledgeService;
 use App\Services\SharedAgentTemplateSyncService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -21,6 +23,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AgentController extends Controller
 {
@@ -31,6 +34,7 @@ class AgentController extends Controller
         private readonly AgentAvatarService $agentAvatarService,
         private readonly SharedAgentTemplateSyncService $sharedAgentTemplateSyncService,
         private readonly AgentConnectionService $agentConnections,
+        private readonly AgentSharingService $sharing,
     ) {}
 
     public function index(Request $request): JsonResponse|View
@@ -44,7 +48,7 @@ class AgentController extends Controller
             $agents = $user->agents()->latest()->get();
             $usedSharedAgents = ShowcaseUse::query()
                 ->where('user_id', $user->id)
-                ->with('showcase.sourceAgent')
+                ->with('showcase.sourceAgent.sharedRecipients:users.id')
                 ->latest('updated_at')
                 ->get()
                 ->map(function (ShowcaseUse $use): ?Agent {
@@ -55,13 +59,13 @@ class AgentController extends Controller
 
                     return $agent;
                 })
-                ->filter(fn (?Agent $agent) => $agent !== null && $agent->is_shared && $agent->sharing_access !== 'copy')
+                ->filter(fn (?Agent $agent) => $agent !== null && $this->sharing->canUse($user, $agent))
                 ->reject(fn (Agent $agent) => $agents->contains('id', $agent->id))
                 ->values();
         }
 
         if ($request->wantsJson()) {
-            return response()->json($agents->concat($usedSharedAgents)->values());
+            return response()->json($agents->concat($usedSharedAgents->map(fn (Agent $agent): array => $agent->only(['id', 'title', 'description', 'avatar_url', 'is_shared', 'sharing_access'])))->values());
         }
 
         $availableAgentIds = $agents->pluck('id')->merge($usedSharedAgents->pluck('id'))->unique();
@@ -99,6 +103,7 @@ class AgentController extends Controller
             return redirect()->route('login.local.form');
         }
 
+        $sharingSettings = $this->sharing->settings($request);
         $this->agentConnections->validate($request->input('connections', []), $user);
         $this->knowledgeService->ensureAgentKnowledgeLimits($request->file('knowledge', []));
 
@@ -107,11 +112,10 @@ class AgentController extends Controller
             'title' => $request->input('title'),
             'description' => $request->input('description'),
             'system_prompt' => $request->input('system_prompt'),
-            'is_shared' => $request->boolean('is_shared'),
-            'sharing_access' => $request->boolean('is_shared') ? $request->input('sharing_access') : 'use_only',
-            'shared_with_team_id' => null,
+            ...$sharingSettings['attributes'],
         ]);
 
+        $this->sharing->save($agent, $sharingSettings);
         $this->saveKnowledgeFiles($request->file('knowledge', []), $user->id, $agent);
         if ($request->hasFile('avatar')) {
             $this->agentAvatarService->replace($agent, $request->file('avatar'));
@@ -134,7 +138,7 @@ class AgentController extends Controller
         $this->authorize('view', $agent);
 
         if (request()->wantsJson()) {
-            return response()->json([...$agent->toArray(), 'connections' => $this->agentConnections->setup($agent)]);
+            return response()->json([...$agent->toArray(), 'sharing_users' => $agent->sharedRecipients()->get(['users.id', 'users.name', 'users.email', 'users.department', 'users.is_active'])->map(fn (User $user): array => $user->only(['id', 'name', 'email', 'department', 'is_active']))->all(), 'connections' => $this->agentConnections->setup($agent)]);
         }
 
         return view('ai-plus.agent-workspace.agents.show', ['agent' => $agent]);
@@ -143,6 +147,7 @@ class AgentController extends Controller
     public function update(UpdateAgentRequest $request, Agent $agent): JsonResponse|RedirectResponse
     {
         $this->authorize('update', $agent);
+        $sharingSettings = $this->sharing->settings($request, $agent);
 
         if ($request->has('connections') || $request->boolean('connections_configured')) {
             $this->agentConnections->validate($request->input('connections', []), $request->user(), $agent);
@@ -156,11 +161,9 @@ class AgentController extends Controller
             'title' => $request->input('title'),
             'description' => $request->input('description'),
             'system_prompt' => $request->input('system_prompt'),
-            'is_shared' => $request->boolean('is_shared'),
-            'sharing_access' => $request->boolean('is_shared') ? $request->input('sharing_access') : 'use_only',
-            'shared_with_team_id' => null,
         ]);
 
+        $this->sharing->save($agent, $sharingSettings);
         if ($request->has('connections') || $request->boolean('connections_configured')) {
             $this->agentConnections->sync($agent, $request->input('connections', []));
         }
@@ -211,9 +214,9 @@ class AgentController extends Controller
             ->with('success', 'Agent deleted successfully.');
     }
 
-    public function avatar(Request $request, Agent $agent)
+    public function avatar(Request $request, Agent $agent): StreamedResponse
     {
-        $canView = $request->user()?->id === $agent->user_id || $agent->is_shared;
+        $canView = $this->sharing->canView($request->user(), $agent);
         abort_unless($canView && $agent->avatar_path, 404);
 
         $disk = Storage::disk('agent-avatars');
@@ -222,6 +225,26 @@ class AgentController extends Controller
         return $disk->response($agent->avatar_path, null, [
             'Cache-Control' => 'private, max-age=86400',
         ]);
+    }
+
+    public function sharingUsers(Request $request): JsonResponse
+    {
+        $data = $request->validate(['q' => ['required', 'string', 'min:2', 'max:100']]);
+        $term = mb_strtolower(trim($data['q']));
+        if (mb_strlen($term) < 2) {
+            return response()->json(['users' => []]);
+        }
+        $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
+        $users = User::query()->where('is_active', true)->where('id', '!=', $request->user()->id)
+            ->where(function ($query) use ($escaped): void {
+                $query->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", ['%'.$escaped.'%'])
+                    ->orWhereRaw("LOWER(email) LIKE ? ESCAPE '!'", ['%'.$escaped.'%']);
+            })
+            ->orderByRaw("CASE WHEN LOWER(email) = ? OR LOWER(name) = ? THEN 0 WHEN LOWER(name) LIKE ? ESCAPE '!' OR LOWER(email) LIKE ? ESCAPE '!' THEN 1 ELSE 2 END", [$term, $term, $escaped.'%', $escaped.'%'])
+            ->orderBy('name')->orderBy('id')->limit(10)
+            ->get(['id', 'name', 'email', 'department']);
+
+        return response()->json(['users' => $users])->header('Cache-Control', 'private, no-store');
     }
 
     public function connectionOptions(Request $request): JsonResponse

@@ -20,7 +20,7 @@ class AgentConnectionService
 
     public function canUse(User $user, Agent $agent): bool
     {
-        return $agent->user_id === $user->id || ($agent->is_shared && $agent->sharing_access !== 'copy');
+        return app(AgentSharingService::class)->canUse($user, $agent);
     }
 
     /** @return Builder<Agent> */
@@ -29,7 +29,10 @@ class AgentConnectionService
         $savedSharedIds = ShowcaseUse::query()->where('user_id', $user->id)
             ->select('showcase_post_id');
 
-        return Agent::query()->where(function (Builder $query) use ($user, $savedSharedIds): void {
+        $query = Agent::query();
+        app(AgentSharingService::class)->constrain($query, $user);
+
+        return $query->where(function (Builder $query) use ($user, $savedSharedIds): void {
             $query->where('user_id', $user->id)
                 ->orWhere(function (Builder $shared) use ($savedSharedIds): void {
                     $shared->where('is_shared', true)->where('sharing_access', '!=', 'copy')
@@ -56,7 +59,7 @@ class AgentConnectionService
             return new Collection;
         }
 
-        return $agent->connectedAgents()->where('agents.id', '!=', $agent->id)->get()
+        return $agent->connectedAgents()->with('sharedRecipients:users.id')->where('agents.id', '!=', $agent->id)->get()
             ->filter(fn (Agent $child): bool => $this->canUse($user, $child))
             ->take((int) config('agent_connections.max_connections', 10))->values();
     }

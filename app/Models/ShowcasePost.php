@@ -2,7 +2,11 @@
 
 namespace App\Models;
 
+use App\Services\AgentSharingService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ShowcasePost extends Model
 {
@@ -19,12 +23,23 @@ class ShowcasePost extends Model
         'uses_count' => 'integer',
     ];
 
+    /** @param Builder<ShowcasePost> $query */
+    public function scopeVisibleTo(Builder $query, User $user): void
+    {
+        $agents = Agent::query();
+        app(AgentSharingService::class)->constrain($agents, $user);
+        $query->where(function (Builder $posts) use ($agents): void {
+            $posts->whereNull('source_agent_id')->orWhereIn('source_agent_id', $agents->select('agents.id'));
+        });
+    }
+
     public function author()
     {
         return $this->belongsTo(User::class, 'author_id');
     }
 
-    public function sourceAgent()
+    /** @return BelongsTo<Agent, $this> */
+    public function sourceAgent(): BelongsTo
     {
         return $this->belongsTo(Agent::class, 'source_agent_id');
     }
@@ -39,7 +54,8 @@ class ShowcasePost extends Model
         return $this->belongsToMany(Tag::class, 'showcase_tags', 'showcase_post_id', 'tag_id');
     }
 
-    public function comments()
+    /** @return HasMany<ShowcaseComment, $this> */
+    public function comments(): HasMany
     {
         return $this->hasMany(ShowcaseComment::class, 'showcase_post_id');
     }

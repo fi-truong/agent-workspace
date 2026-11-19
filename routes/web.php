@@ -87,6 +87,7 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware(['auth', 'ai.policy'])->g
     Route::delete('/agent-workspace/images/{message}', [ChatMessageController::class, 'destroyImage'])->name('agent-workspace.images.destroy');
     Route::get('/agent-workspace/agents', [AgentController::class, 'index'])->name('agent-workspace.agents.index');
     Route::post('/agent-workspace/agents', [AgentController::class, 'store'])->middleware('throttle:agent-upload')->name('agent-workspace.agents.store');
+    Route::get('/agent-workspace/agents/sharing-users', [AgentController::class, 'sharingUsers'])->middleware('throttle:60,1')->name('agent-workspace.agents.sharing-users');
     Route::get('/agent-workspace/agents/connection-options', [AgentController::class, 'connectionOptions'])->name('agent-workspace.agents.connection-options');
     Route::get('/agent-workspace/agents/{agent}/avatar', [AgentController::class, 'avatar'])->name('agent-workspace.agents.avatar');
     Route::get('/agent-workspace/agents/{agent}', [AgentController::class, 'show'])->name('agent-workspace.agents.show');
