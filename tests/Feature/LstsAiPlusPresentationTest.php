@@ -61,3 +61,32 @@ it('loads the Workspace layout only within Workspace pages', function () {
         ->assertSee('css/lsts-agent-workspace.css')
         ->assertSee('<h1>Image Studio</h1>', false);
 });
+
+it('links each full homepage card to its destination', function () {
+    $user = User::factory()->create(['is_active' => true]);
+    $response = $this->actingAs($user)->get(route('ai-plus.index'))->assertOk();
+
+    $document = new DOMDocument;
+    $document->loadHTML($response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+    $xpath = new DOMXPath($document);
+    $cards = $xpath->query('//a[@class="card"][h3 and p and span[@class="cta"]]');
+
+    $destinations = [
+        'ai-plus.agent-workspace.index',
+        'ai-plus.prompt-library.index',
+        'ai-plus.agent-templates.index',
+        'ai-plus.sharing-showcase.index',
+        'ai-plus.support.index',
+        'ai-plus.ai-policy.index',
+        'ai-plus.my-usage.index',
+    ];
+
+    expect($cards->length)->toBe(count($destinations));
+
+    foreach ($cards as $index => $card) {
+        $heading = $xpath->query('./h3', $card)->item(0);
+
+        expect($card->getAttribute('href'))->toBe(route($destinations[$index]))
+            ->and($card->getAttribute('aria-labelledby'))->toBe($heading->getAttribute('id'));
+    }
+});

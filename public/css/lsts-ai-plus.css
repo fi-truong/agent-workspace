@@ -94,14 +94,15 @@
     padding-block: clamp(28px, 4vw, 48px);
 }
 
-.lsts-ai-home .card {
+.lsts-ai-home a.card {
     background: var(--surface);
     border-color: var(--surface-border);
     border-radius: var(--lsts-panel-radius);
     box-shadow: none;
+    text-decoration: none;
 }
 
-.lsts-ai-home .card:hover {
+.lsts-ai-home .card:is(:hover, :focus-visible) {
     transform: none;
     box-shadow: none;
     border-color: var(--navy);

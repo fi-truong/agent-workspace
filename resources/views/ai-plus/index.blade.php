@@ -20,14 +20,14 @@
       <p class="section-desc">Everything you need to build an agent from scratch — or start from something already made.</p>
       <div class="grid cols-3">
         @foreach($createCards as $card)
-        <div class="card">
+        <a class="card" href="{{ $card['url'] }}" aria-labelledby="home-card-{{ $card['icon'] }}">
           <div class="icon">
             @include('partials.lsts-ai-icon', ['name' => match ($card['icon']) {
               'AW' => 'chat', 'PL' => 'book', 'AT' => 'agents', 'SH' => 'users',
               'SU' => 'support', 'PG' => 'policy', 'MU' => 'usage', default => 'file',
             }])
           </div>
-          <h3>{{ $card['title'] }}</h3>
+          <h3 id="home-card-{{ $card['icon'] }}">{{ $card['title'] }}</h3>
           <p>{{ $card['description'] }}</p>
           @if(!empty($card['strip']))
           <div class="strip">
@@ -36,8 +36,8 @@
             @endforeach
           </div>
           @endif
-          <a href="{{ $card['url'] }}" class="cta" style="text-decoration:none;">{{ $card['ctaLabel'] }} <span class="arrow">→</span></a>
-        </div>
+          <span class="cta">{{ $card['ctaLabel'] }} <span class="arrow" aria-hidden="true">→</span></span>
+        </a>
         @endforeach
       </div>
     </div>
@@ -50,14 +50,14 @@
       </div>
       <div class="grid cols-2">
         @foreach($communityCards as $card)
-        <div class="card">
+        <a class="card" href="{{ $card['url'] }}" aria-labelledby="home-card-{{ $card['icon'] }}">
           <div class="icon">
             @include('partials.lsts-ai-icon', ['name' => match ($card['icon']) {
               'AW' => 'chat', 'PL' => 'book', 'AT' => 'agents', 'SH' => 'users',
               'SU' => 'support', 'PG' => 'policy', 'MU' => 'usage', default => 'file',
             }])
           </div>
-          <h3>{{ $card['title'] }}</h3>
+          <h3 id="home-card-{{ $card['icon'] }}">{{ $card['title'] }}</h3>
           <p>{{ $card['description'] }}</p>
           @if(!empty($card['strip']))
           <div class="strip">
@@ -66,8 +66,8 @@
             @endforeach
           </div>
           @endif
-          <a href="{{ $card['url'] }}" class="cta" style="text-decoration:none;">{{ $card['ctaLabel'] }} <span class="arrow">→</span></a>
-        </div>
+          <span class="cta">{{ $card['ctaLabel'] }} <span class="arrow" aria-hidden="true">→</span></span>
+        </a>
         @endforeach
       </div>
     </div>
@@ -80,17 +80,17 @@
       </div>
       <div class="grid cols-2">
         @foreach($guidanceCards as $card)
-        <div class="card">
+        <a class="card" href="{{ $card['url'] }}" aria-labelledby="home-card-{{ $card['icon'] }}">
           <div class="icon">
             @include('partials.lsts-ai-icon', ['name' => match ($card['icon']) {
               'AW' => 'chat', 'PL' => 'book', 'AT' => 'agents', 'SH' => 'users',
               'SU' => 'support', 'PG' => 'policy', 'MU' => 'usage', default => 'file',
             }])
           </div>
-          <h3>{{ $card['title'] }}</h3>
+          <h3 id="home-card-{{ $card['icon'] }}">{{ $card['title'] }}</h3>
           <p>{{ $card['description'] }}</p>
-          <a href="{{ $card['url'] }}" class="cta" style="text-decoration:none;">{{ $card['ctaLabel'] }} <span class="arrow">→</span></a>
-        </div>
+          <span class="cta">{{ $card['ctaLabel'] }} <span class="arrow" aria-hidden="true">→</span></span>
+        </a>
         @endforeach
       </div>
     </div>
