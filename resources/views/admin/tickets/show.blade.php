@@ -8,7 +8,7 @@
     <div style="padding:24px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--line);">
             <div>
-                <h2 style="font-family:'Fraunces',serif;font-size:22px;margin:0 0 8px;">{{ $ticket->subject }}</h2>
+                <h2 style="font-family:var(--lsts-font);font-size:22px;margin:0 0 8px;">{{ $ticket->subject }}</h2>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:15px;color:var(--ink-soft);">
                     <span><strong>User:</strong> {{ $ticket->user?->name ?? $ticket->name }} ({{ $ticket->user?->email ?? $ticket->email }})</span>
                     <span><strong>Created:</strong> {{ $ticket->created_at->format('d/m/Y H:i') }}</span>
@@ -31,7 +31,7 @@
         </div>
 
         <div style="border-top:1px solid var(--line);padding-top:24px;margin-bottom:24px;">
-            <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:0 0 14px;">Conversation</h3>
+            <h3 style="font-family:var(--lsts-font);font-size:16px;margin:0 0 14px;">Conversation</h3>
             <div style="display:grid;gap:12px;">
                 <div style="border:1px solid var(--line);border-radius:8px;padding:14px;background:var(--paper);">
                     <div style="font-size:14px;color:var(--ink-soft);margin-bottom:7px;"><strong>{{ $ticket->name }}</strong> · {{ $ticket->created_at->format('d/m/Y H:i') }}</div>
@@ -87,7 +87,7 @@
         </div>
 
         <div style="border-top:1px solid var(--line);padding-top:24px;">
-            <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:0 0 8px;">Public reply</h3>
+            <h3 style="font-family:var(--lsts-font);font-size:16px;margin:0 0 8px;">Public reply</h3>
             <p class="text-muted" style="margin:0 0 14px;">The requester can read this in My Support Requests. No email will be sent.</p>
             <form action="{{ route('admin.tickets.replies.store', $ticket) }}" method="POST" enctype="multipart/form-data" style="margin-bottom:24px;" data-public-reply-form>
                 @csrf
@@ -112,7 +112,7 @@
             </form>
 
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                <h3 style="font-family:'Fraunces',serif;font-size:16px;margin:0;">Admin Notes</h3>
+                <h3 style="font-family:var(--lsts-font);font-size:16px;margin:0;">Admin Notes</h3>
             </div>
             <form action="{{ route('admin.tickets.notes', $ticket) }}" method="POST" id="notesForm">
                 @csrf @method('PATCH')

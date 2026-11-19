@@ -170,7 +170,7 @@
   }
   .back-link a:hover { color: var(--page-header-accent); }
   .page-header h1 {
-    font-family: 'Fraunces', serif;
+    font-family: var(--lsts-font);
     font-weight: 600;
     font-size: clamp(28px, 4vw, 40px);
     margin-bottom: 20px;
@@ -216,7 +216,7 @@
   }
   .post-stats .stat.date {
     color: var(--page-header-accent);
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: var(--lsts-font);
   }
   .post-badge {
     display: inline-block;
@@ -299,7 +299,7 @@
   }
 
   .comments-section h2 {
-    font-family: 'Fraunces', serif;
+    font-family: var(--lsts-font);
     font-size: 22px;
     font-weight: 600;
     color: var(--section-title);
@@ -406,7 +406,7 @@
     padding: 24px;
   }
   .sidebar-card h3 {
-    font-family: 'Fraunces', serif;
+    font-family: var(--lsts-font);
     font-size: 18px;
     font-weight: 600;
     color: var(--section-title);
@@ -453,7 +453,7 @@
   .stats-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
   .stats-list li { display: flex; justify-content: space-between; align-items: center; }
   .stat-label { font-size: 16px; color: var(--text-soft); }
-  .stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; color: var(--section-title); }
+  .stat-value { font-family: var(--lsts-font); font-size: 20px; font-weight: 600; color: var(--section-title); }
 
   @media (max-width: 900px) {
     .post-layout { grid-template-columns: 1fr; }

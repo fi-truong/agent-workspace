@@ -5,7 +5,7 @@
     <title>Sign in — LSTS AI+</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     @include('partials.favicon')
-    <!-- Fonts are self-hosted via @font-face in ai-plus.css -->
+    @include('partials.lsts-typography')
     <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}?v={{ filemtime(public_path('css/ai-plus.css')) }}">
     <link rel="stylesheet" href="{{ asset('css/lsts-ai-plus.css') }}?v={{ filemtime(public_path('css/lsts-ai-plus.css')) }}">
 </head>

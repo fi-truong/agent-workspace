@@ -17,7 +17,7 @@
 
     const header = document.createElement('h2');
     header.textContent = title;
-    header.style.cssText = `margin:0;padding:20px 24px;border-bottom:1px solid var(--line,#E1DACB);font:600 20px Fraunces,Georgia,serif;color:${tone === 'danger' ? '#b42318' : 'var(--navy,#1F3864)'};`;
+    header.style.cssText = `margin:0;padding:20px 24px;border-bottom:1px solid var(--line,#E1DACB);font:600 20px var(--lsts-font);color:${tone === 'danger' ? '#b42318' : 'var(--navy,#1F3864)'};`;
     box.appendChild(header);
     return box;
   }

@@ -83,27 +83,27 @@
         <div class="template-card" data-category="{{ $template['category'] ?? '' }}" data-id="{{ $template['id'] }}" data-uses="{{ $template['uses'] ?? 0 }}">
           <div class="template-preview {{ $template['preview_class'] ?? '' }}">
             <div class="template-icon">{{ $template['icon'] }}</div>
-            @if($template['is_shared_agent'])
-            <span class="template-badge">Team shared</span>
-            @elseif($template['badge'])
-            <span class="template-badge">{{ $template['badge'] }}</span>
-            @endif
           </div>
           <div class="template-body">
             <h3 class="template-title">{{ $template['title'] }}</h3>
             <p class="template-desc">{{ $template['description'] }}</p>
             <div class="template-category-path">{{ $categoryGroups[$template['category_group']] ?? $template['category_group'] }} <span>›</span> {{ $categoryLabels[$template['category']] ?? $template['category'] }}</div>
+            @if($template['is_shared_agent'])
+            <span class="template-badge">Team shared</span>
+            @elseif($template['badge'])
+            <span class="template-badge">{{ $template['badge'] }}</span>
+            @endif
             <div class="template-features">
               @foreach($template['features'] as $feature)
               <span class="feature-tag">{{ $feature }}</span>
               @endforeach
             </div>
-            <div class="template-footer">
-              <form method="POST" action="{{ route('ai-plus.agent-templates.use', $template['id']) }}">
-                @csrf
-                <button type="submit" class="use-btn" data-template-id="{{ $template['id'] }}">Use Template</button>
-              </form>
-            </div>
+          </div>
+          <div class="template-footer">
+            <form method="POST" action="{{ route('ai-plus.agent-templates.use', $template['id']) }}">
+              @csrf
+              <button type="submit" class="use-btn" data-template-id="{{ $template['id'] }}">Use Template</button>
+            </form>
           </div>
         </div>
         @endforeach
@@ -127,7 +127,7 @@
     padding: 48px 0 56px;
   }
   .page-header h1 {
-    font-family: 'Fraunces', serif;
+    font-family: var(--lsts-font);
     font-weight: 600;
     font-size: clamp(32px, 4vw, 44px);
     margin-bottom: 12px;
@@ -297,7 +297,7 @@
     padding: 4px 10px;
     border-radius: 6px;
     font-size: 13px;
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: var(--lsts-font);
     color: #fff;
   }
 
@@ -308,7 +308,7 @@
     flex: 1;
   }
   .template-title {
-    font-family: 'Fraunces', serif;
+    font-family: var(--lsts-font);
     font-size: 18px;
     font-weight: 600;
     color: var(--text-main);

@@ -10,7 +10,7 @@
 
 <section class="table-section" style="max-width:760px;">
   <div class="table-toolbar">
-    <h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Homepage visibility</h3>
+    <h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Homepage visibility</h3>
   </div>
   <form method="POST" action="{{ route('admin.ai-plus-guide.update') }}" style="padding:24px;">
     @csrf

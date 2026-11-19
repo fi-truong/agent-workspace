@@ -5,16 +5,28 @@ import { chromium } from 'playwright';
 
 const read = (path) =>
     readFile(new URL('../../' + path, import.meta.url), 'utf8');
-const [base, image, presentation, workspace, agents, chat, themes] =
-    await Promise.all([
-        read('public/css/ai-plus.css'),
-        read('public/css/image-workspace.css'),
-        read('public/css/lsts-ai-plus.css'),
-        read('public/css/lsts-agent-workspace.css'),
-        read('resources/views/ai-plus/agent-workspace/agents/index.blade.php'),
-        read('resources/views/ai-plus/agent-workspace/index.blade.php'),
-        read('resources/views/partials/theme-switcher.blade.php'),
-    ]);
+const [
+    typography,
+    aiPlus,
+    image,
+    presentation,
+    workspace,
+    sections,
+    agents,
+    chat,
+    themes,
+] = await Promise.all([
+    read('public/css/lsts-typography.css'),
+    read('public/css/ai-plus.css'),
+    read('public/css/image-workspace.css'),
+    read('public/css/lsts-ai-plus.css'),
+    read('public/css/lsts-agent-workspace.css'),
+    read('public/css/lsts-ai-sections.css'),
+    read('resources/views/ai-plus/agent-workspace/agents/index.blade.php'),
+    read('resources/views/ai-plus/agent-workspace/index.blade.php'),
+    read('resources/views/partials/theme-switcher.blade.php'),
+]);
+const base = typography + aiPlus;
 const styles = (markup) =>
     [...markup.matchAll(/<style>([\s\S]*?)<\/style>/g)]
         .map((match) => match[1])
@@ -49,7 +61,7 @@ test('lays out Agent records in rows and keeps actions inside them at narrow wid
     const actions = page.locator('.agent-actions');
     assert.match(
         await title.evaluate((element) => getComputedStyle(element).fontFamily),
-        /^system-ui/,
+        /^Inter/,
     );
     assert.ok((await title.boundingBox()).x < (await actions.boundingBox()).x);
 
@@ -172,5 +184,194 @@ test('aligns Chat messages and the composer and uses vertical navigation on desk
         const composer = await page.locator('.input-wrapper').boundingBox();
         assert.ok(Math.abs(reply.x - composer.x) < 1);
         assert.ok(Math.abs(reply.width - composer.width) < 1);
+    }
+});
+
+test('renders Vietnamese headings and controls with the same bundled Inter font', async (t) => {
+    const page = await pageFor(t, 1024);
+    const font = await readFile(
+        new URL('../../public/fonts/inter-var.woff2', import.meta.url),
+    );
+    await page.route('https://lsts.test/fonts/inter-var.woff2?*', (route) =>
+        route.fulfill({ contentType: 'font/woff2', body: font }),
+    );
+    await page.route('https://lsts.test/css/lsts-typography.css', (route) =>
+        route.fulfill({ contentType: 'text/css', body: typography }),
+    );
+    await page.route('https://lsts.test/', (route) =>
+        route.fulfill({
+            contentType: 'text/html; charset=utf-8',
+            body:
+                '<link rel="stylesheet" href="/css/lsts-typography.css"><body class="lsts-ai-ui">' +
+                '<h1>Chính sách và Hướng dẫn sử dụng AI</h1><button>Tiếng Việt</button></body>',
+        }),
+    );
+
+    await page.goto('https://lsts.test/');
+    await page.evaluate(() => document.fonts.ready);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('DOM.enable');
+    await cdp.send('CSS.enable');
+    const { root } = await cdp.send('DOM.getDocument');
+
+    for (const selector of ['h1', 'button']) {
+        const { nodeId } = await cdp.send('DOM.querySelector', {
+            nodeId: root.nodeId,
+            selector,
+        });
+        const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', {
+            nodeId,
+        });
+        assert.equal(fonts.length, 1);
+        assert.match(fonts[0].familyName, /^Inter/);
+        assert.equal(fonts[0].isCustomFont, true);
+    }
+});
+
+test('keeps section navigation and catalog rows usable across mobile and desktop', async (t) => {
+    const page = await pageFor(t, 1440);
+    const prompts = await read(
+        'resources/views/ai-plus/prompt-library/index.blade.php',
+    );
+    await page.setContent(
+        '<style>' +
+            base +
+            styles(prompts) +
+            presentation +
+            sections +
+            '</style>' +
+            '<body class="lsts-ai-ui lsts-ai-catalog"><div class="lsts-section-shell">' +
+            '<aside class="lsts-section-sidebar"><nav class="lsts-section-nav">' +
+            '<a href="#">Agent Workspace</a><a href="#" aria-current="page">Prompt Library</a>' +
+            '<a href="#">AI Policy &amp; Guidelines</a></nav></aside>' +
+            '<div class="lsts-section-content"><header class="page-header"><div class="wrap"><h1>Prompt Library</h1></div></header>' +
+            '<main class="content"><div class="wrap"><div class="prompt-grid"><article class="prompt-card">' +
+            '<div class="prompt-summary"><h2 class="prompt-title">Plan an interdisciplinary lesson</h2></div>' +
+            '<div class="prompt-content"><p class="prompt-preview">A topic and measurable outcomes</p>' +
+            '<details class="prompt-details"><summary>View full prompt</summary><div class="prompt-full-text">Specify context and the desired output.</div></details></div>' +
+            '<div class="prompt-footer"><button class="copy-btn">Copy Prompt</button></div>' +
+            '</article></div></div></main></div></div></body>',
+    );
+
+    const nav = page.locator('.lsts-section-nav');
+    const heading = page.getByRole('heading', { name: 'Prompt Library' });
+    const summary = page.locator('.prompt-summary');
+    const copy = page.getByRole('button', { name: 'Copy Prompt' });
+    assert.ok((await nav.boundingBox()).x < (await heading.boundingBox()).x);
+    assert.ok((await summary.boundingBox()).x < (await copy.boundingBox()).x);
+
+    await page.setViewportSize({ width: 360, height: 780 });
+    const navBox = await nav.boundingBox();
+    assert.ok(navBox.y + navBox.height <= (await heading.boundingBox()).y);
+    assert.ok((await summary.boundingBox()).y < (await copy.boundingBox()).y);
+    await page.getByText('View full prompt').click();
+    assert.equal(await page.locator('.prompt-preview').isVisible(), false);
+    assert.equal(
+        await page
+            .getByText('Specify context and the desired output.')
+            .isVisible(),
+        true,
+    );
+    assert.equal(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+        360,
+    );
+});
+
+test('reflows the template, showcase, policy, support and usage layouts on mobile', async (t) => {
+    const page = await pageFor(t, 1440);
+    const cases = [
+        {
+            view: 'agent-templates/index',
+            screen: 'catalog',
+            content:
+                '<div class="template-grid"><article class="template-card"><div class="template-preview">T</div>' +
+                '<div class="template-body"><h3 class="template-title">Classroom Planner</h3><p>Describe an activity.</p></div>' +
+                '<div class="template-footer"><button class="use-btn">Use Template</button></div></article></div>',
+            left: '.template-body',
+            right: '.template-footer',
+        },
+        {
+            view: 'sharing-showcase/index',
+            screen: 'catalog',
+            content:
+                '<div class="showcase-grid"><article class="showcase-card"><div class="showcase-header">Teaching Team</div>' +
+                '<div class="showcase-body"><h2>Planning a school activity</h2><a class="view-btn" href="#">View Details</a></div></article></div>',
+            left: '.showcase-header',
+            right: '.showcase-body',
+        },
+        {
+            view: 'ai-policy/index',
+            screen: 'document',
+            content:
+                '<div class="wrap policy-reading-layout"><nav class="toc-nav"><div class="wrap"><div class="toc-links">' +
+                '<a class="toc-link" href="#overview-vi">Tổng quan</a></div></div></nav><main class="content"><div class="wrap">' +
+                '<section class="section" id="overview-vi"><h2>Tổng quan</h2></section></div></main></div>',
+            left: '.policy-reading-layout .content',
+            right: '.toc-nav',
+            rightFirstOnMobile: true,
+        },
+        {
+            view: 'support/index',
+            screen: 'document',
+            content:
+                '<div class="wrap support-grid"><div class="faq-section"><h2>Frequently Asked Questions</h2></div>' +
+                '<div class="contact-section"><h2>Submit a Request</h2><input class="form-input" aria-label="Subject"></div></div>',
+            left: '.faq-section',
+            right: '.contact-section',
+        },
+        {
+            view: 'my-usage/index',
+            screen: 'document',
+            content:
+                '<div class="two-col"><div class="activity-section"><h2>Recent Activity</h2></div>' +
+                '<div class="top-tasks"><h2>Top Task Types</h2></div></div>',
+            left: '.activity-section',
+            right: '.top-tasks',
+        },
+    ];
+
+    for (const {
+        view,
+        screen,
+        content,
+        left,
+        right,
+        rightFirstOnMobile,
+    } of cases) {
+        const markup = await read(`resources/views/ai-plus/${view}.blade.php`);
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.setContent(
+            '<style>' +
+                base +
+                styles(markup) +
+                presentation +
+                sections +
+                '</style>' +
+                `<body class="lsts-ai-ui lsts-ai-${screen}"><div class="lsts-section-shell"><aside class="lsts-section-sidebar"></aside>` +
+                `<div class="lsts-section-content">${content}</div></div></body>`,
+        );
+
+        const leftPanel = page.locator(left);
+        const rightPanel = page.locator(right);
+        assert.ok(
+            (await leftPanel.boundingBox()).x <
+                (await rightPanel.boundingBox()).x,
+            view,
+        );
+
+        await page.setViewportSize({ width: 360, height: 780 });
+        const [first, second] = rightFirstOnMobile
+            ? [rightPanel, leftPanel]
+            : [leftPanel, rightPanel];
+        assert.ok(
+            (await first.boundingBox()).y < (await second.boundingBox()).y,
+            view,
+        );
+        assert.equal(
+            await page.evaluate(() => document.documentElement.scrollWidth),
+            360,
+            view,
+        );
     }
 });

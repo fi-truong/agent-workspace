@@ -1,10 +1,21 @@
 <!DOCTYPE html>
+@php
+  $usesSectionNavigation = request()->routeIs(
+    'ai-plus.prompt-library.*',
+    'ai-plus.agent-templates.*',
+    'ai-plus.sharing-showcase.*',
+    'ai-plus.support.*',
+    'ai-plus.ai-policy.*',
+    'ai-plus.my-usage.*',
+  );
+@endphp
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>@yield('title', 'LSTS AI+')</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 @include('partials.favicon')
+@include('partials.lsts-typography')
 <script>
   // Áp dụng theme đã lưu NGAY LẬP TỨC, tránh nháy màu sai lúc đầu load trang
   (function(){
@@ -14,12 +25,14 @@
     }
   })();
 </script>
-<!-- Fonts are self-hosted via @font-face in ai-plus.css -->
 <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}?v={{ filemtime(public_path('css/ai-plus.css')) }}">
 @stack('styles')
 <link rel="stylesheet" href="{{ asset('css/lsts-ai-plus.css') }}?v={{ filemtime(public_path('css/lsts-ai-plus.css')) }}">
 @if(request()->routeIs('ai-plus.agent-workspace.*'))
 <link rel="stylesheet" href="{{ asset('css/lsts-agent-workspace.css') }}?v={{ filemtime(public_path('css/lsts-agent-workspace.css')) }}">
+@endif
+@if($usesSectionNavigation)
+<link rel="stylesheet" href="{{ asset('css/lsts-ai-sections.css') }}?v={{ filemtime(public_path('css/lsts-ai-sections.css')) }}">
 @endif
 <meta name="csrf-token" content="{{ csrf_token() }}">
 @include('partials.session-timeout-monitor')
@@ -54,7 +67,16 @@
 </div>
 @endif
 
-@yield('content')
+@if($usesSectionNavigation)
+<div class="lsts-section-shell">
+  @include('partials.lsts-section-navigation')
+  <div class="lsts-section-content">
+    @yield('content')
+  </div>
+</div>
+@else
+  @yield('content')
+@endif
 
 @include('partials.theme-switcher')
 <script src="{{ asset('js/web-dialogs.js') }}?v={{ filemtime(public_path('js/web-dialogs.js')) }}"></script>

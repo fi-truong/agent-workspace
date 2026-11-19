@@ -651,7 +651,7 @@ document.addEventListener('DOMContentLoaded', function () {
       box.style.cssText = 'background:var(--card-bg,#fff);border-radius:16px;width:100%;max-width:400px;box-shadow:0 24px 48px -12px rgba(31,56,100,0.35);overflow:hidden;';
 
       const header = document.createElement('div');
-      header.style.cssText = 'padding:20px 24px;border-bottom:1px solid var(--line,#E1DACB);font-family:Fraunces,serif;font-size:20px;font-weight:600;color:var(--navy,#1F3864);';
+      header.style.cssText = 'padding:20px 24px;border-bottom:1px solid var(--line,#E1DACB);font-family:var(--lsts-font);font-size:20px;font-weight:600;color:var(--navy,#1F3864);';
       header.textContent = title;
       box.appendChild(header);
 
@@ -695,7 +695,7 @@ document.addEventListener('DOMContentLoaded', function () {
       box.style.cssText = 'background:var(--card-bg,#fff);border-radius:16px;width:100%;max-width:400px;box-shadow:0 24px 48px -12px rgba(31,56,100,0.35);overflow:hidden;';
 
       const header = document.createElement('div');
-      header.style.cssText = 'padding:20px 24px;border-bottom:1px solid var(--line,#E1DACB);font-family:Fraunces,serif;font-size:20px;font-weight:600;color:#b42318;';
+      header.style.cssText = 'padding:20px 24px;border-bottom:1px solid var(--line,#E1DACB);font-family:var(--lsts-font);font-size:20px;font-weight:600;color:#b42318;';
       header.textContent = title;
 
       const body = document.createElement('div');

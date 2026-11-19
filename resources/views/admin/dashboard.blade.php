@@ -37,7 +37,7 @@
 
 <div class="table-section" style="margin-top:24px;">
     <div class="table-toolbar">
-        <h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Recent Admin Activity</h3>
+        <h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Recent Admin Activity</h3>
     </div>
     <div style="padding:0 20px 12px;">
         @forelse($recentActivity as $activity)
@@ -53,7 +53,7 @@
 
 <div class="table-section">
     <div class="table-toolbar">
-        <h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Quick Actions</h3>
+        <h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Quick Actions</h3>
     </div>
     <div style="padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
         <a href="{{ route('admin.prompts.create') }}" class="btn-primary" style="justify-content:center;text-align:center;">+ Add Prompt</a>

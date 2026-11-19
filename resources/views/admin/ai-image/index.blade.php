@@ -7,7 +7,7 @@
 @if(session('success'))<div class="alert-success">{{ session('success') }}</div>@endif
 @if($errors->any())<div class="alert-error">{{ $errors->first() }}</div>@endif
 <section class="table-section" style="max-width:760px;">
-  <div class="table-toolbar"><h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Workspace visibility</h3></div>
+  <div class="table-toolbar"><h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Workspace visibility</h3></div>
   <form method="POST" action="{{ route('admin.ai-image.update') }}" style="padding:24px;">@csrf @method('PUT')
     <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
       <input type="hidden" name="enabled" value="0"><input type="checkbox" name="enabled" value="1" {{ $enabled ? 'checked' : '' }} style="width:18px;height:18px;margin-top:2px;">

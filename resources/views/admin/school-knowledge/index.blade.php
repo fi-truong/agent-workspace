@@ -16,7 +16,7 @@
 @if($errors->any())<div class="alert-error">{{ $errors->first() }}</div>@endif
 
 <section class="table-section" style="max-width:960px;">
-  <div class="table-toolbar"><h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Global availability</h3></div>
+  <div class="table-toolbar"><h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Global availability</h3></div>
   <form method="POST" action="{{ route('admin.school-knowledge.update') }}" style="padding:22px 24px;">@csrf @method('PUT')
     <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
       <input type="hidden" name="enabled" value="0"><input type="checkbox" name="enabled" value="1" {{ $enabled ? 'checked' : '' }} style="width:18px;height:18px;margin-top:2px;">
@@ -28,7 +28,7 @@
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-top:22px;max-width:960px;">
   <section class="table-section">
-    <div class="table-toolbar"><h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Official LSTS website</h3></div>
+    <div class="table-toolbar"><h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Official LSTS website</h3></div>
     <form method="POST" action="{{ route('admin.school-knowledge.website') }}" style="padding:22px 24px;">@csrf
       <p class="text-muted" style="margin-top:0;line-height:1.5;">Add a public HTTPS page from <code>lsts.edu.vn</code>. Only this domain is accepted, and it is read with the same safe web-reader limits as LSTS AI+ chat.</p>
       <label style="display:block;font-weight:600;">Page URL<input name="url" type="url" required placeholder="https://lsts.edu.vn/en/..." style="width:100%;box-sizing:border-box;margin-top:7px;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--card-bg);"></label>
@@ -43,7 +43,7 @@
     </div>
   </section>
   <section class="table-section">
-    <div class="table-toolbar"><h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Upload school documents</h3></div>
+    <div class="table-toolbar"><h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Upload school documents</h3></div>
     <form method="POST" action="{{ route('admin.school-knowledge.upload') }}" enctype="multipart/form-data" style="padding:22px 24px;">@csrf
       <p class="text-muted" style="margin-top:0;line-height:1.5;">Up to 10 documents at once, 5 MB each and 25 MB total. Supported: {{ strtoupper(implode(', ', $allowedExtensions)) }}. Uploaded files remain private.</p>
       <input name="documents[]" type="file" multiple required accept="{{ collect($allowedExtensions)->map(fn ($extension) => '.'.$extension)->implode(',') }}" style="width:100%;">
@@ -53,7 +53,7 @@
 </div>
 
 <section class="table-section" style="margin-top:22px;max-width:1120px;">
-  <div class="table-toolbar"><h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Indexed sources <span class="text-muted" style="font-family:inherit;font-size:16px;font-weight:400;">({{ $sources->count() }})</span></h3></div>
+  <div class="table-toolbar"><h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Indexed sources <span class="text-muted" style="font-family:inherit;font-size:16px;font-weight:400;">({{ $sources->count() }})</span></h3></div>
   @if($sources->isEmpty())
     <div style="padding:30px 24px;" class="text-muted">No shared sources yet. Add an official LSTS page or upload an approved school document.</div>
   @else

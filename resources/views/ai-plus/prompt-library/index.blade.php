@@ -69,23 +69,27 @@
     <div class="prompt-grid" id="prompt-grid">
       @foreach($prompts as $prompt)
       <div class="prompt-card" data-subject="{{ $prompt['badges'][0] ?? '' }}">
-        <div class="prompt-header">
-          <div class="prompt-title">{{ $prompt['title'] }}</div>
-          <div class="prompt-badges">
-            @foreach($prompt['badges'] as $badge)
-            <span class="badge {{ strtolower($badge) == 'new' ? 'new' : (strtolower($badge) == 'admin' || strtolower($badge) == 'counseling' || strtolower($badge) == 'ciec' ? 'role' : 'subject') }}">{{ $badge }}</span>
-            @endforeach
+        <div class="prompt-summary">
+          <div class="prompt-header">
+            <h3 class="prompt-title">{{ $prompt['title'] }}</h3>
+            <div class="prompt-badges">
+              @foreach($prompt['badges'] as $badge)
+              <span class="badge {{ strtolower($badge) == 'new' ? 'new' : (strtolower($badge) == 'admin' || strtolower($badge) == 'counseling' || strtolower($badge) == 'ciec' ? 'role' : 'subject') }}">{{ $badge }}</span>
+              @endforeach
+            </div>
           </div>
+          <p class="prompt-desc">{{ $prompt['description'] }}</p>
+          @if($prompt['category_group'] && $prompt['category'])
+          <div class="prompt-category-path">{{ $categoryGroups[$prompt['category_group']] ?? $prompt['category_group'] }} <span>›</span> {{ $catalogCategories[$prompt['category_group']][$prompt['category']] ?? $prompt['category'] }}</div>
+          @endif
         </div>
-        <p class="prompt-desc">{{ $prompt['description'] }}</p>
-        @if($prompt['category_group'] && $prompt['category'])
-        <div class="prompt-category-path">{{ $categoryGroups[$prompt['category_group']] ?? $prompt['category_group'] }} <span>›</span> {{ $catalogCategories[$prompt['category_group']][$prompt['category']] ?? $prompt['category'] }}</div>
-        @endif
-        <div class="prompt-preview">{{ $prompt['preview'] }}</div>
-        <details class="prompt-details">
-          <summary>View full prompt</summary>
-          <div class="prompt-full-text">{{ $prompt['preview'] }}</div>
-        </details>
+        <div class="prompt-content">
+          <div class="prompt-preview">{{ $prompt['preview'] }}</div>
+          <details class="prompt-details">
+            <summary>View full prompt</summary>
+            <div class="prompt-full-text">{{ $prompt['preview'] }}</div>
+          </details>
+        </div>
         <div class="prompt-footer">
           <button class="copy-btn" data-prompt="{{ $prompt['preview'] }}">Copy Prompt</button>
         </div>
@@ -113,11 +117,11 @@
 @push('styles')
 <style>
   .page-header{background: var(--page-header-bg);color:var(--page-header-text);padding: 48px 0 56px;}
-  .page-header h1{font-family:'Fraunces', serif;font-weight:600;font-size: clamp(32px, 4vw, 44px);margin-bottom:12px;}
+  .page-header h1{font-family:var(--lsts-font);font-weight:600;font-size: clamp(32px, 4vw, 44px);margin-bottom:12px;}
   .page-header p{color:var(--page-header-muted);font-size:18px;line-height:1.6;max-width:680px;}
   .stats-bar{display:flex;gap:32px;margin-top:24px;}
   .stat{text-align:center;}
-  .stat-num{font-family:'Fraunces', serif;font-size:28px;font-weight:600;color: var(--page-header-stat);}
+  .stat-num{font-family:var(--lsts-font);font-size:28px;font-weight:600;color: var(--page-header-stat);}
   .stat-label{font-size:16px;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.05em;}
 
   .filters-section{background: var(--surface);border-bottom:1px solid var(--surface-border);padding:20px 0;position:sticky;top:0;z-index:10;}
@@ -137,8 +141,8 @@
   .filter-btn.active{background: var(--chip-active-bg);color:var(--chip-active-text);border-color:var(--chip-active-bg);}
 
   .content{padding:32px 0 48px;}
-  .section-title{font-family:'Fraunces', serif;font-size:24px;font-weight:600;color: var(--section-title);margin-bottom:20px;display:flex;align-items:center;gap:10px;}
-  .section-title .count{font-family:'IBM Plex Mono', monospace;font-size:16px;color: var(--text-soft);font-weight:400;}
+  .section-title{font-family:var(--lsts-font);font-size:24px;font-weight:600;color: var(--section-title);margin-bottom:20px;display:flex;align-items:center;gap:10px;}
+  .section-title .count{font-family:var(--lsts-font);font-size:16px;color: var(--text-soft);font-weight:400;}
 
   .prompt-grid{display:grid;grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));gap:20px;align-items:start;}
   .prompt-card{background: var(--surface);border:1px solid var(--surface-border);border-radius:12px;padding:20px;transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;}
@@ -146,14 +150,14 @@
   .prompt-header{display:flex;flex-direction:column;gap:10px;align-items:flex-start;margin-bottom:12px;}
   .prompt-title{font-weight:600;font-size:20px;line-height:1.35;color: var(--text-main);}
   .prompt-badges{display:flex;gap:6px;flex-wrap:wrap;}
-  .badge{font-family:'IBM Plex Mono', monospace;font-size:14px;padding:4px 9px;border-radius:4px;text-transform:uppercase;letter-spacing:0.03em;}
+  .badge{font-family:var(--lsts-font);font-size:14px;padding:4px 9px;border-radius:4px;text-transform:uppercase;letter-spacing:0.03em;}
   .badge.subject{background:var(--brand-badge-bg);color:var(--brand-badge-text);}
   .badge.role{background:var(--brand-badge-bg);color:var(--brand-badge-text);}
   .badge.new{background:var(--sage-badge-bg);color:var(--sage-badge-text);}
   .prompt-desc{font-size:16px;color: var(--text-soft);margin-bottom:16px;line-height:1.6;}
   .prompt-category-path{font-size:15px;font-weight:600;color:var(--sage);margin:-8px 0 12px;}
   .prompt-category-path span{padding:0 4px;color:var(--text-soft);}
-  .prompt-preview{background: var(--input-bg);border:1px solid var(--input-border);border-radius:8px;padding:12px;font-family:'IBM Plex Mono', monospace;font-size:16px;line-height:1.55;color: var(--text-soft);margin-bottom:16px;max-height:96px;overflow:hidden;position:relative;}
+  .prompt-preview{background: var(--input-bg);border:1px solid var(--input-border);border-radius:8px;padding:12px;font-family:var(--lsts-font);font-size:16px;line-height:1.55;color: var(--text-soft);margin-bottom:16px;max-height:96px;overflow:hidden;position:relative;}
   .prompt-preview::after{content:"";position:absolute;bottom:0;left:0;right:0;height:30px;background: linear-gradient(transparent, var(--input-bg));}
   .prompt-details{margin-bottom:16px;font-size:17px;color:var(--text-main);}
   .prompt-details summary{cursor:pointer;font-weight:600;color:var(--sage);}
@@ -165,7 +169,7 @@
 
   .empty-state{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;background: var(--surface);border:1px solid var(--surface-border);border-radius:14px;}
   .empty-icon{font-size:48px;margin-bottom:16px;}
-  .empty-state h3{font-family:'Fraunces', serif;font-size:22px;color:var(--text-main);margin-bottom:8px;}
+  .empty-state h3{font-family:var(--lsts-font);font-size:22px;color:var(--text-main);margin-bottom:8px;}
   .empty-state p{color:var(--text-soft);margin-bottom:24px;}
 
   @media (max-width: 700px){

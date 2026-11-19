@@ -6,7 +6,7 @@
 @section('content')
 @if(session('success'))<div class="alert-success">{{ session('success') }}</div>@endif
 <section class="table-section" style="max-width:1100px;">
-  <div class="table-toolbar"><h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Monitoring mode</h3></div>
+  <div class="table-toolbar"><h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Monitoring mode</h3></div>
   <form method="POST" action="{{ route('admin.work-use.update') }}" style="padding:24px;">@csrf @method('PUT')
     <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
       <input type="hidden" name="enabled" value="0"><input type="checkbox" name="enabled" value="1" {{ $enabled ? 'checked' : '' }} style="width:18px;height:18px;margin-top:2px;">
@@ -24,7 +24,7 @@
 </section>
 
 <section class="table-section" style="margin-top:24px;max-width:1100px;">
-  <div class="table-toolbar"><h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Review queue</h3><span class="text-muted">Prompt contents are not stored here. Events expire after 180 days.</span></div>
+  <div class="table-toolbar"><h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Review queue</h3><span class="text-muted">Prompt contents are not stored here. Events expire after 180 days.</span></div>
   <div class="table-wrap"><table><thead><tr><th>User</th><th>Feature</th><th>Scope</th><th>Safety</th><th>Action</th><th>Time</th></tr></thead><tbody>
     @forelse($events as $event)
       <tr><td><strong>{{ $event->user?->name ?? 'Deleted user' }}</strong><br><small class="text-muted">{{ $event->user?->email }}</small></td><td>{{ str($event->feature)->headline() }}</td><td><span class="badge {{ $event->classification === 'school_work' ? 'published' : 'draft' }}">{{ str($event->classification)->replace('_', ' ')->title() }}</span></td><td>{{ $event->moderation_flagged ? 'Flagged'.($event->category ? ': '.$event->category : '') : 'Clear' }}</td><td>{{ str($event->action)->title() }}</td><td>{{ $event->created_at->format('d M Y, H:i') }}</td></tr>

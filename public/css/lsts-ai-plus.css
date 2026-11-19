@@ -17,9 +17,7 @@
 
 .lsts-ai-ui .lsts-wordmark {
     color: inherit;
-    font:
-        600 19px/1.2 'Fraunces',
-        serif;
+    font: 600 19px/1.2 var(--lsts-font);
     white-space: nowrap;
 }
 
@@ -585,9 +583,7 @@
 
 .lsts-access-card h1 {
     margin: 16px 0 8px;
-    font:
-        600 clamp(26px, 5vw, 38px)/1.15 'Fraunces',
-        serif;
+    font: 600 clamp(26px, 5vw, 38px)/1.15 var(--lsts-font);
 }
 
 .lsts-access-card p {

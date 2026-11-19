@@ -40,7 +40,7 @@
 <style>
 .account-page { max-width: 480px; margin: 0 auto; padding: 40px 24px; }
 .account-card { background: var(--card-bg); border: 1px solid var(--line); border-radius: 16px; padding: 28px 32px; }
-.account-title { font-family: 'Fraunces', serif; font-size: 26px; color: var(--navy); margin: 0 0 6px; }
+.account-title { font-family: var(--lsts-font); font-size: 26px; color: var(--navy); margin: 0 0 6px; }
 .account-sub { color: var(--ink-soft); margin: 0 0 24px; font-size: 16px; }
 #password-form { display: flex; flex-direction: column; gap: 16px; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }

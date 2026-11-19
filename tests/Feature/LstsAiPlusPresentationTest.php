@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\AppSetting;
+use App\Models\ShowcasePost;
+use App\Models\SupportTicket;
 use App\Models\User;
 
 it('renders the LSTS AI+ name and shared presentation across the main screen families', function () {
@@ -8,6 +10,7 @@ it('renders the LSTS AI+ name and shared presentation across the main screen fam
         ->assertOk()
         ->assertSee('<title>Sign in — LSTS AI+</title>', false)
         ->assertSee(route('auth.microsoft.redirect'))
+        ->assertSee('css/lsts-typography.css')
         ->assertSee('css/lsts-ai-plus.css');
 
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
@@ -26,7 +29,55 @@ it('renders the LSTS AI+ name and shared presentation across the main screen fam
             ->assertOk()
             ->assertSee('<title>'.e($title).'</title>', false)
             ->assertSee($screenClass)
+            ->assertSee('css/lsts-typography.css')
             ->assertSee('css/lsts-ai-plus.css');
+    }
+});
+
+it('renders the shared section navigation and highlights the current section', function () {
+    $user = User::factory()->create(['is_active' => true]);
+    $this->actingAs($user);
+
+    $showcase = ShowcasePost::create([
+        'author_id' => $user->id,
+        'department' => 'CIEC',
+        'title' => 'Example showcase',
+        'description' => 'A classroom planning workflow.',
+        'status' => 'published',
+    ]);
+    $ticket = SupportTicket::create([
+        'user_id' => $user->id,
+        'name' => $user->name,
+        'email' => $user->email,
+        'type' => 'Technical Issue / Bug Report',
+        'subject' => 'Example request',
+        'details' => 'A description of the support request.',
+    ]);
+
+    foreach ([
+        [route('ai-plus.prompt-library.index'), 'ai-plus.prompt-library.index'],
+        [route('ai-plus.agent-templates.index'), 'ai-plus.agent-templates.index'],
+        [route('ai-plus.sharing-showcase.index'), 'ai-plus.sharing-showcase.index'],
+        [route('ai-plus.sharing-showcase.show', $showcase), 'ai-plus.sharing-showcase.index'],
+        [route('ai-plus.support.index'), 'ai-plus.support.index'],
+        [route('ai-plus.support.requests.index'), 'ai-plus.support.index'],
+        [route('ai-plus.support.requests.show', $ticket), 'ai-plus.support.index'],
+        [route('ai-plus.ai-policy.index'), 'ai-plus.ai-policy.index'],
+        [route('ai-plus.my-usage.index'), 'ai-plus.my-usage.index'],
+    ] as [$url, $activeRoute]) {
+        $response = $this->get($url)->assertOk()
+            ->assertSee('css/lsts-typography.css')
+            ->assertSee('css/lsts-ai-sections.css');
+
+        $document = new DOMDocument;
+        $document->loadHTML($response->getContent(), LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new DOMXPath($document);
+        $links = $xpath->query('//nav[@aria-label="LSTS AI+ sections"]/a');
+        $activeLinks = $xpath->query('//nav[@aria-label="LSTS AI+ sections"]/a[@aria-current="page"]');
+
+        expect($links->length)->toBe(7)
+            ->and($activeLinks->length)->toBe(1)
+            ->and($activeLinks->item(0)->getAttribute('href'))->toBe(route($activeRoute));
     }
 });
 

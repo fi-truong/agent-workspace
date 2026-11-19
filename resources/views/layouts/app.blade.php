@@ -5,6 +5,7 @@
 <title>@yield('title', 'LSTS AI+')</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 @include('partials.favicon')
+@include('partials.lsts-typography')
 <meta name="csrf-token" content="{{ csrf_token() }}">
 @include('partials.session-timeout-monitor')
 <script>
@@ -16,7 +17,6 @@
     }
   })();
 </script>
-<!-- Fonts are self-hosted via @font-face in ai-plus.css -->
 @vite('resources/css/app.css')
 <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}?v={{ filemtime(public_path('css/ai-plus.css')) }}">
 @stack('styles')

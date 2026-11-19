@@ -5,6 +5,7 @@
 <title>@yield('page-title', 'Dashboard') — LSTS AI+</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 @include('partials.favicon')
+@include('partials.lsts-typography')
 <!-- Load shared LSTS AI+ styles and admin styles with file-based cache versions. -->
 <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}?v={{ filemtime(public_path('css/ai-plus.css')) }}">
 <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v={{ filemtime(public_path('css/admin.css')) }}">

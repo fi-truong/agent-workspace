@@ -15,7 +15,7 @@
 </header>
 
 <main class="content">
-  <div class="wrap">
+  <div class="wrap support-grid">
     <div class="faq-section" id="faq-section">
       <h2 class="section-title">Frequently Asked Questions</h2>
       <div class="faq-list">
@@ -34,8 +34,8 @@
     </div>
 
     <div class="contact-section" id="contact-section">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:20px;">
-        <h2 class="section-title" style="margin-bottom:0;">Submit a Request</h2>
+      <div class="support-form-heading">
+        <h2 class="section-title">Submit a Request</h2>
         <a class="requests-link" href="{{ route('ai-plus.support.requests.index') }}">My Support Requests @if($unreadReplyCount > 0)<span class="unread-badge">{{ $unreadReplyCount }}</span>@endif</a>
       </div>
       <form id="supportForm" method="POST" action="{{ route('ai-plus.support.store') }}">
@@ -111,13 +111,13 @@
 @push('styles')
 <style>
   .page-header{background: var(--page-header-bg);color: var(--page-header-text);padding: 48px 0 56px;}
-  .page-header h1{font-family:'Fraunces', serif;font-weight:600;font-size: clamp(32px, 4vw, 44px);margin-bottom:12px;}
+  .page-header h1{font-family:var(--lsts-font);font-weight:600;font-size: clamp(32px, 4vw, 44px);margin-bottom:12px;}
   .page-header p{color: var(--page-header-muted);font-size:16px;max-width:600px;}
 
   .content{padding:40px 0 60px;}
 
   .faq-section{margin-bottom:48px;}
-  .section-title{font-family:'Fraunces', serif;font-size:24px;font-weight:600;color: var(--section-title);margin-bottom:24px;}
+  .section-title{font-family:var(--lsts-font);font-size:24px;font-weight:600;color: var(--section-title);margin-bottom:24px;}
   .faq-list{display:flex;flex-direction:column;gap:12px;}
   .faq-item{background: var(--surface);border:1px solid var(--surface-border);border-radius:12px;overflow:hidden;}
   .faq-question{padding:18px 20px;font-weight:500;font-size:17px;color: var(--text-main);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition: background 0.15s;}

@@ -7,17 +7,8 @@
 @section('screen-class', 'lsts-ai-document')
 
 @section('content')
-<div class="policy-language-wrap">
-  <div class="wrap">
-    <div class="policy-language" role="group" aria-label="Language / Ngôn ngữ">
-      <button type="button" class="is-active" data-policy-language="en" aria-pressed="true">English</button>
-      <button type="button" data-policy-language="vi" aria-pressed="false">Tiếng Việt</button>
-    </div>
-  </div>
-</div>
-
 <header class="page-header">
-  <div class="wrap">
+  <div class="wrap policy-heading">
     <div data-policy-copy="en" lang="en">
       <h1>AI Policy &amp; Guidelines</h1>
       <p>What's allowed, what isn't, and how to keep student and parent data safe when using AI at LSTS.</p>
@@ -28,10 +19,15 @@
       <p>Những nội dung được phép, không được phép và cách bảo vệ dữ liệu học sinh, phụ huynh khi sử dụng AI tại LSTS.</p>
       <div class="last-updated">Cập nhật lần cuối: 19 tháng 8, 2026 • Phiên bản {{ $version }}</div>
     </div>
+    <div class="policy-language" role="group" aria-label="Language / Ngôn ngữ">
+      <button type="button" class="is-active" data-policy-language="en" aria-pressed="true">English</button>
+      <button type="button" data-policy-language="vi" aria-pressed="false">Tiếng Việt</button>
+    </div>
   </div>
 </header>
 
-<nav class="toc-nav">
+<div class="wrap policy-reading-layout">
+<nav class="toc-nav" aria-label="Policy contents">
   <div class="wrap">
     <div class="toc-links" data-policy-copy="en" lang="en">
       <a href="#overview-en" class="toc-link">Overview</a>
@@ -249,6 +245,7 @@
     </div>
   </div>
 </main>
+</div>
 @endsection
 
 @push('scripts')
@@ -283,14 +280,13 @@
 @push('styles')
 <style>
   [data-policy-copy][hidden]{display:none!important;}
-  .policy-language-wrap{background:var(--body-bg);padding:14px 0 0;}
   .policy-language{display:flex;justify-content:flex-end;gap:6px;}
   .policy-language button{border:1px solid var(--input-border);border-radius:999px;background:var(--surface);color:var(--text-soft);padding:7px 12px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;}
   .policy-language button.is-active{background:var(--navy);border-color:var(--navy);color:#fff;}
   .page-header{background: var(--page-header-bg);color: var(--page-header-text);padding: 48px 0 56px;}
-  .page-header h1{font-family:'Fraunces', serif;font-weight:600;font-size: clamp(32px, 4vw, 44px);margin-bottom:12px;}
+  .page-header h1{font-family:var(--lsts-font);font-weight:600;font-size: clamp(32px, 4vw, 44px);margin-bottom:12px;}
   .page-header p{color: var(--page-header-muted);font-size:16px;max-width:600px;}
-  .last-updated{margin-top:16px;font-size:14px;color: var(--text-soft);font-family:'IBM Plex Mono', monospace;}
+  .last-updated{margin-top:16px;font-size:14px;color: var(--text-soft);font-family:var(--lsts-font);}
 
   .toc-nav{background: var(--surface);border-bottom:1px solid var(--surface-border);padding:16px 0;position:sticky;top:0;z-index:10;}
   .toc-links{display:flex;gap:8px;flex-wrap:wrap;}
@@ -300,8 +296,8 @@
   .content{padding:40px 0 60px;}
   .section{margin-bottom:48px;scroll-margin-top:80px;}
   .section-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;}
-  .section-number{width:36px;height:36px;border-radius:8px;background: var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono', monospace;font-size:16px;font-weight:600;}
-  .section-title{font-family:'Fraunces', serif;font-size:24px;font-weight:600;color: var(--section-title);}
+  .section-number{width:36px;height:36px;border-radius:8px;background: var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--lsts-font);font-size:16px;font-weight:600;}
+  .section-title{font-family:var(--lsts-font);font-size:24px;font-weight:600;color: var(--section-title);}
   .section-content{padding-left:48px;}
   .section-content p{margin-bottom:16px;color: var(--text-main);line-height:1.7;}
   .section-content ul{margin-bottom:16px;padding-left:24px;}

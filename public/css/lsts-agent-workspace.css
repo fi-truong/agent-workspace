@@ -1,10 +1,7 @@
 /* Workspace navigation and typography */
 :is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-agent-detail, .lsts-ai-image) {
-    --workspace-font:
-        system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --workspace-content-width: 860px;
     --workspace-gutter: max(20px, var(--lsts-theme-rail));
-    font-family: var(--workspace-font);
 }
 
 :is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-agent-detail, .lsts-ai-image)
@@ -20,7 +17,7 @@
         .info-card h3,
         .modal-header h3
     ) {
-    font-family: var(--workspace-font);
+    font-family: var(--lsts-font);
     font-weight: 650;
     letter-spacing: -0.025em;
 }
@@ -110,7 +107,7 @@
 .lsts-ai-image .image-empty h2 {
     margin: 0 0 12px;
     color: var(--text-main);
-    font: 650 clamp(26px, 3.5vw, 42px) / 1.12 var(--workspace-font);
+    font: 650 clamp(26px, 3.5vw, 42px) / 1.12 var(--lsts-font);
     letter-spacing: -0.035em;
     text-wrap: balance;
 }
@@ -145,7 +142,7 @@
     color: var(--text-main);
     border: 1px solid var(--surface-border);
     background: var(--surface);
-    font: 600 13px/1.35 var(--workspace-font);
+    font: 600 13px/1.35 var(--lsts-font);
     white-space: nowrap;
 }
 
@@ -272,7 +269,7 @@
 
 .lsts-ai-agents :is(.badge, .updated-at),
 .lsts-ai-agent-detail :is(.badge, .back-link, .info-card dt) {
-    font-family: var(--workspace-font);
+    font-family: var(--lsts-font);
 }
 
 .lsts-ai-agents .agents-grid .agent-meta {
@@ -362,7 +359,7 @@
     border-radius: 0;
     padding: 0;
     margin: 0;
-    font: 16px/1.65 var(--workspace-font);
+    font: 16px/1.65 var(--lsts-font);
 }
 
 .lsts-ai-agent-detail .knowledge-files li,

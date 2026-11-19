@@ -25,13 +25,17 @@ Chart.register(
     Tooltip,
 );
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const canvas = document.getElementById('usageOverTimeChart');
     const source = document.getElementById('usageOverTimeData');
 
-    if (!canvas || !source) return;
+    if (!canvas || !source) {
+        return;
+    }
 
+    await document.fonts.ready;
     const usage = JSON.parse(source.textContent || '[]');
+    Chart.defaults.font.family = getComputedStyle(canvas).fontFamily;
 
     new Chart(canvas, {
         data: {
@@ -68,12 +72,19 @@ document.addEventListener('DOMContentLoaded', () => {
             plugins: {
                 legend: {
                     position: 'top',
-                    labels: { boxWidth: 11, usePointStyle: true, pointStyle: 'circle' },
+                    labels: {
+                        boxWidth: 11,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                    },
                 },
                 tooltip: {
                     callbacks: {
                         label(context) {
-                            const value = Number(context.raw || 0).toLocaleString();
+                            const value = Number(
+                                context.raw || 0,
+                            ).toLocaleString();
+
                             return `${context.dataset.label}: ${value}`;
                         },
                     },
@@ -85,7 +96,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'linear',
                     position: 'left',
                     beginAtZero: true,
-                    ticks: { callback: (value) => Number(value).toLocaleString() },
+                    ticks: {
+                        callback: (value) => Number(value).toLocaleString(),
+                    },
                     title: { display: true, text: 'Tokens' },
                 },
                 prompts: {

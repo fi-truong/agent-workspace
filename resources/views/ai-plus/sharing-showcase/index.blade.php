@@ -146,7 +146,7 @@
     overflow: hidden;
   }
   .page-header h1 {
-    font-family: 'Fraunces', serif;
+    font-family: var(--lsts-font);
     font-weight: 600;
     font-size: clamp(32px, 4vw, 44px);
     margin-bottom: 12px;
@@ -170,7 +170,7 @@
   }
   .header-stat strong {
     color: var(--page-header-accent);
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: var(--lsts-font);
   }
 
   .filters-section {
@@ -305,7 +305,7 @@
     flex: 1;
   }
   .showcase-title {
-    font-family: 'Fraunces', serif;
+    font-family: var(--lsts-font);
     font-size: 20px;
     font-weight: 600;
     color: var(--section-title);
