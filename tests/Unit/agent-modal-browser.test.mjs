@@ -17,14 +17,22 @@ const modalTemplate = await readFile(
 const modalStyles = [...modalTemplate.matchAll(/<style>([\s\S]*?)<\/style>/g)]
     .map((match) => match[1])
     .join('\n');
+const classificationFields = modalTemplate
+    .slice(
+        modalTemplate.indexOf('<div class="agent-classification-fields">'),
+        modalTemplate.indexOf('<div class="form-group agent-avatar-field">'),
+    )
+    .replace(
+        /@foreach\([\s\S]*?@endforeach/,
+        '<option value="teaching">Teaching</option><option value="school_operations">School Operations</option>',
+    );
 const fixture = `<!doctype html><html><head><meta name="csrf-token" content="test"><style>.form-group{display:flex;flex-direction:column}${modalStyles}</style></head><body>
 <button id="create-agent-btn">Create</button><div id="agents-grid"><button class="edit-agent" data-agent-id="10">Edit</button></div>
 <div id="agent-modal" style="display:none"><h3 id="modal-title"></h3><button id="modal-close">Close</button>
 <form id="agent-form"><input id="form-method" name="_method"><input id="agent-id" name="agent_id">
 <input id="title" name="title" required><textarea id="description"></textarea><textarea id="system_prompt"></textarea>
 <input type="hidden" id="agent-template-id" name="template_id">
-<select id="agent-category-group" name="category_group"><option value=""></option><option value="teaching">Teaching</option><option value="school_operations">School Operations</option></select>
-<select id="agent-category" name="category"></select><small id="agent-category-hint"></small>
+${classificationFields}
 <input type="checkbox" id="is_shared" name="is_shared" value="1">
 <div id="sharing-audience-group" hidden><label class="sharing-audience-choice"><input type="checkbox" id="sharing-school" name="sharing_scopes[]" value="school" checked>Everyone at school</label><label class="sharing-audience-choice"><input type="checkbox" id="sharing-department" name="sharing_scopes[]" value="department">My department</label><label class="sharing-audience-choice"><input type="checkbox" id="sharing-users" name="sharing_scopes[]" value="users">Specific people</label><div id="sharing-people-picker" hidden><input id="sharing-user-search" type="search"></div><small id="sharing-department-hint" hidden></small><div id="sharing-search-status"></div><div id="sharing-search-results"></div><div id="sharing-selected-users"></div></div><fieldset id="sharing-access-group" hidden><input type="radio" name="sharing_access" value="use_only" checked><input type="radio" name="sharing_access" value="copy"></fieldset>
 <fieldset id="agent-connections-field" class="form-group agent-connections-field" hidden><input id="agent-connections-search" type="search"><div id="agent-connections-list"></div><div id="agent-connections-status"></div></fieldset>
@@ -109,8 +117,14 @@ async function setup(
             department: 'CIEC',
             maxConnections: 10,
             categories: {
-                teaching: { lesson_planning: 'Lesson Planning', other: 'Other' },
-                school_operations: { budgeting_procurement: 'Budgeting & Procurement', other: 'Other' },
+                teaching: {
+                    lesson_planning: 'Lesson Planning',
+                    other: 'Other',
+                },
+                school_operations: {
+                    budgeting_procurement: 'Budgeting & Procurement',
+                    other: 'Other',
+                },
             },
         };
     });
@@ -133,8 +147,31 @@ test('requires the new Agent category and resets it when the group changes', asy
     await category.selectOption('lesson_planning');
     await group.selectOption('school_operations');
     assert.equal(await category.inputValue(), '');
-    assert.equal(await category.locator('option[value=lesson_planning]').count(), 0);
-    assert.equal(await category.evaluate((select) => select.validity.valueMissing), true);
+    assert.equal(
+        await category.locator('option[value=lesson_planning]').count(),
+        0,
+    );
+    assert.equal(
+        await category.evaluate((select) => select.validity.valueMissing),
+        true,
+    );
+});
+
+test('keeps the guidance directly below Category on desktop and mobile', async (t) => {
+    const page = await setup(t);
+    await page.locator('#create-agent-btn').click();
+    const category = page.locator('#agent-category');
+    const hint = page.locator('#agent-category + #agent-category-hint');
+    await hint.waitFor();
+
+    for (const width of [1024, 390]) {
+        await page.setViewportSize({ width, height: 800 });
+        const field = await category.boundingBox();
+        const guidance = await hint.boundingBox();
+        assert.equal(guidance.x, field.x);
+        assert.ok(guidance.y >= field.y + field.height);
+        assert.ok(guidance.width <= field.width);
+    }
 });
 
 test('selects Agents, keeps roles during search, and submits multipart edit using POST', async (t) => {

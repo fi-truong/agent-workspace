@@ -21,7 +21,7 @@
       <div class="agent-classification-fields">
         <div class="form-group">
           <label for="agent-category-group">Group</label>
-          <select id="agent-category-group" name="category_group" aria-describedby="agent-category-hint">
+          <select id="agent-category-group" name="category_group">
             <option value="">Select a group</option>
             @foreach(\App\Support\AgentCategories::GROUPS as $group => $label)
               <option value="{{ $group }}">{{ $label }}</option>
@@ -33,9 +33,9 @@
           <select id="agent-category" name="category" aria-describedby="agent-category-hint" disabled>
             <option value="">Select a group first</option>
           </select>
+          <small class="form-hint" id="agent-category-hint">Choose the category that best describes what this Agent helps people do.</small>
         </div>
       </div>
-      <small class="form-hint" id="agent-category-hint">Choose the category that best describes what this Agent helps people do.</small>
       <div class="form-group agent-avatar-field">
         <label for="agent-avatar">Agent avatar <span class="form-hint">(optional)</span></label>
         <div class="agent-avatar-editor">
@@ -130,6 +130,7 @@
   .agent-classification-fields {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
     gap: 12px;
   }
   .agent-classification-fields .form-group { margin-bottom: 4px; }
@@ -142,7 +143,7 @@
     color: var(--ink);
     font: inherit;
   }
-  #agent-category-hint { display: block; margin-bottom: 16px; }
+  #agent-category-hint { line-height: 1.4; }
   @media (max-width: 540px) {
     .agent-classification-fields { grid-template-columns: 1fr; gap: 6px; }
   }
