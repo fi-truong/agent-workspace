@@ -89,16 +89,49 @@ it('allows ten connected Agents on creation and edit but rejects an eleventh', f
         ->and($parent->fresh()->title)->toBe('Updated coordinator');
 });
 
-it('rechecks sharing permissions for the person running a shared coordinator', function () {
+it('lets a shared coordinator delegate its owners private child without granting direct access', function () {
     $owner = User::factory()->create();
-    $parent = $owner->agents()->create(['title' => 'Shared coordinator', 'is_shared' => true, 'sharing_access' => 'use_only']);
+    $parent = $owner->agents()->create([
+        'title' => 'Shared coordinator', 'is_shared' => true, 'sharing_access' => 'use_only', 'sharing_scope' => 'users',
+    ]);
+    $parent->sharedRecipients()->attach($this->user->id);
     $privateChild = $owner->agents()->create(['title' => 'Owner private child']);
-    $sharedChild = $owner->agents()->create(['title' => 'Available child', 'is_shared' => true, 'sharing_access' => 'use_only']);
-    $parent->connectedAgents()->attach([$privateChild->id, $sharedChild->id]);
+    $parent->connectedAgents()->attach($privateChild);
     $service = app(AgentConnectionService::class);
-    expect($service->forAgent($parent, $this->user)->pluck('id')->all())->toBe([$sharedChild->id]);
-    $sharedChild->update(['is_shared' => false]);
-    expect($service->forAgent($parent, $this->user))->toBeEmpty();
+    expect($service->forAgent($parent, $this->user)->pluck('id')->all())->toBe([$privateChild->id])
+        ->and($service->canUse($this->user, $privateChild))->toBeFalse()
+        ->and($service->canInvokeThroughParent($this->user, $parent, $privateChild))->toBeTrue()
+        ->and($service->options($this->user))->toBeEmpty();
+
+    $parent->connectedAgents()->detach($privateChild);
+    expect($service->canInvokeThroughParent($this->user, $parent, $privateChild))->toBeFalse();
+});
+
+it('does not pass another owners use-only Agent through a shared coordinator', function () {
+    $owner = User::factory()->create();
+    $parent = $owner->agents()->create([
+        'title' => 'Shared coordinator', 'is_shared' => true, 'sharing_access' => 'use_only', 'sharing_scope' => 'users',
+    ]);
+    $parent->sharedRecipients()->attach($this->user->id);
+
+    $specialistOwner = User::factory()->create();
+    $specialist = $specialistOwner->agents()->create([
+        'title' => 'Owner restricted specialist', 'is_shared' => true,
+        'sharing_access' => 'use_only', 'sharing_scope' => 'users',
+    ]);
+    $specialist->sharedRecipients()->attach($owner->id);
+    $post = ShowcasePost::create([
+        'author_id' => $specialistOwner->id, 'source_agent_id' => $specialist->id,
+        'title' => 'Restricted specialist', 'description' => 'For the coordinator owner',
+        'department' => 'General', 'status' => 'published',
+    ]);
+    ShowcaseUse::create(['user_id' => $owner->id, 'showcase_post_id' => $post->id]);
+    expect(app(AgentConnectionService::class)->availableQuery($owner)->whereKey($specialist->id)->exists())->toBeTrue();
+
+    $parent->connectedAgents()->attach($specialist);
+    $service = app(AgentConnectionService::class);
+    expect($service->forAgent($parent, $this->user))->toBeEmpty()
+        ->and($service->canInvokeThroughParent($this->user, $parent, $specialist))->toBeFalse();
 });
 
 it('deleting a specialist preserves the coordinator and chat history', function () {

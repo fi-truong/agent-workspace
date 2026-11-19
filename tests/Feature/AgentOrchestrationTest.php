@@ -7,6 +7,7 @@ use App\Models\ConversationAttachment;
 use App\Models\KnowledgeChunk;
 use App\Models\UsageLog;
 use App\Models\User;
+use App\Services\AgentConnectionService;
 use App\Services\AgentOrchestrationService;
 use App\Services\ConversationSourceContextService;
 use App\Services\TokenQuotaService;
@@ -86,6 +87,37 @@ it('delegates then synthesizes without creating files or extra conversations and
     });
     Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], 'CHILD_INSTRUCTIONS') && ! isset($request['tools']) && $request['max_completion_tokens'] === 8192 && $request['reasoning_effort'] === 'none');
     expect(AdminAuditLog::where('event', 'agent.consulted')->first()->metadata)->toBe(['agent_id' => $this->childAgent->id, 'status' => 'completed']);
+});
+
+it('lets a recipient invoke the coordinator owners private specialist only through the shared coordinator', function () {
+    $owner = User::factory()->create();
+    $parent = $owner->agents()->create([
+        'title' => 'Shared coordinator', 'system_prompt' => 'Coordinate school tasks',
+        'is_shared' => true, 'sharing_access' => 'use_only', 'sharing_scope' => 'users',
+    ]);
+    $parent->sharedRecipients()->attach($this->user->id);
+    $privateChild = $owner->agents()->create([
+        'title' => 'Owner private reviewer', 'system_prompt' => 'PRIVATE_CHILD_INSTRUCTIONS: review learning objectives',
+    ]);
+    $parent->connectedAgents()->attach($privateChild, ['role' => 'Check learning objectives']);
+    $this->conversation->update(['agent_id' => $parent->id]);
+
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(connectedAgentResponse('', [connectedAgentCall($privateChild->id)]))
+        ->push(connectedAgentResponse('PRIVATE_REVIEW_FINDINGS'))
+        ->push(connectedAgentResponse('FINAL_ANSWER'))]);
+
+    $this->postJson(route('ai-plus.agent-workspace.send'), [
+        'conversation_id' => $this->conversation->id,
+        'message' => 'Review the school plan',
+    ])->assertOk()->assertJsonPath('reply', "FINAL_ANSWER\n\n🤖 **Agents returned results:** Owner private reviewer.");
+
+    $connections = app(AgentConnectionService::class);
+    expect($connections->canUse($this->user, $privateChild))->toBeFalse()
+        ->and($connections->canInvokeThroughParent($this->user, $parent, $privateChild))->toBeTrue()
+        ->and(collect($connections->options($this->user))->pluck('id'))->not->toContain($privateChild->id);
+    Http::assertSent(fn (Request $request): bool => requestHasContent($request, 'PRIVATE_CHILD_INSTRUCTIONS'));
+    Http::assertSent(fn (Request $request): bool => requestHasContent($request, 'PRIVATE_REVIEW_FINDINGS'));
 });
 
 it('does not synthesize a requested specialist result that was cut off', function () {

@@ -23,6 +23,21 @@ class AgentConnectionService
         return app(AgentSharingService::class)->canUse($user, $agent);
     }
 
+    /**
+     * A shared coordinator may delegate to its owner's connected Agents without
+     * granting the recipient direct access to those private Agents. A connected
+     * Agent owned by someone else still requires the recipient's own permission.
+     */
+    public function canInvokeThroughParent(User $user, Agent $parent, Agent $child): bool
+    {
+        if (! $this->enabled() || $parent->id === $child->id || ! $this->canUse($user, $parent)
+            || ! $parent->connectedAgents()->where('agents.id', $child->id)->exists()) {
+            return false;
+        }
+
+        return $this->hasDelegatedChildAccess($user, $parent, $child);
+    }
+
     /** @return Builder<Agent> */
     public function availableQuery(User $user): Builder
     {
@@ -60,8 +75,13 @@ class AgentConnectionService
         }
 
         return $agent->connectedAgents()->with('sharedRecipients:users.id')->where('agents.id', '!=', $agent->id)->get()
-            ->filter(fn (Agent $child): bool => $this->canUse($user, $child))
+            ->filter(fn (Agent $child): bool => $this->hasDelegatedChildAccess($user, $agent, $child))
             ->take((int) config('agent_connections.max_connections', 10))->values();
+    }
+
+    private function hasDelegatedChildAccess(User $user, Agent $parent, Agent $child): bool
+    {
+        return $child->user_id === $parent->user_id || $this->canUse($user, $child);
     }
 
     /** @return array<int, array{agent_id: int, role: ?string}> */

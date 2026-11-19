@@ -163,8 +163,8 @@ class AgentOrchestrationService
                         : [];
                     // Reload permissions at execution time: sharing may have been revoked mid-turn.
                     $child = $agentId && $available->has($agentId) ? Agent::find($agentId) : null;
-                    if ($child === null || ! $this->connections->enabled() || ! $this->connections->canUse($user, $child)
-                        || ! $conversation->agent?->connectedAgents()->where('agents.id', $agentId)->exists()) {
+                    if ($child === null || $conversation->agent === null
+                        || ! $this->connections->canInvokeThroughParent($user, $conversation->agent, $child)) {
                         $output = ['error' => 'This Agent is not connected or is no longer available to this user.'];
                         $failedAgents[] = ['agent_title' => 'Connected Agent'];
                     } elseif (isset($attempted[$agentId]) || count($attempted) >= $maxCalls || $round >= $maxCalls) {
