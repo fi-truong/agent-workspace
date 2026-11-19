@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AppSetting;
 use App\Models\User;
 
 it('renders the LSTS AI+ name and shared presentation across the main screen families', function () {
@@ -27,4 +28,36 @@ it('renders the LSTS AI+ name and shared presentation across the main screen fam
             ->assertSee($screenClass)
             ->assertSee('css/lsts-ai-plus.css');
     }
+});
+
+it('loads the Workspace layout only within Workspace pages', function () {
+    $user = User::factory()->create(['is_active' => true]);
+    $agent = $user->agents()->create(['title' => 'Example Planner']);
+    AppSetting::query()->updateOrCreate(['key' => 'ai_plus_image_generation_enabled'], ['value' => '1']);
+    $this->actingAs($user);
+
+    $this->get(route('ai-plus.index'))
+        ->assertOk()
+        ->assertDontSee('css/lsts-agent-workspace.css');
+
+    $this->get(route('ai-plus.agent-workspace.index'))
+        ->assertOk()
+        ->assertSee('css/lsts-agent-workspace.css')
+        ->assertSee('<h1>Start a conversation</h1>', false)
+        ->assertSee('Agent details');
+
+    $this->get(route('ai-plus.agent-workspace.agents.index'))
+        ->assertOk()
+        ->assertSee('css/lsts-agent-workspace.css')
+        ->assertSee('Instructions and resources');
+
+    $this->get(route('ai-plus.agent-workspace.agents.show', $agent))
+        ->assertOk()
+        ->assertSee('css/lsts-agent-workspace.css')
+        ->assertSeeInOrder(['Instructions (System Prompt)', 'Knowledge', 'Details']);
+
+    $this->get(route('ai-plus.agent-workspace.images.index'))
+        ->assertOk()
+        ->assertSee('css/lsts-agent-workspace.css')
+        ->assertSee('<h1>Image Studio</h1>', false);
 });

@@ -129,7 +129,6 @@
     @endforeach
     @else
     <div class="empty-state">
-      <div class="empty-icon">🤖</div>
       <h3>No agents yet</h3>
       <p>Create your first custom AI assistant with a system prompt tailored to your needs.</p>
       <button class="btn btn-primary" id="create-first-agent">Create Agent</button>

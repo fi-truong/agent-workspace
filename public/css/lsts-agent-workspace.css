@@ -1,0 +1,471 @@
+/* Workspace navigation and typography */
+:is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-agent-detail, .lsts-ai-image) {
+    --workspace-font:
+        system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --workspace-content-width: 860px;
+    --workspace-gutter: max(20px, var(--lsts-theme-rail));
+    font-family: var(--workspace-font);
+}
+
+:is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-agent-detail, .lsts-ai-image)
+    :is(
+        .sidebar-header h2,
+        .agents-workspace-sidebar-header h2,
+        .image-sidebar-header h2,
+        .page-title,
+        .agent-title,
+        .empty-state h3,
+        .image-topbar h1,
+        .agent-section h2,
+        .info-card h3,
+        .modal-header h3
+    ) {
+    font-family: var(--workspace-font);
+    font-weight: 650;
+    letter-spacing: -0.025em;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-image) .workspace-tabs {
+    gap: 4px;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-image) .workspace-tabs .ws-tab {
+    flex-direction: row;
+    padding: 8px 12px;
+    min-height: 40px;
+    gap: 10px;
+    font-weight: 600;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-image)
+    .workspace-tabs
+    .ws-tab.active {
+    box-shadow: inset 3px 0 var(--navy);
+}
+
+:is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-image)
+    :is(
+        .sidebar-header,
+        .agents-workspace-sidebar-header,
+        .image-sidebar-header
+    ) {
+    padding: 20px 20px 12px;
+    border-bottom: 0;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-image)
+    :is(
+        .sidebar-header h2,
+        .agents-workspace-sidebar-header h2,
+        .image-sidebar-header h2
+    ) {
+    font-size: 18px;
+    margin: 0;
+}
+
+@media (min-width: 761px) {
+    :is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-image) .workspace-tabs {
+        flex-direction: column;
+    }
+
+    .lsts-ai-chat .sidebar {
+        width: var(--workspace-sidebar-width, 256px);
+    }
+
+    .lsts-ai-agents .agents-workspace-sidebar {
+        width: var(--workspace-sidebar-width, 256px);
+        flex-basis: var(--workspace-sidebar-width, 256px);
+    }
+
+    .lsts-ai-image .image-sidebar {
+        width: 256px;
+    }
+}
+
+/* Chat and Image Studio share the same reading and composer width. */
+.lsts-ai-chat .input-area {
+    padding-inline: var(--workspace-gutter);
+}
+
+.lsts-ai-chat .input-wrapper {
+    max-width: var(--workspace-content-width);
+}
+
+.lsts-ai-chat :is(.empty-state, #chat-messages) {
+    width: min(
+        var(--workspace-content-width),
+        calc(100% - 2 * var(--workspace-gutter))
+    );
+    margin-inline: auto;
+}
+
+.lsts-ai-chat .empty-state {
+    padding: clamp(18px, 7dvh, 76px) 0 12px;
+    align-items: flex-start;
+    justify-content: flex-start;
+    text-align: start;
+}
+
+.lsts-ai-chat .empty-state h1,
+.lsts-ai-image .image-empty h2 {
+    margin: 0 0 12px;
+    color: var(--text-main);
+    font: 650 clamp(26px, 3.5vw, 42px) / 1.12 var(--workspace-font);
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+}
+
+.lsts-ai-chat .quick-actions {
+    justify-content: flex-start;
+    margin: 0;
+}
+
+.lsts-ai-chat .quick-btn {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 2px 10px;
+    text-align: start;
+}
+
+.lsts-ai-chat .quick-btn .icon {
+    grid-row: span 2;
+    color: var(--navy);
+    font-size: 18px;
+}
+
+.lsts-ai-chat .quick-btn .label {
+    font-weight: 600;
+}
+
+.lsts-ai-chat .chat-list-section .add-btn {
+    width: auto;
+    height: auto;
+    padding: 4px 8px;
+    color: var(--text-main);
+    border: 1px solid var(--surface-border);
+    background: var(--surface);
+    font: 600 13px/1.35 var(--workspace-font);
+    white-space: nowrap;
+}
+
+.lsts-ai-chat .chat-list-section .add-btn:hover {
+    border-color: var(--navy);
+}
+
+.lsts-ai-chat #chat-messages {
+    /* The message container is inserted with inline padding by the chat client. */
+    padding-inline: 0 !important;
+}
+
+.lsts-ai-chat .chat-msg-wrap[style*='align-self:flex-start'] {
+    width: 100%;
+    max-width: 100% !important;
+}
+
+.lsts-ai-chat .chat-msg-wrap[style*='align-self:flex-start'] .chat-bubble {
+    padding: clamp(14px, 2.4vw, 24px) !important;
+    border-radius: var(--lsts-panel-radius) !important;
+    line-height: 1.65;
+}
+
+.lsts-ai-image .image-topbar > div {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+
+.lsts-ai-image .image-topbar h1 {
+    margin: 0;
+}
+
+.lsts-ai-image .image-results {
+    padding-inline: var(--workspace-gutter);
+}
+
+.lsts-ai-image .image-empty,
+.lsts-ai-image .image-turn,
+.lsts-ai-image .image-composer {
+    width: min(100%, var(--workspace-content-width));
+}
+
+.lsts-ai-image .image-empty {
+    margin: 0 auto;
+    max-width: none;
+    padding: clamp(10px, 4dvh, 42px) 0 0;
+    text-align: start;
+}
+
+.lsts-ai-image .image-prompt-examples {
+    justify-content: flex-start;
+    margin-top: 16px;
+}
+
+.lsts-ai-image .image-prompt-examples button {
+    max-width: 100%;
+    text-align: start;
+}
+
+.lsts-ai-image .image-composer {
+    width: min(
+        var(--workspace-content-width),
+        calc(100% - 2 * var(--workspace-gutter))
+    );
+    margin: 0 auto 16px;
+}
+
+.lsts-ai-image .image-composer-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+}
+
+.lsts-ai-image .image-composer-row textarea {
+    width: 100%;
+    grid-column: 1 / -1;
+}
+
+.lsts-ai-image .image-composer-row select {
+    width: 100%;
+    max-width: 235px;
+}
+
+/* My Agents */
+.lsts-ai-agents .agents-page,
+.lsts-ai-agent-detail .agent-detail-page {
+    padding-block-start: clamp(22px, 4vw, 52px);
+}
+
+.lsts-ai-agents .agents-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    container: agent-list / inline-size;
+}
+
+.lsts-ai-agents .agents-grid .empty-state {
+    align-items: flex-start;
+    padding: clamp(20px, 4vw, 36px);
+    text-align: start;
+}
+
+.lsts-ai-agents .agents-grid .agent-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    gap: 6px 20px;
+    padding: 16px 18px;
+}
+
+.lsts-ai-agents .agents-grid .agent-icon {
+    background: var(--lsts-highlight);
+    color: var(--text-main);
+}
+
+.lsts-ai-agents .agents-grid .agent-actions {
+    justify-content: flex-start;
+}
+
+.lsts-ai-agents .agents-grid .use-agent {
+    margin-inline-end: 0;
+}
+
+.lsts-ai-agents :is(.badge, .updated-at),
+.lsts-ai-agent-detail :is(.badge, .back-link, .info-card dt) {
+    font-family: var(--workspace-font);
+}
+
+.lsts-ai-agents .agents-grid .agent-meta {
+    border: 0;
+    padding: 0;
+    margin: 0;
+}
+
+@container agent-list (min-width: 700px) {
+    .lsts-ai-agents .agents-grid .agent-card {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) max-content;
+        grid-template-areas:
+            'title description actions'
+            'category description actions'
+            'meta description actions';
+        align-items: start;
+    }
+
+    .lsts-ai-agents .agents-grid .agent-card-header {
+        grid-area: title;
+    }
+
+    .lsts-ai-agents .agents-grid .agent-classification {
+        grid-area: category;
+    }
+
+    .lsts-ai-agents .agents-grid .agent-meta {
+        grid-area: meta;
+    }
+
+    .lsts-ai-agents .agents-grid .agent-description-wrap {
+        grid-area: description;
+        align-self: center;
+    }
+
+    .lsts-ai-agents .agents-grid .agent-actions {
+        grid-area: actions;
+        align-self: center;
+    }
+}
+
+/* Agent details */
+.lsts-ai-agent-detail .page-header {
+    display: grid;
+    gap: 14px;
+}
+
+.lsts-ai-agent-detail .page-desc {
+    max-width: 72ch;
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+}
+
+.lsts-ai-agent-detail .agent-detail-title {
+    overflow-wrap: anywhere;
+}
+
+.lsts-ai-agent-detail .agent-detail-title :is(img, span) {
+    flex: none;
+}
+
+.lsts-ai-agent-detail .agent-detail-classification {
+    margin: 7px 0;
+    color: var(--text-soft);
+    font-size: 14px;
+}
+
+.lsts-ai-agent-detail .agent-detail-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 240px);
+    gap: 20px;
+}
+
+.lsts-ai-agent-detail .agent-detail-content {
+    display: grid;
+    gap: 16px;
+}
+
+.lsts-ai-agent-detail .agent-section {
+    padding: clamp(16px, 3vw, 28px);
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--lsts-panel-radius);
+}
+
+.lsts-ai-agent-detail .system-prompt {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    font: 16px/1.65 var(--workspace-font);
+}
+
+.lsts-ai-agent-detail .knowledge-files li,
+.lsts-ai-agent-detail .info-card dd {
+    overflow-wrap: anywhere;
+}
+
+.lsts-ai-agent-detail .info-card dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+}
+
+.lsts-ai-agent-detail .info-card dd + dt {
+    margin-top: 8px;
+}
+
+@media (max-width: 860px) {
+    .lsts-ai-agent-detail .agent-detail-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Shared Create/Edit Agent form */
+:is(.lsts-ai-chat, .lsts-ai-agents) #agent-modal .modal {
+    max-width: 980px;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-agents) #agent-form {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    column-gap: 28px;
+    align-items: start;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-agents) #agent-form .agent-form-panel {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-agents) #agent-form .agent-form-panel > h4 {
+    margin: 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--surface-border);
+    font-size: 17px;
+    font-weight: 650;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-agents) #agent-form .modal-footer {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 880px) {
+    :is(.lsts-ai-chat, .lsts-ai-agents) #agent-form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 760px) {
+    :is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-image)
+        .workspace-tabs
+        .ws-tab {
+        justify-content: center;
+        padding-inline: 6px;
+        gap: 6px;
+    }
+
+    .lsts-ai-agents .agents-workspace-shell {
+        flex-direction: column;
+    }
+
+    .lsts-ai-agents .agents-workspace-sidebar {
+        width: auto;
+        flex-basis: auto;
+        border-inline-end: 0;
+        border-bottom: 1px solid var(--surface-border);
+    }
+
+    .lsts-ai-agents .agents-workspace-sidebar-header {
+        display: none;
+    }
+
+    .lsts-ai-agents .agent-sidebar-list {
+        max-height: 24dvh;
+    }
+
+    .lsts-ai-chat :is(.empty-state, #chat-messages),
+    .lsts-ai-image .image-composer {
+        width: calc(100% - 12px - var(--workspace-gutter));
+        margin-inline: 12px var(--workspace-gutter);
+    }
+
+    .lsts-ai-chat .input-area,
+    .lsts-ai-image .image-results {
+        padding-inline-start: 12px;
+    }
+
+    .lsts-ai-image .image-composer-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .lsts-ai-image .image-composer-row select {
+        max-width: none;
+    }
+}

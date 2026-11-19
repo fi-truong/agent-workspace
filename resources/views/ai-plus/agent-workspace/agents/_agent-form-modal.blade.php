@@ -10,96 +10,102 @@
       <input type="hidden" name="_method" value="POST" id="form-method">
       <input type="hidden" name="agent_id" id="agent-id">
       <input type="hidden" name="template_id" id="agent-template-id">
-      <div class="form-group">
-        <label for="title">Title <span class="required">*</span></label>
-        <input type="text" id="title" name="title" required maxlength="255" placeholder="e.g., Math Quiz Generator">
-      </div>
-      <div class="form-group">
-        <label for="description">Description</label>
-        <textarea id="description" name="description" rows="3" placeholder="What does this agent do?"></textarea>
-      </div>
-      <div class="agent-classification-fields">
+      <section class="agent-form-panel" aria-labelledby="agent-details-heading">
+        <h4 id="agent-details-heading">Agent details</h4>
         <div class="form-group">
-          <label for="agent-category-group">Group</label>
-          <select id="agent-category-group" name="category_group">
-            <option value="">Select a group</option>
-            @foreach(\App\Support\AgentCategories::GROUPS as $group => $label)
-              <option value="{{ $group }}">{{ $label }}</option>
-            @endforeach
-          </select>
+          <label for="title">Title <span class="required">*</span></label>
+          <input type="text" id="title" name="title" required maxlength="255" placeholder="e.g., Math Quiz Generator">
         </div>
         <div class="form-group">
-          <label for="agent-category">Category</label>
-          <select id="agent-category" name="category" aria-describedby="agent-category-hint" disabled>
-            <option value="">Select a group first</option>
-          </select>
-          <small class="form-hint" id="agent-category-hint">Choose the category that best describes what this Agent helps people do.</small>
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="3" placeholder="What does this agent do?"></textarea>
         </div>
-      </div>
-      <div class="form-group agent-avatar-field">
-        <label for="agent-avatar">Agent avatar <span class="form-hint">(optional)</span></label>
-        <div class="agent-avatar-editor">
-          <div class="agent-avatar-preview" id="agent-avatar-preview" aria-label="Agent avatar preview">🤖</div>
-          <div>
-            <input type="file" id="agent-avatar" name="avatar" accept="image/jpeg,image/png,image/webp">
-            <small class="form-hint">JPG, PNG, or WebP · up to 2 MB.</small>
+        <div class="agent-classification-fields">
+          <div class="form-group">
+            <label for="agent-category-group">Group</label>
+            <select id="agent-category-group" name="category_group">
+              <option value="">Select a group</option>
+              @foreach(\App\Support\AgentCategories::GROUPS as $group => $label)
+                <option value="{{ $group }}">{{ $label }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="agent-category">Category</label>
+            <select id="agent-category" name="category" aria-describedby="agent-category-hint" disabled>
+              <option value="">Select a group first</option>
+            </select>
+            <small class="form-hint" id="agent-category-hint">Choose the category that best describes what this Agent helps people do.</small>
           </div>
         </div>
-      </div>
-      <div class="form-group">
-        <label for="system_prompt">Instructions (System Prompt)</label>
-        <textarea id="system_prompt" name="system_prompt" rows="6" placeholder="Instructions for the AI (e.g., 'You are a helpful math teacher...')"></textarea>
-        <small class="form-hint">This prompt guides the agent's behavior. Leave empty to use default.</small>
-      </div>
-      <div class="form-group">
-        <label for="knowledge">Knowledge</label>
-        <div class="knowledge-dropzone" id="knowledge-dropzone">
-          <input type="file" id="knowledge" name="knowledge[]" multiple accept=".html,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp" hidden>
-          <div class="knowledge-dropzone-inner">
-            <div class="knowledge-dropzone-title">Drag & drop files here</div>
-            <div class="knowledge-dropzone-sub">or click to select</div>
-          </div>
-        </div>
-        <div class="knowledge-file-chips" id="knowledge-file-chips" aria-live="polite"></div>
-        <div class="knowledge-saved-list" id="knowledge-saved-list" aria-live="polite"></div>
-        <small class="form-hint">Up to {{ \App\Services\KnowledgeService::MAX_AGENT_FILES }} files per Agent · {{ \App\Services\KnowledgeService::MAX_AGENT_FILE_SIZE_MB }} MB per file · {{ \App\Services\KnowledgeService::MAX_AGENT_TOTAL_SIZE_MB }} MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) or images (JPG, PNG, GIF, WebP). Text in images is read with OCR and added to the agent’s Knowledge.</small>
-        <div class="form-hint" id="knowledge-limit-status" aria-live="polite"></div>
-      </div>
-      <fieldset class="form-group agent-connections-field" id="agent-connections-field" hidden>
-        <legend>Connected Agents <span class="form-hint">(optional)</span></legend>
-        <small class="form-hint">Choose up to {{ config('agent_connections.max_connections', 10) }} Agents to consult and describe their roles. The chat’s specialist model and your LSTS AI+ Credits apply to these calls. Specialists cannot call other Agents.</small>
-        <input type="search" id="agent-connections-search" aria-label="Find an Agent to connect" placeholder="Find an Agent…">
-        <div id="agent-connections-list" aria-label="Agents available to connect"></div>
-        <div id="agent-connections-status" class="form-hint" role="status"></div>
-      </fieldset>
-      <div class="form-group checkbox-group">
-        <input type="checkbox" id="is_shared" name="is_shared" value="1">
-        <label for="is_shared">Share this Agent</label>
-      </div>
-      <div class="form-group" id="sharing-audience-group" hidden>
-        <span id="sharing-audience-label">Who can access this Agent?</span>
-        <small class="form-hint" id="sharing-audience-description">Select every audience that should have access. A person can match any selected option.</small>
-        <div class="sharing-audience-options" role="group" aria-labelledby="sharing-audience-label" aria-describedby="sharing-audience-description">
-          <label class="sharing-audience-choice"><input type="checkbox" id="sharing-school" name="sharing_scopes[]" value="school" checked> <span>Everyone at school</span></label>
-          <label class="sharing-audience-choice"><input type="checkbox" id="sharing-department" name="sharing_scopes[]" value="department" @disabled(! trim(auth()->user()?->department ?? ''))> <span>My department / unit</span><small class="sharing-department-detail" id="sharing-department-hint" hidden></small></label>
-          <div class="sharing-people-option">
-            <label class="sharing-audience-choice" for="sharing-users"><input type="checkbox" id="sharing-users" name="sharing_scopes[]" value="users"> <span>Specific people</span></label>
-            <div id="sharing-people-picker" hidden>
-              <label for="sharing-user-search" class="form-hint sharing-search-label">Find people</label>
-              <input type="search" id="sharing-user-search" autocomplete="off" maxlength="100" placeholder="Search name or email…" aria-describedby="sharing-search-status" aria-controls="sharing-search-results">
-              <div id="sharing-search-status" class="form-hint" role="status" aria-live="polite"></div>
-              <div id="sharing-search-results" aria-label="Matching people"></div>
-              <div id="sharing-selected-users" aria-label="Selected people"></div>
+        <div class="form-group agent-avatar-field">
+          <label for="agent-avatar">Agent avatar <span class="form-hint">(optional)</span></label>
+          <div class="agent-avatar-editor">
+            <div class="agent-avatar-preview" id="agent-avatar-preview" aria-label="Agent avatar preview">🤖</div>
+            <div>
+              <input type="file" id="agent-avatar" name="avatar" accept="image/jpeg,image/png,image/webp">
+              <small class="form-hint">JPG, PNG, or WebP · up to 2 MB.</small>
             </div>
           </div>
         </div>
-        <small class="form-hint">Only your chosen audience can discover this Agent in Sharing &amp; Showcase. Removing access stops future use of the original Agent; copies already created remain with their owners.</small>
-      </div>
-      <fieldset class="form-group" id="sharing-access-group" hidden>
-        <legend>Sharing access <span class="required">*</span></legend>
-        <label class="radio-option"><input type="radio" name="sharing_access" value="use_only" checked> Use-only <span class="form-hint">(recommended — people can chat with the agent but cannot see or copy its setup)</span></label>
-        <label class="radio-option"><input type="radio" name="sharing_access" value="copy"> Allow users to copy and edit <span class="form-hint">(copies the full agent, including Knowledge files)</span></label>
-      </fieldset>
+      </section>
+      <section class="agent-form-panel" aria-labelledby="agent-resources-heading">
+        <h4 id="agent-resources-heading">Instructions and resources</h4>
+        <div class="form-group">
+          <label for="system_prompt">Instructions (System Prompt)</label>
+          <textarea id="system_prompt" name="system_prompt" rows="6" placeholder="Instructions for the AI (e.g., 'You are a helpful math teacher...')"></textarea>
+          <small class="form-hint">This prompt guides the agent's behavior. Leave empty to use default.</small>
+        </div>
+        <div class="form-group">
+          <label for="knowledge">Knowledge</label>
+          <div class="knowledge-dropzone" id="knowledge-dropzone">
+            <input type="file" id="knowledge" name="knowledge[]" multiple accept=".html,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp" hidden>
+            <div class="knowledge-dropzone-inner">
+              <div class="knowledge-dropzone-title">Drag & drop files here</div>
+              <div class="knowledge-dropzone-sub">or click to select</div>
+            </div>
+          </div>
+          <div class="knowledge-file-chips" id="knowledge-file-chips" aria-live="polite"></div>
+          <div class="knowledge-saved-list" id="knowledge-saved-list" aria-live="polite"></div>
+          <small class="form-hint">Up to {{ \App\Services\KnowledgeService::MAX_AGENT_FILES }} files per Agent · {{ \App\Services\KnowledgeService::MAX_AGENT_FILE_SIZE_MB }} MB per file · {{ \App\Services\KnowledgeService::MAX_AGENT_TOTAL_SIZE_MB }} MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) or images (JPG, PNG, GIF, WebP). Text in images is read with OCR and added to the agent’s Knowledge.</small>
+          <div class="form-hint" id="knowledge-limit-status" aria-live="polite"></div>
+        </div>
+        <fieldset class="form-group agent-connections-field" id="agent-connections-field" hidden>
+          <legend>Connected Agents <span class="form-hint">(optional)</span></legend>
+          <small class="form-hint">Choose up to {{ config('agent_connections.max_connections', 10) }} Agents to consult and describe their roles. The chat’s specialist model and your LSTS AI+ Credits apply to these calls. Specialists cannot call other Agents.</small>
+          <input type="search" id="agent-connections-search" aria-label="Find an Agent to connect" placeholder="Find an Agent…">
+          <div id="agent-connections-list" aria-label="Agents available to connect"></div>
+          <div id="agent-connections-status" class="form-hint" role="status"></div>
+        </fieldset>
+        <div class="form-group checkbox-group">
+          <input type="checkbox" id="is_shared" name="is_shared" value="1">
+          <label for="is_shared">Share this Agent</label>
+        </div>
+        <div class="form-group" id="sharing-audience-group" hidden>
+          <span id="sharing-audience-label">Who can access this Agent?</span>
+          <small class="form-hint" id="sharing-audience-description">Select every audience that should have access. A person can match any selected option.</small>
+          <div class="sharing-audience-options" role="group" aria-labelledby="sharing-audience-label" aria-describedby="sharing-audience-description">
+            <label class="sharing-audience-choice"><input type="checkbox" id="sharing-school" name="sharing_scopes[]" value="school" checked> <span>Everyone at school</span></label>
+            <label class="sharing-audience-choice"><input type="checkbox" id="sharing-department" name="sharing_scopes[]" value="department" @disabled(! trim(auth()->user()?->department ?? ''))> <span>My department / unit</span><small class="sharing-department-detail" id="sharing-department-hint" hidden></small></label>
+            <div class="sharing-people-option">
+              <label class="sharing-audience-choice" for="sharing-users"><input type="checkbox" id="sharing-users" name="sharing_scopes[]" value="users"> <span>Specific people</span></label>
+              <div id="sharing-people-picker" hidden>
+                <label for="sharing-user-search" class="form-hint sharing-search-label">Find people</label>
+                <input type="search" id="sharing-user-search" autocomplete="off" maxlength="100" placeholder="Search name or email…" aria-describedby="sharing-search-status" aria-controls="sharing-search-results">
+                <div id="sharing-search-status" class="form-hint" role="status" aria-live="polite"></div>
+                <div id="sharing-search-results" aria-label="Matching people"></div>
+                <div id="sharing-selected-users" aria-label="Selected people"></div>
+              </div>
+            </div>
+          </div>
+          <small class="form-hint">Only your chosen audience can discover this Agent in Sharing &amp; Showcase. Removing access stops future use of the original Agent; copies already created remain with their owners.</small>
+        </div>
+        <fieldset class="form-group" id="sharing-access-group" hidden>
+          <legend>Sharing access <span class="required">*</span></legend>
+          <label class="radio-option"><input type="radio" name="sharing_access" value="use_only" checked> Use-only <span class="form-hint">(recommended — people can chat with the agent but cannot see or copy its setup)</span></label>
+          <label class="radio-option"><input type="radio" name="sharing_access" value="copy"> Allow users to copy and edit <span class="form-hint">(copies the full agent, including Knowledge files)</span></label>
+        </fieldset>
+      </section>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
         <button type="submit" class="btn btn-primary" id="modal-submit">Save</button>

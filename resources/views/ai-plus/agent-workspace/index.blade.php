@@ -46,7 +46,7 @@
     <div class="chat-list">
       <div class="chat-list-section">
         Quick Chats
-        <button class="add-btn" title="New chat" data-behavior="new-quick-chat">+</button>
+        <button type="button" class="add-btn" title="New chat" data-behavior="new-quick-chat"><span aria-hidden="true">+</span> New chat</button>
       </div>
       @foreach($quickConversations as $conv)
       <div class="chat-item-wrap">
@@ -186,7 +186,7 @@
 
     <!-- Empty State for new chat -->
     <div class="empty-state">
-      <h3>Start a conversation</h3>
+      <h1>Start a conversation</h1>
       <p>Ask a question, attach a document, or choose an Agent for work you do regularly.</p>
 
       <div class="quick-actions">

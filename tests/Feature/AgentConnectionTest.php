@@ -175,7 +175,7 @@ it('shows accessible connected Agent names below the model without exposing thei
     $this->get(route('ai-plus.agent-workspace.index', ['agent_id' => $parent->id]))
         ->assertOk()
         ->assertViewHas('agentConnectionSummaries', [$parent->id => [['id' => $child->id, 'title' => $child->title]], $child->id => []])
-        ->assertSeeInOrder(['data-connected-agents', 'Connected Agents:', 'Writer &amp; Reviewer', 'GPT-6 Luna'], false)
+        ->assertSeeInOrder(['data-connected-agents', 'Available specialists:', 'Writer &amp; Reviewer', 'GPT-6 Luna'], false)
         ->assertDontSee('CHILD_PRIVATE_CONFIGURATION')
         ->assertDontSee('PRIVATE_CONNECTION_ROLE');
 });

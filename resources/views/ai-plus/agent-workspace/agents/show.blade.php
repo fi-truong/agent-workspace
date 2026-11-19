@@ -12,6 +12,7 @@
     <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="back-link">← Back to Agents</a>
     <div>
       <h1 class="page-title agent-detail-title">@if($agent->avatar_url)<img src="{{ $agent->avatar_url }}" alt="">@else <span>🤖</span> @endif {{ $agent->title }}</h1>
+      <p class="agent-detail-classification">{{ $agent->classification_label }}</p>
       @if($agent->description)
       <p class="page-desc">{{ $agent->description }}</p>
       @endif
@@ -33,25 +34,29 @@
   </div>
 
   <div class="agent-detail-grid">
-    <section class="agent-section">
-      <h2>Instructions (System Prompt)</h2>
-      @if($agent->system_prompt)
-      <pre class="system-prompt">{{ $agent->system_prompt }}</pre>
-      @else
-      <p class="no-prompt">No custom system prompt set. Will use default behavior.</p>
-      @endif
+    <div class="agent-detail-content">
+      <section class="agent-section">
+        <h2>Instructions (System Prompt)</h2>
+        @if($agent->system_prompt)
+        <pre class="system-prompt">{{ $agent->system_prompt }}</pre>
+        @else
+        <p class="no-prompt">No custom system prompt set. Will use default behavior.</p>
+        @endif
 
-      <h2 style="margin-top:28px;">Knowledge</h2>
-      @if($agent->knowledge_files)
-        <ul class="knowledge-files">
-          @foreach($agent->knowledge_files as $file)
-          <li>{{ $file['original_name'] ?? $file['path'] }}</li>
-          @endforeach
-        </ul>
-      @else
-        <p class="no-prompt">No knowledge files uploaded.</p>
-      @endif
-    </section>
+      </section>
+      <section class="agent-section">
+        <h2>Knowledge</h2>
+        @if($agent->knowledge_files)
+          <ul class="knowledge-files">
+            @foreach($agent->knowledge_files as $file)
+            <li>{{ $file['original_name'] ?? $file['path'] }}</li>
+            @endforeach
+          </ul>
+        @else
+          <p class="no-prompt">No knowledge files uploaded.</p>
+        @endif
+      </section>
+    </div>
 
     <aside class="agent-sidebar">
       <div class="info-card">
