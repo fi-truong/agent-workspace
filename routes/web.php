@@ -151,6 +151,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'ai.policy', 'admin'
     // Users & Roles
     Route::post('users/token-quota', [UserController::class, 'updateTokenQuota'])->name('users.token-quota.update');
     Route::post('users/units', [UserController::class, 'storeUnit'])->name('users.units.store');
+    Route::put('users/units', [UserController::class, 'updateUnit'])->name('users.units.update');
+    Route::delete('users/units', [UserController::class, 'destroyUnit'])->name('users.units.destroy');
     Route::resource('users', UserController::class)->except('show');
     Route::get('usage', [UsageController::class, 'index'])->name('usage.index');
 

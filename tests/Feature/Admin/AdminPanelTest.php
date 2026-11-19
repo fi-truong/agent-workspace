@@ -342,7 +342,11 @@ test('administrators can open the user create and edit forms with department cho
     $this->get(route('admin.users.index'))
         ->assertOk()
         ->assertSee(route('admin.users.edit', $user), false)
-        ->assertSee('Edit user '.e($user->name), false);
+        ->assertSee('Edit user '.e($user->name), false)
+        ->assertSee('Manage units')
+        ->assertSee('Rename unit')
+        ->assertSee('Delete unit')
+        ->assertSee('Reassign 1 user before deleting.');
 });
 
 test('administrators can create a unit and assign it while editing a user', function () {
@@ -355,7 +359,7 @@ test('administrators can create a unit and assign it while editing a user', func
         ->assertSessionHas('success', 'Unit created successfully.');
 
     $setting = AppSetting::query()->where('key', 'ai_plus_organization_units')->firstOrFail();
-    expect(json_decode($setting->value, true))->toContain('Human Resources');
+    expect(json_decode($setting->value, true)['units'])->toContain('Human Resources');
 
     $this->get(route('admin.users.create'))
         ->assertOk()
@@ -388,8 +392,51 @@ test('administrators cannot create a duplicate unit with different casing or spa
         ->assertRedirect(route('admin.users.index'))
         ->assertSessionHasErrors('unit_name');
 
-    $units = json_decode(AppSetting::value('ai_plus_organization_units'), true);
-    expect($units)->toHaveCount(1)->toContain('Human Resources');
+    $units = json_decode(AppSetting::value('ai_plus_organization_units'), true)['units'];
+    expect($units)->toHaveCount(5)->toContain('Human Resources');
+});
+
+test('administrators can rename a unit and keep its users assigned', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $user = User::factory()->create(['role' => 'staff', 'department' => null]);
+
+    $this->actingAs($admin)->post(route('admin.users.units.store'), ['unit_name' => 'Human Resources']);
+    $user->update(['department' => 'Human Resources']);
+
+    $this->put(route('admin.users.units.update'), [
+        'current_unit' => 'Human Resources',
+        'new_name' => 'People and Culture',
+    ])->assertRedirect(route('admin.users.index'))
+        ->assertSessionHas('success', 'Unit updated successfully.');
+
+    $this->assertDatabaseHas('users', ['id' => $user->id, 'department' => 'People and Culture']);
+    expect(json_decode(AppSetting::value('ai_plus_organization_units'), true)['units'])
+        ->toContain('People and Culture')
+        ->not->toContain('Human Resources');
+    $this->assertDatabaseHas('admin_audit_logs', ['event' => 'organization_unit.updated']);
+});
+
+test('administrators must reassign users before deleting a unit', function () {
+    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
+    $user = User::factory()->create(['role' => 'staff', 'department' => null]);
+
+    $this->actingAs($admin)->post(route('admin.users.units.store'), ['unit_name' => 'Human Resources']);
+    $user->update(['department' => 'Human Resources']);
+
+    $this->delete(route('admin.users.units.destroy'), ['unit_name' => 'Human Resources'])
+        ->assertRedirect(route('admin.users.index'))
+        ->assertSessionHasErrors('unit_manage');
+    expect(json_decode(AppSetting::value('ai_plus_organization_units'), true)['units'])
+        ->toContain('Human Resources');
+
+    $user->update(['department' => 'CIEC']);
+    $this->delete(route('admin.users.units.destroy'), ['unit_name' => 'Human Resources'])
+        ->assertRedirect(route('admin.users.index'))
+        ->assertSessionHas('success', 'Unit deleted successfully.');
+
+    expect(json_decode(AppSetting::value('ai_plus_organization_units'), true)['units'])
+        ->not->toContain('Human Resources');
+    $this->assertDatabaseHas('admin_audit_logs', ['event' => 'organization_unit.deleted']);
 });
 
 test('the user list uses the Admin delete dialog instead of a browser confirmation', function () {

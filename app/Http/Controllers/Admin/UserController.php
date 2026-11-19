@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\ChatModelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -75,10 +76,22 @@ class UserController extends Controller
         $users = $query->paginate(15)->withQueryString();
         $roles = ['admin', 'staff', 'teacher', 'student'];
         $departments = $this->departments();
+        $unitUserCounts = [];
+        User::query()
+            ->select('department')
+            ->selectRaw('COUNT(*) as users_count')
+            ->whereNotNull('department')
+            ->where('department', '!=', '')
+            ->groupBy('department')
+            ->get()
+            ->each(function (User $user) use (&$unitUserCounts): void {
+                $key = $this->unitKey($user->department);
+                $unitUserCounts[$key] = ($unitUserCounts[$key] ?? 0) + (int) $user->getAttribute('users_count');
+            });
 
         $activeStatuses = ['1' => 'Active', '0' => 'Inactive'];
 
-        return view('admin.users.index', compact('users', 'roles', 'departments', 'activeStatuses', 'defaultTokenQuota'));
+        return view('admin.users.index', compact('users', 'roles', 'departments', 'unitUserCounts', 'activeStatuses', 'defaultTokenQuota'));
     }
 
     public function storeUnit(Request $request): RedirectResponse
@@ -92,15 +105,88 @@ class UserController extends Controller
             throw ValidationException::withMessages(['unit_name' => 'This unit already exists.']);
         }
 
-        $units = [...$this->managedUnits(), $unit];
-        $units = $this->normaliseUnits($units);
-        $setting = AppSetting::updateOrCreate(
-            ['key' => self::ORGANIZATION_UNITS_SETTING],
-            ['value' => json_encode($units, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)],
-        );
+        $setting = $this->saveUnitRegistry([...$this->departments(), $unit]);
         AdminAuditLog::record('organization_unit.created', $setting, ['unit' => $unit]);
 
         return redirect()->route('admin.users.index')->with('success', 'Unit created successfully.');
+    }
+
+    public function updateUnit(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'current_unit' => ['required', 'string', 'max:100'],
+            'new_name' => ['required', 'string', 'max:100'],
+        ]);
+        $units = $this->departments();
+        $currentUnit = $this->findUnit($data['current_unit'], $units);
+        $newName = preg_replace('/\s+/u', ' ', trim($data['new_name'])) ?? trim($data['new_name']);
+
+        if ($currentUnit === null) {
+            throw ValidationException::withMessages(['unit_manage' => 'This unit no longer exists. Refresh the page and try again.']);
+        }
+
+        if (collect($units)->contains(fn (string $unit): bool => $this->unitKey($unit) === $this->unitKey($newName) && $this->unitKey($unit) !== $this->unitKey($currentUnit))) {
+            throw ValidationException::withMessages(['unit_manage' => 'Another unit already has that name.']);
+        }
+
+        $assignedUsers = User::query()->where('department', $currentUnit)->count();
+
+        $setting = DB::transaction(function () use ($currentUnit, $newName, $units, $assignedUsers): AppSetting {
+            if ($this->unitKey($currentUnit) !== $this->unitKey($newName) || $currentUnit !== $newName) {
+                User::query()->where('department', $currentUnit)->update(['department' => $newName]);
+            }
+
+            $updatedUnits = array_map(
+                fn (string $unit): string => $this->unitKey($unit) === $this->unitKey($currentUnit) ? $newName : $unit,
+                $units,
+            );
+            $setting = $this->saveUnitRegistry($updatedUnits);
+            AdminAuditLog::record('organization_unit.updated', $setting, [
+                'from' => $currentUnit,
+                'to' => $newName,
+                'assigned_users' => $assignedUsers,
+            ]);
+
+            return $setting;
+        });
+
+        return redirect()->route('admin.users.index')->with('success', 'Unit updated successfully.');
+    }
+
+    public function destroyUnit(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'unit_name' => ['required', 'string', 'max:100'],
+        ]);
+        $units = $this->departments();
+        $unit = $this->findUnit($data['unit_name'], $units);
+
+        if ($unit === null) {
+            throw ValidationException::withMessages(['unit_manage' => 'This unit no longer exists. Refresh the page and try again.']);
+        }
+
+        $assignedUsers = DB::transaction(function () use ($unit, $units): int {
+            $assignedUsers = User::query()->where('department', $unit)->lockForUpdate()->count();
+            if ($assignedUsers > 0) {
+                return $assignedUsers;
+            }
+
+            $setting = $this->saveUnitRegistry(array_values(array_filter(
+                $units,
+                fn (string $candidate): bool => $this->unitKey($candidate) !== $this->unitKey($unit),
+            )));
+            AdminAuditLog::record('organization_unit.deleted', $setting, ['unit' => $unit]);
+
+            return 0;
+        });
+
+        if ($assignedUsers > 0) {
+            return redirect()->route('admin.users.index')->withErrors([
+                'unit_manage' => "Cannot delete {$unit}: {$assignedUsers} user(s) are still assigned. Reassign those users first.",
+            ]);
+        }
+
+        return redirect()->route('admin.users.index')->with('success', 'Unit deleted successfully.');
     }
 
     public function create()
@@ -261,6 +347,12 @@ class UserController extends Controller
      */
     private function departments(): array
     {
+        $decoded = json_decode(AppSetting::value(self::ORGANIZATION_UNITS_SETTING, '[]') ?? '[]', true);
+        if (is_array($decoded) && ($decoded['version'] ?? null) === 1 && is_array($decoded['units'] ?? null)) {
+            return $this->normaliseUnits($decoded['units']);
+        }
+
+        $legacyUnits = is_array($decoded) ? $decoded : [];
         $usedByUsers = User::query()
             ->whereNotNull('department')
             ->where('department', '!=', '')
@@ -268,15 +360,38 @@ class UserController extends Controller
             ->pluck('department')
             ->all();
 
-        return $this->normaliseUnits([...self::DEFAULT_UNITS, ...$this->managedUnits(), ...$usedByUsers]);
+        return $this->normaliseUnits([...self::DEFAULT_UNITS, ...$legacyUnits, ...$usedByUsers]);
     }
 
-    /** @return array<int, string> */
-    private function managedUnits(): array
+    /** @param array<int, string> $units */
+    private function saveUnitRegistry(array $units): AppSetting
     {
-        $decoded = json_decode(AppSetting::value(self::ORGANIZATION_UNITS_SETTING, '[]') ?? '[]', true);
+        return AppSetting::updateOrCreate(
+            ['key' => self::ORGANIZATION_UNITS_SETTING],
+            ['value' => json_encode([
+                'version' => 1,
+                'units' => $this->normaliseUnits($units),
+            ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)],
+        );
+    }
 
-        return is_array($decoded) ? $this->normaliseUnits($decoded) : [];
+    /** @param array<int, string> $units */
+    private function findUnit(string $name, array $units): ?string
+    {
+        foreach ($units as $unit) {
+            if ($this->unitKey($unit) === $this->unitKey($name)) {
+                return $unit;
+            }
+        }
+
+        return null;
+    }
+
+    private function unitKey(string $unit): string
+    {
+        $normalised = preg_replace('/\s+/u', ' ', trim($unit)) ?? trim($unit);
+
+        return mb_strtolower($normalised);
     }
 
     /** @param array<int, mixed> $units

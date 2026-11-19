@@ -71,7 +71,7 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 
 ### 4.4 Admin Panel
 
-- Quản lý user, role, unit/department, trạng thái tài khoản và quota. Admin có thể tạo unit trong Users & Roles; các unit hiện có và các department đang được dùng tiếp tục xuất hiện trong form tạo/sửa user.
+- Quản lý user, role, unit/department, trạng thái tài khoản và quota. Admin có thể tạo, đổi tên và xóa unit trong Users & Roles; đổi tên cập nhật user đang thuộc unit, còn xóa yêu cầu chuyển user sang unit khác trước. Các unit hiện có được giữ trong form tạo/sửa user.
 - Quản lý prompt, template, showcase, FAQ và support ticket.
 - Audit log cho các hành động quản trị.
 - Shortcut từ AI Plus sang Admin Panel cho admin.
