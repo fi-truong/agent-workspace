@@ -98,6 +98,9 @@
 }
 
 .lsts-ai-home .hero-quote {
+    display: grid;
+    align-content: center;
+    min-block-size: 11.5rem;
     margin: 0;
     padding-inline-start: clamp(12px, 2vw, 24px);
     border-inline-start: 2px solid var(--navy);
@@ -125,8 +128,12 @@
 
 @media (min-width: 800px) {
     .lsts-ai-home .hero > .wrap {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
         gap: clamp(24px, 4vw, 48px);
+    }
+
+    .lsts-ai-home .hero-quote {
+        min-block-size: 10rem;
     }
 }
 

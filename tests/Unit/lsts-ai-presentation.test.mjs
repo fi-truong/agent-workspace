@@ -39,24 +39,34 @@ async function pageFor(t, width) {
     return browser.newPage({ viewport: { width, height: 740 } });
 }
 
-test('places the homepage quote alongside the introduction and stacks it on mobile', async (t) => {
+test('keeps the homepage header height stable across quotes on desktop and mobile', async (t) => {
     const page = await pageFor(t, 1280);
-    const homepage = await read('resources/views/ai-plus/index.blade.php');
+    const [homepage, catalog, font] = await Promise.all([
+        read('resources/views/ai-plus/index.blade.php'),
+        read('app/Support/HomepageQuotes.php'),
+        readFile(
+            new URL('../../public/fonts/inter-var.woff2', import.meta.url),
+        ),
+    ]);
     const hero = homepage.match(/<header class="hero">[\s\S]*?<\/header>/)?.[0];
     assert.ok(hero);
-    const sampleQuote = {
-        text: 'AI is an incredible technology, but great tools require work at the intersection of technology, design, and understanding people and the world.',
-        name: 'Sam Altman',
-        role: 'Co-founder, OpenAI',
-    };
-    const markup = hero.replace(
-        /{{ \$homepageQuote\['(text|name|role)'\] }}/g,
-        (_, field) => sampleQuote[field],
+    const quotes = Array.from(
+        catalog.matchAll(
+            /'text' => '(.*?)',\s*'name' => '(.*?)',\s*'role' => '(.*?)',/g,
+        ),
+        ([, text, name, role]) => ({ text, name, role }),
+    );
+    assert.ok(quotes.length >= 10);
+    const fontCss = typography.replace(
+        /url\([^)]+\)/,
+        `url(data:font/woff2;base64,${font.toString('base64')})`,
     );
     await page.setContent(
-        `<style>${base}${presentation}</style><body class="lsts-ai-ui lsts-ai-home">${markup}</body>`,
+        `<style>${fontCss}${aiPlus}${presentation}</style><body class="lsts-ai-ui lsts-ai-home">${hero}</body>`,
     );
+    await page.evaluate(() => document.fonts.ready);
 
+    const header = page.locator('.hero');
     const title = page.getByRole('heading', { name: 'LSTS AI+' });
     const description = page.locator('.hero .sub');
     const quote = page.locator('.hero-quote');
@@ -66,14 +76,34 @@ test('places the homepage quote alongside the introduction and stacks it on mobi
         '750',
     );
 
-    for (const width of [1280, 800, 390, 320]) {
+    for (const width of [1440, 1280, 1024, 800, 799, 390, 320]) {
         await page.setViewportSize({ width, height: 740 });
+        const heights = await header.evaluate((element, samples) => {
+            const quotation = element.querySelector('blockquote');
+            const name = element.querySelector('.hero-quote-name');
+            const role = element.querySelector('.hero-quote-role');
+
+            return samples.map((sample) => {
+                quotation.textContent = `“${sample.text}”`;
+                name.textContent = sample.name;
+                role.textContent = sample.role;
+
+                return element.getBoundingClientRect().height;
+            });
+        }, quotes);
+        assert.equal(
+            new Set(heights).size,
+            1,
+            `Height changed at ${width}px: ${heights.join(', ')}`,
+        );
+
         const titleBox = await title.boundingBox();
         const descriptionBox = await description.boundingBox();
         const quoteBox = await quote.boundingBox();
 
         if (width >= 800) {
             assert.ok(titleBox.x + titleBox.width < quoteBox.x);
+            assert.ok(quoteBox.width > titleBox.width);
         } else {
             assert.equal(titleBox.x, quoteBox.x);
             assert.ok(descriptionBox.y + descriptionBox.height < quoteBox.y);
