@@ -149,7 +149,7 @@ test('shows coordinator connections below the parent Agent and escapes titles', 
     );
     assert.match(
         await page.locator('[data-agent-model-routing]').textContent(),
-        /Coordinator: GPT-6 Luna\s*·\s*Specialists use:/,
+        /Coordinator model: GPT-6 Luna\s*·\s*Specialist model:/,
     );
     assert.equal(
         await page.locator('#specialist-model').inputValue(),
@@ -236,7 +236,7 @@ test('sends the selected model, locks the picker while sending and displays cred
     await page.locator('#specialist-model').selectOption('gpt-6-sol');
     assert.match(
         await page.locator('[data-agent-model-routing]').textContent(),
-        /Coordinator: GPT-6 Sol\s*·\s*Specialists use:/,
+        /Coordinator model: GPT-6 Sol\s*·\s*Specialist model:/,
     );
     assert.equal(
         await page.locator('#specialist-model').inputValue(),

@@ -323,6 +323,8 @@ Các ID dưới đây bổ sung phần mô tả chức năng ở mục 4–7. �
 
 ## 17. Giao diện và quy ước lỗi
 
+Tên hiển thị trên các màn hình là **LSTS AI+**. Trang chủ, workspace, danh mục, chi tiết, biểu mẫu, quản trị và truy cập dùng cùng bộ màu, chữ và kiểu điều khiển theo theme.
+
 Các route dưới đây là route nội bộ web app, **không phải public API có cam kết tương thích**. Request/response đầy đủ cần đối chiếu controller/Form Request/test trước tích hợp bên ngoài.
 
 | Method | Route | Kết quả/chú ý |

@@ -2,17 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>@yield('title', 'AI+ Admin - LSTS')</title>
+<title>@yield('page-title', 'Dashboard') — LSTS AI+</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 @include('partials.favicon')
-<!-- Load shared AI+ styles and admin styles with file-based cache versions. -->
+<!-- Load shared LSTS AI+ styles and admin styles with file-based cache versions. -->
 <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}?v={{ filemtime(public_path('css/ai-plus.css')) }}">
 <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v={{ filemtime(public_path('css/admin.css')) }}">
 @stack('styles')
+<link rel="stylesheet" href="{{ asset('css/lsts-ai-plus.css') }}?v={{ filemtime(public_path('css/lsts-ai-plus.css')) }}">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 @include('partials.session-timeout-monitor')
 </head>
-<body class="admin-body">
+<body class="admin-body lsts-ai-ui">
 <script>
   window.addEventListener('pageshow', function (event) {
     if (event.persisted) window.location.reload();
@@ -24,8 +25,8 @@
   <aside class="admin-sidebar" id="adminSidebar">
     <div class="sidebar-header">
       <a href="{{ route('admin.dashboard') }}" class="sidebar-brand">
-        <span class="brand-icon">⚙️</span>
-        <span class="brand-text">AI+ Admin</span>
+        <span class="brand-text lsts-wordmark">LSTS AI+</span>
+        <span class="lsts-admin-label">Admin</span>
       </a>
     </div>
 
@@ -33,7 +34,7 @@
       <div class="nav-section">
         <span class="nav-section-title">Overview</span>
         <a href="{{ route('admin.dashboard') }}" class="nav-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-          <span class="nav-icon">📊</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'usage'])</span>
           <span>Dashboard</span>
         </a>
       </div>
@@ -41,19 +42,19 @@
       <div class="nav-section">
         <span class="nav-section-title">Content</span>
         <a href="{{ route('admin.prompts.index') }}" class="nav-item {{ request()->routeIs('admin.prompts.*') ? 'active' : '' }}">
-          <span class="nav-icon">📝</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'book'])</span>
           <span>Prompt Library</span>
         </a>
         <a href="{{ route('admin.templates.index') }}" class="nav-item {{ request()->routeIs('admin.templates.*') ? 'active' : '' }}">
-          <span class="nav-icon">📋</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'agents'])</span>
           <span>Agent Templates</span>
         </a>
         <a href="{{ route('admin.showcases.index') }}" class="nav-item {{ request()->routeIs('admin.showcases.*') ? 'active' : '' }}">
-          <span class="nav-icon">🌟</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'image'])</span>
           <span>Showcase</span>
         </a>
         <a href="{{ route('admin.faqs.index') }}" class="nav-item {{ request()->routeIs('admin.faqs.*') ? 'active' : '' }}">
-          <span class="nav-icon">❓</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'support'])</span>
           <span>FAQ</span>
         </a>
       </div>
@@ -61,7 +62,7 @@
       <div class="nav-section">
         <span class="nav-section-title">Support</span>
         <a href="{{ route('admin.tickets.index') }}" class="nav-item {{ request()->routeIs('admin.tickets.*') ? 'active' : '' }}">
-          <span class="nav-icon">🎫</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'support'])</span>
           <span>Support Tickets</span>
           <span
             class="support-new-badge"
@@ -77,25 +78,25 @@
       <div class="nav-section">
         <span class="nav-section-title">System</span>
         <a href="{{ route('admin.users.index') }}" class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-          <span class="nav-icon">👥</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'users'])</span>
           <span>Users & Roles</span>
         </a>
         <a href="{{ route('admin.usage.index') }}" class="nav-item {{ request()->routeIs('admin.usage.*') ? 'active' : '' }}">
-          <span class="nav-icon">📈</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'usage'])</span>
           <span>Credit Usage</span>
         </a>
         <a href="{{ route('admin.ai-plus-guide.index') }}" class="nav-item {{ request()->routeIs('admin.ai-plus-guide.*') ? 'active' : '' }}">
-          <span class="nav-icon">🤖</span>
-          <span>AI Plus Guide</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'chat'])</span>
+          <span>LSTS AI+ Guide</span>
         </a>
         <a href="{{ route('admin.ai-image.index') }}" class="nav-item {{ request()->routeIs('admin.ai-image.*') ? 'active' : '' }}">
-          <span class="nav-icon">🖼️</span><span>Image Generation</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'image'])</span><span>Image Generation</span>
         </a>
         <a href="{{ route('admin.work-use.index') }}" class="nav-item {{ request()->routeIs('admin.work-use.*') ? 'active' : '' }}">
-          <span class="nav-icon">🛡️</span><span>Work-Use Monitoring</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'policy'])</span><span>Work-Use Monitoring</span>
         </a>
         <a href="{{ route('admin.school-knowledge.index') }}" class="nav-item {{ request()->routeIs('admin.school-knowledge.*') ? 'active' : '' }}">
-          <span class="nav-icon">🏫</span><span>School Knowledge Base</span>
+          <span class="nav-icon">@include('partials.lsts-ai-icon', ['name' => 'book'])</span><span>School Knowledge Base</span>
         </a>
       </div>
     </nav>
@@ -103,7 +104,7 @@
     <div class="sidebar-footer">
       <a href="{{ route('ai-plus.index') }}" class="nav-item back-to-aiplus">
         <span class="nav-icon">←</span>
-        <span>Back to AI+</span>
+        <span>Back to LSTS AI+</span>
       </a>
       <form action="{{ route('logout') }}" method="POST">
         @csrf

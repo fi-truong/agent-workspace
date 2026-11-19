@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('page-title', 'Dashboard')
-@section('page-desc', 'AI+ administration overview')
+@section('page-desc', 'LSTS AI+ administration overview')
 
 @section('content')
 <div class="stats-grid">

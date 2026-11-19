@@ -1,8 +1,10 @@
 @extends('layouts.ai-plus')
 
-@section('title', 'AI Policy & Guidelines — AI+ LSTS')
+@section('title', 'AI Policy & Guidelines — LSTS AI+')
 
 @section('breadcrumb', 'AI Policy & Guidelines')
+
+@section('screen-class', 'lsts-ai-document')
 
 @section('content')
 <div class="policy-language-wrap">
@@ -54,7 +56,7 @@
       <section id="overview-en" class="section">
         <div class="section-header"><div class="section-number">1</div><h2 class="section-title">Overview</h2></div>
         <div class="section-content">
-          <p>This policy establishes guidelines for the responsible use of artificial intelligence (AI) tools at Lawrence S. Ting School. All staff members using AI+ are expected to follow these guidelines to ensure ethical, secure, and effective use of AI in educational and administrative contexts.</p>
+          <p>This policy establishes guidelines for the responsible use of artificial intelligence (AI) tools at Lawrence S. Ting School. All staff members using LSTS AI+ are expected to follow these guidelines to ensure ethical, secure, and effective use of AI in educational and administrative contexts.</p>
           <div class="info-card">
             <h4>Key Principles</h4>
             <ul>
@@ -73,7 +75,7 @@
           <div class="alert-box">
             <div class="alert-title">⚠️ Critical</div>
             <div class="alert-content">
-              <strong>Never input the following into AI+ or any AI system:</strong>
+              <strong>Never input the following into LSTS AI+ or any AI system:</strong>
               <ul>
                 <li>Student names, ID numbers, or personal identifiers</li>
                 <li>Parent/guardian names, phone numbers, or email addresses</li>
@@ -83,7 +85,7 @@
               </ul>
             </div>
           </div>
-          <p>AI+ includes a built-in PII (Personally Identifiable Information) filter that will attempt to detect and block sensitive data. However, <strong>you are responsible</strong> for ensuring no PII is submitted.</p>
+          <p>LSTS AI+ includes a built-in PII (Personally Identifiable Information) filter that will attempt to detect and block sensitive data. However, <strong>you are responsible</strong> for ensuring no PII is submitted.</p>
           <div class="info-card">
             <h4>Safe Practices</h4>
             <ul>
@@ -99,7 +101,7 @@
       <section id="acceptable-use-en" class="section">
         <div class="section-header"><div class="section-number">3</div><h2 class="section-title">Acceptable Use</h2></div>
         <div class="section-content">
-          <p>AI+ is provided to support your work at LSTS. Acceptable uses include:</p>
+          <p>LSTS AI+ is provided to support your work at LSTS. Acceptable uses include:</p>
           <div class="info-card">
             <h4>✅ Recommended Uses</h4>
             <ul>
@@ -152,7 +154,7 @@
       <section id="overview-vi" class="section">
         <div class="section-header"><div class="section-number">1</div><h2 class="section-title">Tổng quan</h2></div>
         <div class="section-content">
-          <p>Chính sách này đưa ra hướng dẫn về việc sử dụng các công cụ trí tuệ nhân tạo (AI) một cách có trách nhiệm tại Trường Lawrence S. Ting. Nhân viên sử dụng AI+ cần tuân thủ các hướng dẫn này để bảo đảm AI được sử dụng có đạo đức, an toàn và hiệu quả trong công việc giáo dục và hành chính.</p>
+          <p>Chính sách này đưa ra hướng dẫn về việc sử dụng các công cụ trí tuệ nhân tạo (AI) một cách có trách nhiệm tại Trường Lawrence S. Ting. Nhân viên sử dụng LSTS AI+ cần tuân thủ các hướng dẫn này để bảo đảm AI được sử dụng có đạo đức, an toàn và hiệu quả trong công việc giáo dục và hành chính.</p>
           <div class="info-card">
             <h4>Nguyên tắc chính</h4>
             <ul>
@@ -171,7 +173,7 @@
           <div class="alert-box">
             <div class="alert-title">⚠️ Quan trọng</div>
             <div class="alert-content">
-              <strong>Không nhập các thông tin sau vào AI+ hoặc bất kỳ hệ thống AI nào:</strong>
+              <strong>Không nhập các thông tin sau vào LSTS AI+ hoặc bất kỳ hệ thống AI nào:</strong>
               <ul>
                 <li>Họ tên, mã số học sinh hoặc thông tin định danh cá nhân</li>
                 <li>Họ tên, số điện thoại hoặc địa chỉ email của cha mẹ/người giám hộ</li>
@@ -181,7 +183,7 @@
               </ul>
             </div>
           </div>
-          <p>AI+ có bộ lọc thông tin cá nhân định danh (PII) tích hợp để cố gắng phát hiện và chặn dữ liệu nhạy cảm. Tuy nhiên, <strong>bạn vẫn chịu trách nhiệm</strong> bảo đảm không gửi thông tin PII vào hệ thống.</p>
+          <p>LSTS AI+ có bộ lọc thông tin cá nhân định danh (PII) tích hợp để cố gắng phát hiện và chặn dữ liệu nhạy cảm. Tuy nhiên, <strong>bạn vẫn chịu trách nhiệm</strong> bảo đảm không gửi thông tin PII vào hệ thống.</p>
           <div class="info-card">
             <h4>Thực hành an toàn</h4>
             <ul>
@@ -197,7 +199,7 @@
       <section id="acceptable-use-vi" class="section">
         <div class="section-header"><div class="section-number">3</div><h2 class="section-title">Sử dụng phù hợp</h2></div>
         <div class="section-content">
-          <p>AI+ được cung cấp để hỗ trợ công việc tại LSTS. Các mục đích sử dụng phù hợp gồm:</p>
+          <p>LSTS AI+ được cung cấp để hỗ trợ công việc tại LSTS. Các mục đích sử dụng phù hợp gồm:</p>
           <div class="info-card">
             <h4>✅ Mục đích được khuyến khích</h4>
             <ul>
@@ -268,7 +270,7 @@
         languageButton.setAttribute('aria-pressed', String(isActive));
       });
       document.documentElement.lang = language;
-      document.title = language === 'vi' ? 'Chính sách và Hướng dẫn sử dụng AI — AI+ LSTS' : 'AI Policy & Guidelines — AI+ LSTS';
+      document.title = language === 'vi' ? 'Chính sách và Hướng dẫn sử dụng AI — LSTS AI+' : 'AI Policy & Guidelines — LSTS AI+';
       if (breadcrumb) {
         breadcrumb.textContent = language === 'vi' ? 'Chính sách và Hướng dẫn AI' : 'AI Policy & Guidelines';
       }

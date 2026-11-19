@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 
 @section('page-title', 'School Knowledge Base')
-@section('page-desc', 'Shared reference material used by every AI+ Chat and Agent')
+@section('page-desc', 'Shared reference material used by every LSTS AI+ Chat and Agent')
 
 @push('styles')
 <style>
@@ -20,7 +20,7 @@
   <form method="POST" action="{{ route('admin.school-knowledge.update') }}" style="padding:22px 24px;">@csrf @method('PUT')
     <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
       <input type="hidden" name="enabled" value="0"><input type="checkbox" name="enabled" value="1" {{ $enabled ? 'checked' : '' }} style="width:18px;height:18px;margin-top:2px;">
-      <span><strong style="display:block;font-size:17px;">Use School Knowledge Base in every Chat and Agent</strong><span class="text-muted" style="display:block;margin-top:4px;">AI+ retrieves only the most relevant excerpts for each request. This material is treated as reference, never as instructions.</span></span>
+      <span><strong style="display:block;font-size:17px;">Use School Knowledge Base in every Chat and Agent</strong><span class="text-muted" style="display:block;margin-top:4px;">LSTS AI+ retrieves only the most relevant excerpts for each request. This material is treated as reference, never as instructions.</span></span>
     </label>
     <div style="margin-top:18px;"><button type="submit" class="btn-primary">Save availability</button> <span class="badge {{ $enabled ? 'published' : 'draft' }}">{{ $enabled ? 'Enabled' : 'Disabled' }}</span></div>
   </form>
@@ -30,7 +30,7 @@
   <section class="table-section">
     <div class="table-toolbar"><h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0;">Official LSTS website</h3></div>
     <form method="POST" action="{{ route('admin.school-knowledge.website') }}" style="padding:22px 24px;">@csrf
-      <p class="text-muted" style="margin-top:0;line-height:1.5;">Add a public HTTPS page from <code>lsts.edu.vn</code>. Only this domain is accepted, and it is read with the same safe web-reader limits as AI+ chat.</p>
+      <p class="text-muted" style="margin-top:0;line-height:1.5;">Add a public HTTPS page from <code>lsts.edu.vn</code>. Only this domain is accepted, and it is read with the same safe web-reader limits as LSTS AI+ chat.</p>
       <label style="display:block;font-weight:600;">Page URL<input name="url" type="url" required placeholder="https://lsts.edu.vn/en/..." style="width:100%;box-sizing:border-box;margin-top:7px;padding:10px;border:1px solid var(--line);border-radius:7px;background:var(--card-bg);"></label>
       <button type="submit" class="btn-primary" style="margin-top:16px;">Add and index page</button>
     </form>

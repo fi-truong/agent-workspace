@@ -1,7 +1,9 @@
 @extends('layouts.ai-plus')
 
-@section('title', 'AI+ Acceptable Use — LSTS')
+@section('title', 'Acceptable Use — LSTS AI+')
 @section('breadcrumb', 'Acceptable Use')
+
+@section('screen-class', 'lsts-ai-document')
 
 @section('content')
 <main class="policy-acceptance">
@@ -10,49 +12,49 @@
       <button type="button" class="is-active" data-policy-language="en" aria-pressed="true">English</button>
       <button type="button" data-policy-language="vi" aria-pressed="false">Tiếng Việt</button>
     </div>
-    <div class="policy-icon">AI+</div>
+    <div class="policy-icon">LSTS AI+</div>
     <div data-policy-copy="en" lang="en">
       <p class="eyebrow">LSTS WORKPLACE ASSISTANT</p>
-      <h1>Use AI+ responsibly</h1>
-      <p class="lead">AI+ is provided for LSTS work only. Please confirm that you understand how it may be used before continuing.</p>
+      <h1>Use LSTS AI+ responsibly</h1>
+      <p class="lead">LSTS AI+ is provided for LSTS work only. Please confirm that you understand how it may be used before continuing.</p>
       <div class="policy-summary">
-        <h2>AI+ may be used for</h2>
+        <h2>LSTS AI+ may be used for</h2>
         <ul>
           <li>Teaching, learning materials, and student support</li>
           <li>Administration, reporting, professional communication, and school operations</li>
           <li>School-related research and approved professional work</li>
         </ul>
-        <h2>Before you use AI+</h2>
+        <h2>Before you use LSTS AI+</h2>
         <ul>
           <li>Do not submit student, parent, financial, medical, or other sensitive personal information.</li>
           <li>Review AI-generated work before using or sharing it.</li>
-          <li>Do not use AI+ for personal, commercial, unlawful, or unrelated activities.</li>
+          <li>Do not use LSTS AI+ for personal, commercial, unlawful, or unrelated activities.</li>
         </ul>
       </div>
     </div>
     <div data-policy-copy="vi" lang="vi" hidden>
       <p class="eyebrow">TRỢ LÝ CÔNG VIỆC LSTS</p>
-      <h1>Sử dụng AI+ có trách nhiệm</h1>
-      <p class="lead">AI+ chỉ phục vụ công việc của LSTS. Vui lòng xác nhận bạn hiểu các phạm vi sử dụng trước khi tiếp tục.</p>
+      <h1>Sử dụng LSTS AI+ có trách nhiệm</h1>
+      <p class="lead">LSTS AI+ chỉ phục vụ công việc của LSTS. Vui lòng xác nhận bạn hiểu các phạm vi sử dụng trước khi tiếp tục.</p>
       <div class="policy-summary">
-        <h2>AI+ có thể được sử dụng cho</h2>
+        <h2>LSTS AI+ có thể được sử dụng cho</h2>
         <ul>
           <li>Giảng dạy, xây dựng tài liệu học tập và hỗ trợ học sinh</li>
           <li>Công việc hành chính, báo cáo, giao tiếp chuyên môn và vận hành nhà trường</li>
           <li>Nghiên cứu liên quan đến nhà trường và các công việc chuyên môn được phê duyệt</li>
         </ul>
-        <h2>Trước khi sử dụng AI+</h2>
+        <h2>Trước khi sử dụng LSTS AI+</h2>
         <ul>
           <li>Không nhập thông tin nhạy cảm hoặc thông tin cá nhân của học sinh, phụ huynh; thông tin tài chính, y tế hoặc dữ liệu tương tự.</li>
           <li>Kiểm tra nội dung do AI tạo ra trước khi sử dụng hoặc chia sẻ.</li>
-          <li>Không sử dụng AI+ cho mục đích cá nhân, thương mại, trái pháp luật hoặc không liên quan đến công việc của trường.</li>
+          <li>Không sử dụng LSTS AI+ cho mục đích cá nhân, thương mại, trái pháp luật hoặc không liên quan đến công việc của trường.</li>
         </ul>
       </div>
     </div>
     <form method="POST" action="{{ route('ai-plus.policy-acceptance.accept') }}">
       @csrf
-      <label class="accept-check"><input type="checkbox" name="accept" value="1" required> <span data-policy-label data-en="I have read and agree to use AI+ in line with the LSTS AI Policy &amp; Guidelines." data-vi="Tôi đã đọc và đồng ý sử dụng AI+ phù hợp với Chính sách và Hướng dẫn AI của LSTS.">I have read and agree to use AI+ in line with the LSTS AI Policy &amp; Guidelines.</span></label>
-      @error('accept')<p class="policy-error" data-policy-error data-en="You must accept the AI+ policy to continue." data-vi="Bạn cần đồng ý với chính sách AI+ để tiếp tục.">{{ $message }}</p>@enderror
+      <label class="accept-check"><input type="checkbox" name="accept" value="1" required> <span data-policy-label data-en="I have read and agree to use LSTS AI+ in line with the LSTS AI Policy &amp; Guidelines." data-vi="Tôi đã đọc và đồng ý sử dụng LSTS AI+ phù hợp với Chính sách và Hướng dẫn AI của LSTS.">I have read and agree to use LSTS AI+ in line with the LSTS AI Policy &amp; Guidelines.</span></label>
+      @error('accept')<p class="policy-error" data-policy-error data-en="You must accept the LSTS AI+ policy to continue." data-vi="Bạn cần đồng ý với chính sách LSTS AI+ để tiếp tục.">{{ $message }}</p>@enderror
       <button class="accept-button" type="submit" data-policy-label data-en="Accept and continue" data-vi="Đồng ý và tiếp tục">Accept and continue</button>
     </form>
     <p class="policy-link"><a href="{{ route('ai-plus.ai-policy.index') }}" data-policy-label data-en="Read the full AI Policy &amp; Guidelines" data-vi="Đọc toàn bộ Chính sách và Hướng dẫn AI">Read the full AI Policy &amp; Guidelines</a> · <span data-policy-label data-en="Version" data-vi="Phiên bản">Version</span> {{ $version }}</p>
@@ -90,7 +92,7 @@
         languageButton.setAttribute('aria-pressed', String(isActive));
       });
       document.documentElement.lang = language;
-      document.title = language === 'vi' ? 'AI+ — Xác nhận chính sách sử dụng · LSTS' : 'AI+ Acceptable Use — LSTS';
+      document.title = language === 'vi' ? 'Xác nhận chính sách sử dụng — LSTS AI+' : 'Acceptable Use — LSTS AI+';
       if (breadcrumb) {
         breadcrumb.textContent = language === 'vi' ? 'Xác nhận chính sách' : 'Acceptable Use';
       }

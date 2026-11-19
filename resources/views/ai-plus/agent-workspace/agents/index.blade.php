@@ -1,6 +1,8 @@
 @extends('layouts.ai-plus')
 
-@section('title', 'My Agents — Agent Workspace')
+@section('title', 'My Agents — LSTS AI+')
+
+@section('screen-class', 'lsts-ai-agents')
 
 @section('breadcrumb', 'Agents')
 
@@ -12,16 +14,16 @@
     </div>
     <nav class="workspace-tabs" aria-label="Workspace">
       <a href="{{ route('ai-plus.agent-workspace.index') }}" class="ws-tab" data-behavior="new-quick-chat">
-        <span class="icon">💬</span>
+        <span class="icon">@include('partials.lsts-ai-icon', ['name' => 'chat'])</span>
         <span>Chat</span>
       </a>
       <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="ws-tab active" aria-current="page">
-        <span class="icon">🤖</span>
+        <span class="icon">@include('partials.lsts-ai-icon', ['name' => 'agents'])</span>
         <span>Agents</span>
       </a>
       @if($imageGenerationEnabled)
       <a href="{{ route('ai-plus.agent-workspace.images.index') }}" class="ws-tab">
-        <span class="icon">🖼️</span>
+        <span class="icon">@include('partials.lsts-ai-icon', ['name' => 'image'])</span>
         <span>Image</span>
       </a>
       @endif
@@ -90,9 +92,9 @@
         <span class="updated-at">Updated {{ $agent->updated_at->diffForHumans() }}</span>
       </div>
       <div class="agent-actions">
-        <button class="btn-icon edit-agent" title="Edit" data-agent-id="{{ $agent->id }}">✏️</button>
-        <button class="btn-icon use-agent" title="Use in Chat" data-agent-id="{{ $agent->id }}">💬</button>
-        <button class="btn-icon delete-agent" title="Delete" data-agent-id="{{ $agent->id }}">🗑️</button>
+        <button class="btn-icon use-agent" title="Use in Chat" data-agent-id="{{ $agent->id }}">Use in Chat</button>
+        <button class="btn-icon edit-agent" title="Edit" aria-label="Edit {{ $agent->title }}" data-agent-id="{{ $agent->id }}">@include('partials.lsts-ai-icon', ['name' => 'edit'])</button>
+        <button class="btn-icon delete-agent" title="Delete Agent" aria-label="Delete {{ $agent->title }}" data-agent-id="{{ $agent->id }}">@include('partials.lsts-ai-icon', ['name' => 'delete'])</button>
       </div>
     </article>
     @endforeach
@@ -116,11 +118,11 @@
         <span class="updated-at">Shortcut in your workspace</span>
       </div>
       <div class="agent-actions">
-        <button class="btn-icon use-agent" title="Start a new chat" data-agent-id="{{ $agent->id }}">💬</button>
+        <button class="btn-icon use-agent" title="Start a new chat" data-agent-id="{{ $agent->id }}">Use in Chat</button>
         <form method="POST" action="{{ route('ai-plus.sharing-showcase.use.destroy', $agent->showcase_post_id) }}" class="remove-shared-agent-form" data-web-confirm="Remove this shared Agent from My Agents? Your existing conversations will be kept." data-web-confirm-title="Remove shared Agent" data-web-confirm-action="Remove" data-web-confirm-danger="true">
           @csrf
           @method('DELETE')
-          <button class="btn-icon remove-shared-agent" type="submit" title="Remove from My Agents" aria-label="Remove {{ $agent->title }} from My Agents">🗑️</button>
+          <button class="btn-icon remove-shared-agent" type="submit" title="Remove from My Agents" aria-label="Remove {{ $agent->title }} from My Agents">@include('partials.lsts-ai-icon', ['name' => 'delete'])</button>
         </form>
       </div>
     </article>

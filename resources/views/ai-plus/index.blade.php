@@ -1,14 +1,14 @@
 @extends('layouts.app')
 
-@section('title', 'AI+ - LSTS Staff Portal')
+@section('title', 'LSTS AI+')
 
 @section('content')
 
   <header class="hero">
     <div class="wrap">
-      <span class="eyebrow">LSTS · AI+</span>
-      <h1 class="title">Everything AI,<br><em>in one door.</em></h1>
-      <p class="sub">Build agents, share what works, and find help — all from one place, built for how LSTS teachers and staff actually work.</p>
+      <h1 class="title">LSTS AI+</h1>
+      <p class="sub">AI tools for teaching and school operations</p>
+      <a href="{{ route('ai-plus.agent-workspace.index') }}" class="lsts-primary-link">Open Agent Workspace <span aria-hidden="true">→</span></a>
     </div>
   </header>
 
@@ -16,13 +16,17 @@
     <div class="wrap">
       <div class="section-head">
         <h2>Create</h2>
-        <span class="tag">01 — BUILD YOUR OWN</span>
       </div>
       <p class="section-desc">Everything you need to build an agent from scratch — or start from something already made.</p>
       <div class="grid cols-3">
         @foreach($createCards as $card)
         <div class="card">
-          <div class="icon">{{ $card['icon'] }}</div>
+          <div class="icon">
+            @include('partials.lsts-ai-icon', ['name' => match ($card['icon']) {
+              'AW' => 'chat', 'PL' => 'book', 'AT' => 'agents', 'SH' => 'users',
+              'SU' => 'support', 'PG' => 'policy', 'MU' => 'usage', default => 'file',
+            }])
+          </div>
           <h3>{{ $card['title'] }}</h3>
           <p>{{ $card['description'] }}</p>
           @if(!empty($card['strip']))
@@ -43,12 +47,16 @@
     <div class="wrap">
       <div class="section-head">
         <h2>Community</h2>
-        <span class="tag">02 — LEARN FROM EACH OTHER</span>
       </div>
       <div class="grid cols-2">
         @foreach($communityCards as $card)
         <div class="card">
-          <div class="icon">{{ $card['icon'] }}</div>
+          <div class="icon">
+            @include('partials.lsts-ai-icon', ['name' => match ($card['icon']) {
+              'AW' => 'chat', 'PL' => 'book', 'AT' => 'agents', 'SH' => 'users',
+              'SU' => 'support', 'PG' => 'policy', 'MU' => 'usage', default => 'file',
+            }])
+          </div>
           <h3>{{ $card['title'] }}</h3>
           <p>{{ $card['description'] }}</p>
           @if(!empty($card['strip']))
@@ -69,12 +77,16 @@
     <div class="wrap">
       <div class="section-head">
         <h2>Guidance & Account</h2>
-        <span class="tag">03 — STAY INFORMED</span>
       </div>
       <div class="grid cols-2">
         @foreach($guidanceCards as $card)
         <div class="card">
-          <div class="icon">{{ $card['icon'] }}</div>
+          <div class="icon">
+            @include('partials.lsts-ai-icon', ['name' => match ($card['icon']) {
+              'AW' => 'chat', 'PL' => 'book', 'AT' => 'agents', 'SH' => 'users',
+              'SU' => 'support', 'PG' => 'policy', 'MU' => 'usage', default => 'file',
+            }])
+          </div>
           <h3>{{ $card['title'] }}</h3>
           <p>{{ $card['description'] }}</p>
           <a href="{{ $card['url'] }}" class="cta" style="text-decoration:none;">{{ $card['ctaLabel'] }} <span class="arrow">→</span></a>
@@ -85,24 +97,24 @@
   </section>
 
   @if($guideEnabled)
-  <aside class="ai-guide" aria-label="AI Plus Guide">
+  <aside class="ai-guide" aria-label="LSTS AI+ Guide">
     <section class="ai-guide-panel" id="aiGuidePanel" hidden>
       <div class="ai-guide-head">
         <div class="ai-guide-title">
           <img src="{{ asset('images/ai-plus-guide-bot.png') }}" alt="" class="ai-guide-avatar ai-guide-bot-image" data-guide-bot data-theme-src-mint="{{ asset('images/ai-plus-guide-bot.png') }}" data-theme-src-teal="{{ asset('images/ai-plus-guide-bot.png') }}" data-theme-src-orange="{{ asset('images/ai-plus-guide-bot-orange.png') }}" data-theme-src-burgundy="{{ asset('images/ai-plus-guide-bot-burgundy.png') }}">
           <div>
-          <strong>AI Plus Guide</strong>
+          <strong>LSTS AI+ Guide</strong>
           <span>Find the right place to start</span>
           </div>
         </div>
-        <button type="button" class="ai-guide-close" id="aiGuideClose" aria-label="Close AI Plus Guide">×</button>
+        <button type="button" class="ai-guide-close" id="aiGuideClose" aria-label="Close LSTS AI+ Guide">×</button>
       </div>
       <div class="ai-guide-messages" id="aiGuideMessages" aria-live="polite">
-        <div class="ai-guide-message assistant">Hi! I can help you find the right place in AI Plus. What would you like to do?</div>
+        <div class="ai-guide-message assistant">Hi! I can help you find the right place in LSTS AI+. What would you like to do?</div>
       </div>
       @auth
       <form class="ai-guide-form" id="aiGuideForm">
-        <label class="sr-only" for="aiGuideInput">Ask AI Plus Guide</label>
+        <label class="sr-only" for="aiGuideInput">Ask LSTS AI+ Guide</label>
         <textarea id="aiGuideInput" rows="2" maxlength="800" placeholder="For example: I want to create an agent…" required></textarea>
         <button type="submit" id="aiGuideSend">Send</button>
       </form>
@@ -110,7 +122,7 @@
       <a class="ai-guide-login" href="{{ route('login.local.form') }}">Sign in to ask the guide →</a>
       @endauth
     </section>
-    <button type="button" class="ai-guide-trigger" id="aiGuideTrigger" aria-label="Ask AI Plus Guide" aria-expanded="false" aria-controls="aiGuidePanel">
+    <button type="button" class="ai-guide-trigger" id="aiGuideTrigger" aria-label="Ask LSTS AI+ Guide" aria-expanded="false" aria-controls="aiGuidePanel">
       <img src="{{ asset('images/ai-plus-guide-bot.png') }}" alt="" class="ai-guide-bot-image" data-guide-bot data-theme-src-mint="{{ asset('images/ai-plus-guide-bot.png') }}" data-theme-src-teal="{{ asset('images/ai-plus-guide-bot.png') }}" data-theme-src-orange="{{ asset('images/ai-plus-guide-bot-orange.png') }}" data-theme-src-burgundy="{{ asset('images/ai-plus-guide-bot-burgundy.png') }}">
     </button>
   </aside>

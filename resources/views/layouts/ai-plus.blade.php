@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>@yield('title', 'AI+ - LSTS Staff Portal')</title>
+<title>@yield('title', 'LSTS AI+')</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 @include('partials.favicon')
 <script>
@@ -17,10 +17,11 @@
 <!-- Fonts are self-hosted via @font-face in ai-plus.css -->
 <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}?v={{ filemtime(public_path('css/ai-plus.css')) }}">
 @stack('styles')
+<link rel="stylesheet" href="{{ asset('css/lsts-ai-plus.css') }}?v={{ filemtime(public_path('css/lsts-ai-plus.css')) }}">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 @include('partials.session-timeout-monitor')
 </head>
-<body>
+<body class="lsts-ai-ui @yield('screen-class')">
 <script>
   window.addEventListener('pageshow', function (event) {
     if (event.persisted) window.location.reload();
@@ -30,7 +31,7 @@
 @hasSection('breadcrumb')
 <div class="ai-plus-topbar">
   <div class="wrap">
-    <a href="{{ route('ai-plus.index') }}" class="back-link">← Back to AI+</a>
+    <a href="{{ route('ai-plus.index') }}" class="back-link lsts-wordmark" aria-label="Back to LSTS AI+">LSTS AI+</a>
     <span class="crumb-current">@yield('breadcrumb')</span>
     @auth
     <div class="user-badge-wrap" style="margin-left:auto;">

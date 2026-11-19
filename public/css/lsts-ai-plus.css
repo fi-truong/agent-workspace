@@ -1,0 +1,757 @@
+/* Shared presentation for the LSTS AI+ staff screens. Theme colors come from ai-plus.css. */
+.lsts-ai-ui {
+    --lsts-control-radius: 8px;
+    --lsts-panel-radius: 14px;
+    --lsts-highlight: color-mix(in srgb, var(--navy) 9%, var(--surface));
+    --lsts-hover: color-mix(in srgb, var(--navy) 5%, var(--surface));
+    --lsts-theme-rail: 72px;
+}
+
+.lsts-ai-ui .lsts-icon {
+    display: inline-block;
+    width: 1.15em;
+    height: 1.15em;
+    flex: none;
+    vertical-align: middle;
+}
+
+.lsts-ai-ui .lsts-wordmark {
+    color: inherit;
+    font:
+        600 19px/1.2 'Fraunces',
+        serif;
+    white-space: nowrap;
+}
+
+.lsts-ai-ui :is(a, button, input, select, textarea, summary):focus-visible {
+    outline: 2px solid var(--navy);
+    outline-offset: 3px;
+}
+
+.lsts-primary-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 10px 16px;
+    border: 1px solid transparent;
+    border-radius: var(--lsts-control-radius);
+    background: var(--navy);
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+    line-height: 1.35;
+}
+
+.lsts-primary-link:hover {
+    background: var(--navy-deep);
+    color: #fff;
+}
+
+.lsts-ai-ui .theme-switcher {
+    background: var(--surface);
+    box-shadow: none;
+}
+
+.lsts-ai-ui .theme-swatch:hover {
+    transform: none;
+    border-color: var(--text-soft);
+}
+
+/* Portal, catalog and reading pages */
+.lsts-ai-home .crumbbar {
+    background: var(--surface);
+    border-bottom-color: var(--surface-border);
+}
+
+.lsts-ai-home .crumb-trail .lsts-wordmark {
+    color: var(--text-main);
+}
+
+.lsts-ai-home header.hero {
+    padding: clamp(36px, 6vw, 80px) 0;
+    background: var(--lsts-highlight);
+    border-bottom: 1px solid var(--surface-border);
+}
+
+.lsts-ai-home header.hero::after {
+    content: none;
+}
+
+.lsts-ai-home .hero .title {
+    color: var(--text-main);
+    max-width: none;
+    font-size: clamp(42px, 7vw, 76px);
+}
+
+.lsts-ai-home .hero .sub {
+    color: var(--text-soft);
+    margin: 12px 0 24px;
+}
+
+.lsts-ai-home :is(#create, #community, #guidance) {
+    padding-block: clamp(28px, 4vw, 48px);
+}
+
+.lsts-ai-home .card {
+    background: var(--surface);
+    border-color: var(--surface-border);
+    border-radius: var(--lsts-panel-radius);
+    box-shadow: none;
+}
+
+.lsts-ai-home .card:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: var(--navy);
+}
+
+.lsts-ai-home .card .icon {
+    background: var(--lsts-highlight);
+    color: var(--text-main);
+    font-size: 20px;
+    border-radius: var(--lsts-control-radius);
+}
+
+.lsts-ai-home .card .strip span {
+    background: var(--lsts-hover);
+    color: var(--text-soft);
+}
+
+.lsts-ai-ui .ai-plus-topbar {
+    background: var(--surface);
+    border-bottom-color: var(--surface-border);
+}
+
+.lsts-ai-ui .ai-plus-topbar .lsts-wordmark {
+    color: var(--text-main);
+}
+
+.lsts-ai-ui .ai-plus-topbar .crumb-current {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--text-soft);
+}
+
+.lsts-ai-ui .ai-plus-topbar .user-badge {
+    background: var(--lsts-hover);
+    color: var(--text-main);
+    border: 1px solid var(--surface-border);
+}
+
+.lsts-ai-ui .ai-plus-topbar .header-logout-btn {
+    color: var(--text-main);
+    border-color: var(--surface-border);
+}
+
+:is(.lsts-ai-catalog, .lsts-ai-document) header.page-header {
+    background: var(--lsts-highlight);
+    color: var(--text-main);
+    padding-block: clamp(24px, 4vw, 48px);
+}
+
+:is(.lsts-ai-catalog, .lsts-ai-document) header.page-header h1 {
+    color: var(--text-main);
+    font-size: clamp(30px, 4vw, 46px);
+    letter-spacing: -0.02em;
+}
+
+:is(.lsts-ai-catalog, .lsts-ai-document) header.page-header p {
+    color: var(--text-soft);
+    overflow-wrap: anywhere;
+}
+
+:is(.lsts-ai-catalog, .lsts-ai-document) header.page-header::before,
+:is(.lsts-ai-catalog, .lsts-ai-document) header.page-header::after {
+    content: none;
+}
+
+.lsts-ai-catalog :is(.prompt-card, .template-card, .showcase-card),
+.lsts-ai-document
+    :is(.sidebar-card, .post-main, .stat-card, .policy-card, .quota-panel) {
+    border-radius: var(--lsts-panel-radius);
+    box-shadow: none;
+}
+
+.lsts-ai-catalog :is(.prompt-card, .template-card, .showcase-card):hover {
+    transform: none;
+    box-shadow: none;
+    border-color: var(--navy);
+}
+
+.lsts-ai-catalog
+    :is(
+        .search-box input,
+        .catalog-filter select,
+        .showcase-filter-controls select
+    ) {
+    min-height: 44px;
+    border-radius: var(--lsts-control-radius);
+}
+
+.lsts-ai-catalog .template-preview {
+    background: var(--lsts-highlight);
+}
+
+.lsts-ai-document .policy-icon {
+    width: auto;
+    min-width: max-content;
+    padding-inline: 14px;
+}
+
+/* Workspace, chat and image */
+:is(.lsts-ai-chat, .lsts-ai-image) {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    min-height: 0;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-image) > .ai-plus-topbar {
+    flex: none;
+}
+
+.lsts-ai-chat > .app,
+.lsts-ai-image > .image-workspace {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+}
+
+.lsts-ai-chat .main {
+    min-height: 0;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-image, .lsts-ai-agents) .workspace-tabs .ws-tab {
+    min-width: 0;
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-soft);
+    transition:
+        background 0.15s,
+        border-color 0.15s,
+        color 0.15s;
+}
+
+:is(.lsts-ai-chat, .lsts-ai-image, .lsts-ai-agents)
+    .workspace-tabs
+    .ws-tab:is(:hover, .active) {
+    background: var(--lsts-highlight);
+    color: var(--text-main);
+}
+
+:is(.lsts-ai-chat, .lsts-ai-image, .lsts-ai-agents)
+    .workspace-tabs
+    .ws-tab.active {
+    border-color: var(--surface-border);
+}
+
+:is(.lsts-ai-chat, .lsts-ai-image, .lsts-ai-agents)
+    :is(
+        .chat-list-section,
+        .agent-sidebar-section-title,
+        .image-history-heading
+    ) {
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.lsts-ai-chat .chat-item.active,
+.lsts-ai-agents .agent-sidebar-conversation.active {
+    background: var(--lsts-highlight);
+    box-shadow: inset 3px 0 var(--navy);
+    color: var(--text-main);
+}
+
+.lsts-ai-chat :is(.item-icon.agent, .item-icon.chat) {
+    background: var(--lsts-highlight);
+}
+
+.lsts-ai-chat .chat-item-wrap:focus-within .conv-delete-btn,
+.lsts-ai-image .image-history-wrap:focus-within .image-session-delete {
+    display: flex;
+}
+
+.lsts-ai-chat .active-agent-breadcrumb,
+.lsts-ai-chat
+    :is(
+        .agent-breadcrumb-name,
+        .agent-breadcrumb-prompt,
+        .conversation-breadcrumb-name
+    ) {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.lsts-ai-chat .agent-breadcrumb-name {
+    display: block;
+    background: var(--lsts-highlight);
+    color: var(--text-main);
+    border-inline-start: 3px solid var(--navy);
+}
+
+.lsts-ai-chat .agent-breadcrumb-name img {
+    vertical-align: middle;
+    margin-inline-end: 4px;
+}
+
+.lsts-ai-chat
+    :is(
+        .agent-breadcrumb-name,
+        .agent-breadcrumb-prompt,
+        .conversation-breadcrumb-name
+    ) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lsts-ai-chat .topbar {
+    gap: 8px 16px;
+    padding-block: 12px;
+}
+
+.lsts-ai-chat .empty-state {
+    min-height: 0;
+    padding: 20px;
+    overflow-y: auto;
+    justify-content: safe center;
+}
+
+.lsts-ai-chat .empty-state h3 {
+    color: var(--text-main);
+    font-size: clamp(24px, 4vw, 38px);
+}
+
+.lsts-ai-chat .empty-state p {
+    margin-bottom: 16px;
+}
+
+.lsts-ai-chat .quick-actions {
+    flex-wrap: wrap;
+}
+
+.lsts-ai-chat .quick-btn {
+    padding: 12px 16px;
+}
+
+.lsts-ai-chat .input-area {
+    padding-inline-end: var(--lsts-theme-rail);
+}
+
+.lsts-ai-chat .input-hint {
+    text-align: start;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.lsts-ai-image .image-composer {
+    margin-inline-end: var(--lsts-theme-rail);
+    box-shadow: none;
+}
+
+.lsts-ai-image
+    .image-composer
+    :is(textarea, select, button:not(#image-start-new)) {
+    min-height: 44px;
+    font-family: inherit;
+    font-size: 15px;
+}
+
+.lsts-ai-image .image-attach-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.lsts-ai-image .image-empty-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: var(--lsts-panel-radius);
+    background: var(--lsts-highlight);
+    color: var(--text-main);
+    font-size: 24px;
+}
+
+.lsts-ai-image .image-prompt-examples button {
+    border-radius: var(--lsts-control-radius);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+/* Agent cards, detail and the shared Agent editor */
+.lsts-ai-agents .agent-card {
+    height: auto;
+    min-height: 280px;
+    padding: 16px;
+    border-radius: var(--lsts-panel-radius);
+    gap: 10px;
+    transition: border-color 0.15s;
+}
+
+.lsts-ai-agents .agent-card:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: var(--navy);
+}
+
+.lsts-ai-agents .shared-agent-card {
+    background: var(--surface);
+    border-inline-start: 3px solid var(--navy);
+}
+
+.lsts-ai-agents :is(.agent-title, .agent-description) {
+    overflow-wrap: anywhere;
+}
+
+.lsts-ai-agents .agent-card-header {
+    min-height: 44px;
+}
+
+.lsts-ai-agents .agent-classification {
+    margin: 0;
+}
+
+.lsts-ai-agents :is(.agent-description-wrap, .agent-description) {
+    min-height: 0;
+}
+
+.lsts-ai-agents .agent-meta {
+    min-height: 0;
+    flex-wrap: wrap;
+}
+
+.lsts-ai-agents .agent-actions {
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.lsts-ai-agents .agent-actions .use-agent {
+    margin-inline-end: auto;
+    width: auto;
+    min-height: 36px;
+    padding: 0 10px;
+    background: var(--lsts-highlight);
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.lsts-ai-agent-detail .agent-section {
+    min-width: 0;
+}
+
+.lsts-ai-agent-detail .system-prompt {
+    overflow-wrap: anywhere;
+    background: var(--surface);
+    color: var(--text-main);
+    border: 1px solid var(--surface-border);
+}
+
+.lsts-ai-agent-detail .btn-danger {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--danger, #b42c3c);
+}
+
+.lsts-ai-agent-detail .btn-danger:hover {
+    background: var(--paper);
+}
+
+.lsts-ai-ui #agent-modal .modal {
+    max-width: 620px;
+    max-height: min(90dvh, 860px);
+    border: 1px solid var(--surface-border);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.16);
+}
+
+.lsts-ai-ui #agent-modal .modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding-block: 14px;
+    background: var(--surface);
+}
+
+.lsts-ai-ui #agent-form {
+    gap: 16px;
+    padding-bottom: 0;
+}
+
+.lsts-ai-ui #agent-form :is(input[type='text'], select) {
+    min-height: 44px;
+}
+
+.lsts-ai-ui #agent-form textarea {
+    min-height: 80px;
+}
+
+.lsts-ai-ui #system_prompt {
+    min-height: 120px;
+}
+
+.lsts-ai-ui #agent-form .agent-avatar-preview {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+}
+
+.lsts-ai-ui #agent-form .modal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-inline: -24px;
+    padding: 12px 24px;
+    background: var(--surface);
+    border-top: 1px solid var(--surface-border);
+}
+
+/* Admin, access and account */
+.admin-body.lsts-ai-ui {
+    --sidebar-bg: var(--surface);
+    --sidebar-text: var(--ink-soft);
+    --sidebar-hover: var(--lsts-hover);
+    --sidebar-active: var(--navy);
+    background: var(--paper);
+}
+
+.admin-body.lsts-ai-ui .admin-sidebar {
+    border-inline-end: 1px solid var(--line);
+}
+
+.admin-body.lsts-ai-ui :is(.sidebar-brand, .nav-section-title, .nav-item) {
+    color: var(--text-main);
+}
+
+.admin-body.lsts-ai-ui .lsts-admin-label {
+    color: var(--text-soft);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.admin-body.lsts-ai-ui .nav-section-title {
+    color: var(--text-soft);
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.admin-body.lsts-ai-ui .nav-item.active {
+    background: var(--lsts-highlight);
+    color: var(--text-main);
+    box-shadow: inset 3px 0 var(--navy);
+}
+
+.admin-body.lsts-ai-ui .data-table th,
+.admin-body.lsts-ai-ui .data-table tbody tr:hover {
+    background: var(--lsts-hover);
+}
+
+.admin-body.lsts-ai-ui .data-table th {
+    color: var(--text-main);
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.admin-body.lsts-ai-ui #usersTable th:last-child {
+    background: var(--lsts-hover);
+}
+
+.admin-body.lsts-ai-ui #usersTable tr:hover td:last-child {
+    background: var(--lsts-hover);
+}
+
+.lsts-ai-access {
+    display: grid;
+    min-height: 100dvh;
+    align-items: center;
+    justify-items: center;
+    padding: 24px;
+    background: var(--body-bg);
+}
+
+.lsts-access-card {
+    width: min(100%, 460px);
+    padding: clamp(20px, 5vw, 36px);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--lsts-panel-radius);
+    background: var(--surface);
+    color: var(--text-main);
+}
+
+.lsts-access-card h1 {
+    margin: 16px 0 8px;
+    font:
+        600 clamp(26px, 5vw, 38px)/1.15 'Fraunces',
+        serif;
+}
+
+.lsts-access-card p {
+    margin: 0 0 12px;
+    color: var(--text-soft);
+}
+
+.lsts-access-card :is(.sso-link, .btn-secondary, input) {
+    width: 100%;
+    min-height: 44px;
+}
+
+.lsts-access-card .form-group + .form-group,
+.lsts-access-card .btn-secondary,
+.lsts-access-card .links {
+    margin-top: 12px;
+}
+
+.lsts-access-card .btn-secondary {
+    justify-content: center;
+}
+
+.lsts-access-card .lsts-auth-divider {
+    margin: 16px 0 12px;
+    font-size: 14px;
+}
+
+.lsts-access-card input {
+    border: 1px solid var(--input-border);
+    border-radius: var(--lsts-control-radius);
+    background: var(--input-bg);
+    color: var(--input-text);
+    font: inherit;
+    padding: 8px 12px;
+}
+
+.lsts-access-card .links a {
+    color: var(--navy);
+}
+
+.lsts-access-card .error {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: var(--lsts-control-radius);
+    background: #fbe9e6;
+    color: #852b23;
+}
+
+@media (max-width: 760px) {
+    .lsts-ai-ui {
+        --lsts-theme-rail: 60px;
+    }
+
+    .lsts-ai-ui .ai-plus-topbar .wrap,
+    .lsts-ai-ui .ai-plus-topbar .user-badge-wrap {
+        flex-wrap: wrap;
+        gap: 6px 10px;
+    }
+
+    :is(.lsts-ai-chat, .lsts-ai-image) :is(.app, .image-workspace) {
+        flex-direction: column;
+    }
+
+    :is(.lsts-ai-chat, .lsts-ai-image) :is(.sidebar, .image-sidebar) {
+        width: 100%;
+        min-height: 0;
+        border-inline-end: 0;
+        border-bottom: 1px solid var(--surface-border);
+    }
+
+    :is(.lsts-ai-chat, .lsts-ai-image)
+        :is(.sidebar-header, .image-sidebar-header) {
+        display: none;
+    }
+
+    :is(.lsts-ai-chat, .lsts-ai-image) .workspace-tabs {
+        flex-direction: row;
+        padding: 6px 12px;
+        gap: 4px;
+    }
+
+    :is(.lsts-ai-chat, .lsts-ai-image) .workspace-tabs .ws-tab {
+        flex-direction: row;
+        justify-content: center;
+        font-size: 14px;
+        padding: 6px;
+        gap: 6px;
+    }
+
+    .lsts-ai-chat .chat-list,
+    .lsts-ai-image .image-history {
+        display: block;
+        flex: 0 1 auto;
+        max-height: 14dvh;
+    }
+
+    .lsts-ai-chat .sidebar-footer,
+    .lsts-ai-image .image-sidebar-footer {
+        padding: 6px 12px;
+    }
+
+    .lsts-ai-image .image-sidebar-footer > div:not(.image-user-avatar) {
+        display: block;
+    }
+
+    .lsts-ai-chat .topbar {
+        flex-wrap: wrap;
+        padding-inline: 12px;
+    }
+
+    .lsts-ai-chat .topbar-left {
+        flex-basis: 100%;
+    }
+
+    .lsts-ai-chat .topbar-right {
+        margin-inline-start: 0;
+    }
+
+    .lsts-ai-chat .topbar-right .icon-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .lsts-ai-chat .input-area {
+        padding-block: 8px;
+        padding-inline-start: 12px;
+    }
+
+    .lsts-ai-chat .input-hint {
+        max-height: 3.5em;
+        overflow-y: auto;
+    }
+
+    .lsts-ai-image .image-composer-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .lsts-ai-image .image-composer-row textarea,
+    .lsts-ai-image .image-composer-row select {
+        grid-column: 1 / -1;
+        max-width: none;
+    }
+
+    .lsts-ai-image .image-composer-row button {
+        min-width: 0;
+        padding-inline: 8px;
+        white-space: normal;
+    }
+}
+
+@media (hover: none) {
+    .lsts-ai-chat .chat-item-wrap .conv-delete-btn,
+    .lsts-ai-image .image-history-wrap .image-session-delete {
+        display: flex;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lsts-ai-ui .image-generating::before,
+    .lsts-ai-ui :is(.aiplus-typing-dot, .support-new-badge) {
+        animation: none;
+    }
+    .lsts-ai-image .image-results {
+        scroll-behavior: auto;
+    }
+}

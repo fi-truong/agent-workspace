@@ -1,6 +1,6 @@
 @extends('layouts.ai-plus')
 
-@section('title', 'Change Password — AI+')
+@section('title', 'Change Password — LSTS AI+')
 
 @section('breadcrumb', 'Change Password')
 

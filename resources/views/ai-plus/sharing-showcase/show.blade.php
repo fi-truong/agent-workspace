@@ -1,8 +1,10 @@
 @extends('layouts.ai-plus')
 
-@section('title', $post['title'].' — Sharing & Showcase — AI+ LSTS')
+@section('title', $post['title'].' — Sharing & Showcase — LSTS AI+')
 
 @section('breadcrumb', 'Sharing & Showcase / '.$post['title'])
+
+@section('screen-class', 'lsts-ai-document')
 
 @section('content')
 <header class="page-header">
@@ -484,7 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (shareBtn) {
     shareBtn.addEventListener('click', async () => {
       const title = document.querySelector('.page-header h1')?.textContent || document.title;
-      const shareData = { title, text: 'Check out this agent on AI+ Sharing & Showcase', url: window.location.href };
+      const shareData = { title, text: 'Check out this agent on LSTS AI+ Sharing & Showcase', url: window.location.href };
       try {
         if (navigator.share) {
           await navigator.share(shareData);

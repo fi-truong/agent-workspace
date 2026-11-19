@@ -85,7 +85,7 @@
 
 <form action="{{ route('admin.users.token-quota.update') }}" method="POST" class="token-quota-bulk" id="tokenQuotaBulkForm">
     @csrf
-    <div><p class="token-quota-eyebrow">MONTHLY AI+ CREDITS</p><h2>Set quota for one or more users</h2><p>Custom quotas override the current phase default of {{ \App\Services\ChatModelService::formatCredits($defaultTokenQuota) }} credits. Reset restores the default.</p></div>
+    <div><p class="token-quota-eyebrow">MONTHLY LSTS AI+ CREDITS</p><h2>Set quota for one or more users</h2><p>Custom quotas override the current phase default of {{ \App\Services\ChatModelService::formatCredits($defaultTokenQuota) }} credits. Reset restores the default.</p></div>
     <div class="token-quota-selected" id="tokenQuotaSelected" aria-live="polite"><span>No users selected. Tick users in the list below.</span></div>
     <label>Monthly credits<input type="number" name="credit_quota_limit" min="0.001" max="1000000" step="0.001" placeholder="e.g. 10000"></label>
     <div class="token-quota-actions"><button type="submit" name="action" value="set" class="btn-primary">Set custom quota</button><button type="submit" name="action" value="reset" class="btn-secondary">Use phase default</button></div>

@@ -1,7 +1,9 @@
 @extends('layouts.ai-plus')
 
-@section('title', 'Support Request #' . $ticket->id . ' — AI+ LSTS')
+@section('title', 'Support Request #' . $ticket->id . ' — LSTS AI+')
 @section('breadcrumb', 'Support / My Requests / #' . $ticket->id)
+
+@section('screen-class', 'lsts-ai-document')
 
 @section('content')
 <header class="page-header">
@@ -27,7 +29,7 @@
   </section>
   @forelse($ticket->replies as $reply)
     <section class="message reply-message">
-      <div class="message-meta">{{ $reply->author_id === $ticket->user_id ? 'You' : 'AI+ Support' }} · {{ $reply->created_at->format('d/m/Y H:i') }}</div>
+      <div class="message-meta">{{ $reply->author_id === $ticket->user_id ? 'You' : 'LSTS AI+ Support' }} · {{ $reply->created_at->format('d/m/Y H:i') }}</div>
       <div class="message-body">{{ $reply->body }}</div>
       @if($reply->attachments->isNotEmpty())
         <div class="reply-images">

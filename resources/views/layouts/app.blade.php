@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>@yield('title', 'AI+ - LSTS Staff Portal')</title>
+<title>@yield('title', 'LSTS AI+')</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 @include('partials.favicon')
 <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -20,8 +20,9 @@
 @vite('resources/css/app.css')
 <link rel="stylesheet" href="{{ asset('css/ai-plus.css') }}?v={{ filemtime(public_path('css/ai-plus.css')) }}">
 @stack('styles')
+<link rel="stylesheet" href="{{ asset('css/lsts-ai-plus.css') }}?v={{ filemtime(public_path('css/lsts-ai-plus.css')) }}">
 </head>
-<body>
+<body class="lsts-ai-ui lsts-ai-home">
 <script>
   window.addEventListener('pageshow', function (event) {
     if (event.persisted) window.location.reload();
@@ -31,7 +32,7 @@
   <div class="crumbbar">
     <div class="wrap">
       <div class="crumb-trail">
-        <a href="{{ route('ai-plus.index') }}" class="crumb-link">LSTS Staff Portal</a> <span class="crumb-sep">/</span> <b>AI+</b>
+        <a href="{{ route('ai-plus.index') }}" class="crumb-link lsts-wordmark">LSTS AI+</a>
       </div>
       <div class="role-pill role-pill-account">
         @auth

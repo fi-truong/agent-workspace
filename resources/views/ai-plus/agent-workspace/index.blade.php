@@ -1,6 +1,8 @@
 @extends('layouts.ai-plus')
 
-@section('title', 'Agent Workspace — AI+ LSTS')
+@section('title', 'Agent Workspace — LSTS AI+')
+
+@section('screen-class', 'lsts-ai-chat')
 
 @section('breadcrumb', 'Agent Workspace')
 
@@ -19,23 +21,23 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <!-- <a href="{{ route('ai-plus.index') }}">← Back to AI+</a> -->
+      <!-- <a href="{{ route('ai-plus.index') }}">← Back to LSTS AI+</a> -->
       <h2>Agent Workspace</h2>
     </div>
 
     <!-- Workspace Type Tabs -->
     <div class="workspace-tabs">
       <a href="{{ route('ai-plus.agent-workspace.index') }}" class="ws-tab {{ request()->routeIs('ai-plus.agent-workspace.index') ? 'active' : '' }}" data-behavior="new-quick-chat">
-        <span class="icon">💬</span>
+        <span class="icon">@include('partials.lsts-ai-icon', ['name' => 'chat'])</span>
         <span>Chat</span>
       </a>
       <a href="{{ route('ai-plus.agent-workspace.agents.index') }}" class="ws-tab {{ request()->routeIs('ai-plus.agent-workspace.agents.*') ? 'active' : '' }}">
-        <span class="icon">🤖</span>
+        <span class="icon">@include('partials.lsts-ai-icon', ['name' => 'agents'])</span>
         <span>Agents</span>
       </a>
       @if($imageGenerationEnabled)
       <a href="{{ route('ai-plus.agent-workspace.images.index') }}" class="ws-tab">
-        <span class="icon">🖼️</span>
+        <span class="icon">@include('partials.lsts-ai-icon', ['name' => 'image'])</span>
         <span>Image</span>
       </a>
       @endif
@@ -157,13 +159,13 @@
         </div>
         @endif
         <div class="connected-agent-summary" data-connected-agents @if(empty($headerConnections)) hidden @endif tabindex="0" role="group" aria-label="Connected Agents">
-          <span class="connected-agent-label">Connected Agents:</span>
+          <span class="connected-agent-label">Available specialists:</span>
           <span data-connected-agent-names>{{ implode(' · ', array_column($headerConnections, 'title')) }}</span>
         </div>
         <div class="model-routing-summary" data-agent-model-routing hidden aria-label="Models used in this Agent conversation">
-          <span>Coordinator: <strong data-coordinator-model>GPT-6 Luna</strong></span>
+          <span>Coordinator model: <strong data-coordinator-model>GPT-6 Luna</strong></span>
           <span aria-hidden="true">·</span>
-          <label class="specialist-model-control">Specialists use:
+          <label class="specialist-model-control">Specialist model:
             <select id="specialist-model" aria-label="Model for connected Agents" title="1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. Applies to all connected Agents used in this conversation.">
               @foreach($chatModels as $modelId => $details)
               <option value="{{ $modelId }}" @selected($activeSpecialistModel === $modelId)>{{ $details['label'] }} · {{ $details['multiplier'] }}× credits</option>
@@ -174,23 +176,22 @@
       </div>
       <div class="topbar-right">
         @if($activeConversationId)
-        <button class="icon-btn move-conversation-btn" data-behavior="move-conversation" title="Move conversation" aria-label="Move conversation">⇄</button>
+        <button class="icon-btn move-conversation-btn" data-behavior="move-conversation" title="Move conversation" aria-label="Move conversation">@include('partials.lsts-ai-icon', ['name' => 'move'])</button>
         @endif
-        <button class="icon-btn" data-behavior="attach-topbar" title="Upload files">📎</button>
-        <button class="icon-btn" data-behavior="save-as-agent" title="Save as Agent">🤖</button>
-        <button class="icon-btn" data-behavior="export-chat" title="Export conversation">↓</button>
+        <button class="icon-btn" data-behavior="attach-topbar" title="Upload files" aria-label="Upload files">@include('partials.lsts-ai-icon', ['name' => 'attach'])</button>
+        <button class="icon-btn" data-behavior="save-as-agent" title="Save as Agent" aria-label="Save as Agent">@include('partials.lsts-ai-icon', ['name' => 'agents'])</button>
+        <button class="icon-btn" data-behavior="export-chat" title="Export conversation" aria-label="Export conversation">@include('partials.lsts-ai-icon', ['name' => 'download'])</button>
       </div>
     </div>
 
     <!-- Empty State for new chat -->
     <div class="empty-state">
-      <div class="empty-icon">Agent Workspace</div>
       <h3>Start a conversation</h3>
-      <p>Type a message below for a regular chat, choose an existing Agent, or create one for recurring work with its own instructions and Knowledge.</p>
+      <p>Ask a question, attach a document, or choose an Agent for work you do regularly.</p>
 
       <div class="quick-actions">
         <a class="quick-btn" href="{{ route('ai-plus.agent-workspace.agents.index') }}">
-          <span class="icon">🤖</span>
+          <span class="icon">@include('partials.lsts-ai-icon', ['name' => 'agents'])</span>
           <span class="label">Use an Agent</span>
           <span class="desc">Choose from your saved Agents</span>
         </a>
@@ -208,12 +209,12 @@
     <div class="input-area">
       <div class="input-wrapper">
         <div class="input-box">
-          <textarea placeholder="Type your message, or describe what you want to build..." rows="1" wrap="soft"></textarea>
+          <textarea aria-label="Message" placeholder="Type your message, or describe what you want to build..." rows="1" wrap="soft"></textarea>
           <div class="input-actions">
-            <button type="button" class="attach-btn" title="Attach files" aria-label="Attach files">📎</button>
+            <button type="button" class="attach-btn" title="Attach files" aria-label="Attach files">@include('partials.lsts-ai-icon', ['name' => 'attach'])</button>
             <div class="composer-actions-right">
               <div class="model-selector">
-                <select id="chat-model" aria-label="Chat model" title="1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. Applies to your next message and connected Agents.">
+                <select id="chat-model" aria-label="Chat model" title="1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. This is the main chat model. Connected Agents use the specialist model.">
                   @foreach($chatModels as $modelId => $details)
                   <option value="{{ $modelId }}" @selected($activeChatModel === $modelId)>{{ $details['label'] }} · {{ $details['multiplier'] }}× credits</option>
                   @endforeach
@@ -228,7 +229,7 @@
         </div>
         <input type="file" id="chat-image-input" accept="image/png,image/jpeg,image/gif,image/webp,.html,.js,.jsx,.mjs,.cjs,.css,.ts,.tsx,.json,.xml,.md,.php,.py,.java,.sql,.yaml,.yml,.sh,.bash,.c,.h,.cpp,.hpp,.cs,.go,.rb,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple style="display:none;">
         <div class="input-hint">
-          AI+ is for LSTS-related work • <a href="{{ route('ai-plus.ai-policy.index') }}">Read the AI policy</a> • Scanned PDFs: up to {{ config('openai.pdf_scan_max_pages') }} pages; for longer files, specify pages to read (for example, “pages 12–15”) to reduce token use • Press Enter to send, Shift+Enter for new line • Public links are read automatically • Your data is protected by PII filtering • Upload up to 5 files (15 MB total) for analysis • Source code files are read as text and never executed; code context is limited to 20,000 characters per file
+          LSTS AI+ is for LSTS-related work • <a href="{{ route('ai-plus.ai-policy.index') }}">Read the AI policy</a> • Scanned PDFs: up to {{ config('openai.pdf_scan_max_pages') }} pages; for longer files, specify pages to read (for example, “pages 12–15”) to reduce token use • Press Enter to send, Shift+Enter for new line • Public links are read automatically • Your data is protected by PII filtering • Upload up to 5 files (15 MB total) for analysis • Source code files are read as text and never executed; code context is limited to 20,000 characters per file
         </div>
       </div>
     </div>
@@ -243,7 +244,7 @@
       <label>File name <input name="filename" maxlength="120" placeholder="Leave blank for a smart name"></label>
       <label>Language<select name="language"><option value="source">Keep original language</option><option value="vi">Vietnamese</option><option value="en">English</option></select></label>
       <label>Document template<select name="template"><option value="standard">Standard document</option><option value="report">Formal report</option><option value="lesson_plan">Lesson plan</option><option value="meeting_minutes">Meeting minutes</option><option value="budget">Budget</option></select></label>
-      <p class="export-modal-note">Every User and AI+ message in this conversation will be included in order. This uses AI tokens to improve formatting.</p>
+      <p class="export-modal-note">Every User and LSTS AI+ message in this conversation will be included in order. This uses AI tokens to improve formatting.</p>
     </div>
     <div class="export-modal-actions"><button type="button" class="export-cancel" data-behavior="close-export-modal">Cancel</button><button type="submit" class="export-submit">Create file</button></div>
   </form>

@@ -1,9 +1,9 @@
 <!-- Create/Edit Agent Modal (dùng chung cho trang Agents + Save as Agent trong chat) -->
 <div class="modal-overlay" id="agent-modal" style="display:none;">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-header">
       <h3 id="modal-title">Create Agent</h3>
-      <button class="modal-close" id="modal-close">&times;</button>
+      <button class="modal-close" id="modal-close" type="button" aria-label="Close">&times;</button>
     </div>
     <form id="agent-form" method="POST" enctype="multipart/form-data">
       @csrf
@@ -67,7 +67,7 @@
       </div>
       <fieldset class="form-group agent-connections-field" id="agent-connections-field" hidden>
         <legend>Connected Agents <span class="form-hint">(optional)</span></legend>
-        <small class="form-hint">Choose up to {{ config('agent_connections.max_connections', 10) }} Agents this Agent may consult, and describe their roles. It chooses which help is needed for each request. All calls use the chat's selected model and your AI+ Credits. Connected Agents do not call further Agents.</small>
+        <small class="form-hint">Choose up to {{ config('agent_connections.max_connections', 10) }} Agents to consult and describe their roles. The chat’s specialist model and your LSTS AI+ Credits apply to these calls. Specialists cannot call other Agents.</small>
         <input type="search" id="agent-connections-search" aria-label="Find an Agent to connect" placeholder="Find an Agent…">
         <div id="agent-connections-list" aria-label="Agents available to connect"></div>
         <div id="agent-connections-status" class="form-hint" role="status"></div>

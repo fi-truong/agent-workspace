@@ -9,7 +9,7 @@
   <div>
     <p class="eyebrow">MONTHLY OVERVIEW</p>
     <h2>{{ $monthName }} credit usage</h2>
-    <p>The default {{ $phase }} allowance is {{ \App\Services\ChatModelService::formatCredits($limit) }} AI+ Credits per user. 1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. Individual overrides appear below.</p>
+    <p>The default {{ $phase }} allowance is {{ \App\Services\ChatModelService::formatCredits($limit) }} LSTS AI+ Credits per user. 1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. Individual overrides appear below.</p>
     @unless($isCurrentMonth)<p class="usage-history-note">Historical usage is shown for this month. Quotas and remaining balances use current user settings.</p>@endunless
   </div>
   <div class="quota-pill"><span>Default allowance</span><strong>{{ \App\Services\ChatModelService::formatCredits($limit) }}</strong><small>credits</small></div>

@@ -1,8 +1,10 @@
 @extends('layouts.ai-plus')
 
-@section('title', 'Sharing & Showcase — AI+ LSTS')
+@section('title', 'Sharing & Showcase — LSTS AI+')
 
 @section('breadcrumb', 'Sharing & Showcase')
+
+@section('screen-class', 'lsts-ai-catalog')
 
 @section('content')
 <header class="page-header">

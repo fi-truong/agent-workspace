@@ -10,7 +10,7 @@ it('keeps the homepage guide hidden by default', function () {
     $this->actingAs(User::factory()->create())
         ->get(route('ai-plus.index'))
         ->assertOk()
-        ->assertDontSee('Ask AI Plus Guide')
+        ->assertDontSee('Ask LSTS AI+ Guide')
         ->assertSee('data-theme-value="mint"', false)
         ->assertSee('data-theme-value="teal"', false)
         ->assertSee('data-theme-value="orange"', false)
@@ -37,7 +37,7 @@ it('lets an administrator control the homepage guide visibility', function () {
 
     $this->get(route('ai-plus.index'))
         ->assertOk()
-        ->assertSee('Ask AI Plus Guide')
+        ->assertSee('Ask LSTS AI+ Guide')
         ->assertSee('.ai-guide-form textarea{', false)
         ->assertSee('color:#1b2e2a;background:#fff', false)
         ->assertSee('.ai-guide-form textarea::placeholder{color:#657772', false)

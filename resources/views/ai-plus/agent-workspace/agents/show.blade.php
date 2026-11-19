@@ -1,6 +1,8 @@
 @extends('layouts.ai-plus')
 
-@section('title', $agent->title . ' — Agent Workspace')
+@section('title', $agent->title . ' — LSTS AI+')
+
+@section('screen-class', 'lsts-ai-agent-detail')
 
 @section('breadcrumb', $agent->title)
 
@@ -32,7 +34,7 @@
 
   <div class="agent-detail-grid">
     <section class="agent-section">
-      <h2>System Prompt</h2>
+      <h2>Instructions (System Prompt)</h2>
       @if($agent->system_prompt)
       <pre class="system-prompt">{{ $agent->system_prompt }}</pre>
       @else

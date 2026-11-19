@@ -1,8 +1,10 @@
 @extends('layouts.ai-plus')
 
-@section('title', 'Prompt Library — AI+ LSTS')
+@section('title', 'Prompt Library — LSTS AI+')
 
 @section('breadcrumb', 'Prompt Library')
+
+@section('screen-class', 'lsts-ai-catalog')
 
 @section('content')
 <header class="page-header">
@@ -26,7 +28,7 @@
   <div class="wrap">
     <div class="filters">
       <div class="search-box">
-        <span class="icon">🔍</span>
+        <span class="icon">@include('partials.lsts-ai-icon', ['name' => 'search'])</span>
         <input type="text" id="prompt-search" placeholder="Search prompts..." value="{{ request('search') }}">
       </div>
       <div class="filter-controls-row">
@@ -52,8 +54,8 @@
         </label>
         <div class="filter-group sort-group">
           <span class="sort-label">Sort by:</span>
-          <button class="filter-btn {{ request('sort') == 'popular' ? 'active' : '' }}" data-sort="popular">⭐ Popular</button>
-          <button class="filter-btn {{ request('sort') == 'new' ? 'active' : '' }}" data-sort="new">✨ New</button>
+          <button class="filter-btn {{ request('sort') == 'popular' ? 'active' : '' }}" data-sort="popular">Popular</button>
+          <button class="filter-btn {{ request('sort') == 'new' ? 'active' : '' }}" data-sort="new">Newest</button>
         </div>
       </div>
     </div>

@@ -323,6 +323,8 @@ These IDs supplement the feature descriptions in Sections 4–7. “Existing” 
 
 ## 17. Interfaces and error conventions
 
+The product name displayed across screens is **LSTS AI+**. Home, workspace, catalogs, detail pages, forms, administration and access screens use a shared theme for color, typography and controls.
+
 These are internal web-app routes, **not a versioned public API**. Consult controllers, Form Requests and tests for exact request/response contracts before external integration.
 
 | Method | Route | Result/constraint |

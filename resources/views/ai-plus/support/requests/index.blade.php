@@ -1,13 +1,15 @@
 @extends('layouts.ai-plus')
 
-@section('title', 'My Support Requests — AI+ LSTS')
+@section('title', 'My Support Requests — LSTS AI+')
 @section('breadcrumb', 'Support / My Requests')
+
+@section('screen-class', 'lsts-ai-document')
 
 @section('content')
 <header class="page-header">
   <div class="wrap">
     <h1>My Support Requests</h1>
-    <p>Track the status of your requests and read replies from the AI+ support team.</p>
+    <p>Track the status of your requests and read replies from the LSTS AI+ support team.</p>
   </div>
 </header>
 
