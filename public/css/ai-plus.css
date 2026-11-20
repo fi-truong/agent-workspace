@@ -223,9 +223,9 @@
   --gold-text: #6B1F3A;
   --paper: #FBF5F6;
   --ink: #33252B;
-  --ink-soft: #75636A;
-  --line: #E8D9DE;
-  --sage: #9A6B7B;
+  --ink-soft: #654E56;
+  --line: #D9C3CC;
+  --sage: #855467;
   --card-bg: #FFFFFF;
 
   --hero-bg: var(--navy);
@@ -261,7 +261,7 @@
   --text-main: var(--ink);
   --text-soft: var(--ink-soft);
   --input-bg: var(--paper);
-  --input-border: var(--line);
+  --input-border: #A17F8D;
   --input-text: var(--ink);
   --chip-bg: var(--paper);
   --chip-border: var(--line);

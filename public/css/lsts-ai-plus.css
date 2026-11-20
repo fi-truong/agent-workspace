@@ -7,6 +7,30 @@
     --lsts-theme-rail: 72px;
 }
 
+[data-theme='burgundy'] .lsts-ai-ui {
+    --lsts-highlight: color-mix(in srgb, var(--navy) 14%, var(--surface));
+    --lsts-hover: color-mix(in srgb, var(--navy) 8%, var(--surface));
+    --lsts-heading-color: var(--navy);
+}
+
+[data-theme='burgundy']
+    .lsts-ai-ui
+    :is(
+        .workspace-tabs .ws-tab.active,
+        .lsts-section-nav a[aria-current='page'],
+        .lsts-section-content .date-btn.active
+    ) {
+    background: var(--chip-active-bg);
+    border-color: var(--chip-active-bg);
+    box-shadow: none;
+    color: var(--chip-active-text);
+}
+
+[data-theme='burgundy'] .lsts-ai-image .image-history-item.active {
+    background: var(--lsts-highlight);
+    box-shadow: inset 3px 0 var(--navy);
+}
+
 .lsts-ai-ui .lsts-icon {
     display: inline-block;
     width: 1.15em;
@@ -85,7 +109,7 @@
 }
 
 .lsts-ai-home .hero .title {
-    color: var(--text-main);
+    color: var(--lsts-heading-color, var(--text-main));
     max-width: none;
     margin: 0;
     font-size: clamp(42px, 7vw, 76px);
@@ -206,7 +230,7 @@
 }
 
 :is(.lsts-ai-catalog, .lsts-ai-document) header.page-header h1 {
-    color: var(--text-main);
+    color: var(--lsts-heading-color, var(--text-main));
     font-size: clamp(30px, 4vw, 46px);
     letter-spacing: -0.02em;
 }

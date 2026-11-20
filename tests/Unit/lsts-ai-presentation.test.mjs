@@ -100,6 +100,73 @@ test('keeps the homepage account controls readable in Orange and Burgundy', asyn
     }
 });
 
+test('uses the Burgundy accent for headings and selected navigation on light surfaces', async (t) => {
+    const page = await pageFor(t, 1024);
+    await page.setContent(`
+        <html data-theme="burgundy">
+        <style>${base}${styles(agents)}${presentation}${workspace}${sections}</style>
+        <body class="lsts-ai-ui">
+            <div class="lsts-ai-home">
+                <header class="hero"><h1 class="title">LSTS AI+</h1></header>
+            </div>
+            <div class="lsts-ai-agents">
+                <nav class="workspace-tabs">
+                    <a class="ws-tab" href="#">Chat</a>
+                    <a class="ws-tab active" href="#">Agents</a>
+                </nav>
+                <h1 class="page-title">My Agents</h1>
+            </div>
+            <div class="lsts-ai-catalog lsts-section-shell">
+                <nav class="lsts-section-nav">
+                    <a href="#" aria-current="page">Prompt Library</a>
+                </nav>
+                <div class="lsts-section-content">
+                    <header class="page-header"><h1>Prompt Library</h1></header>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
+
+    const burgundy = 'rgb(107, 31, 58)';
+    const computed = (selector, property) =>
+        page
+            .locator(selector)
+            .evaluate(
+                (element, key) => getComputedStyle(element)[key],
+                property,
+            );
+
+    for (const selector of ['.hero h1', '.page-title', '.page-header h1']) {
+        assert.equal(await computed(selector, 'color'), burgundy, selector);
+    }
+
+    for (const selector of [
+        '.ws-tab.active',
+        '.lsts-section-nav [aria-current]',
+    ]) {
+        assert.equal(
+            await computed(selector, 'backgroundColor'),
+            burgundy,
+            selector,
+        );
+        assert.equal(
+            await computed(selector, 'color'),
+            'rgb(255, 255, 255)',
+            selector,
+        );
+    }
+
+    assert.equal(
+        await computed('.ws-tab:not(.active)', 'backgroundColor'),
+        'rgba(0, 0, 0, 0)',
+    );
+    assert.equal(
+        await computed('body', 'backgroundColor'),
+        'rgb(251, 245, 246)',
+    );
+});
+
 test('keeps the homepage header height stable across quotes on desktop and mobile', async (t) => {
     const page = await pageFor(t, 1280);
     const [homepage, catalog, font] = await Promise.all([
