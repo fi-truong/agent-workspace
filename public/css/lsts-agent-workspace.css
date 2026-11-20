@@ -22,10 +22,10 @@
     letter-spacing: -0.025em;
 }
 
-:is([data-theme='orange'], [data-theme='burgundy'])
+:is([data-theme='teal'], [data-theme='orange'], [data-theme='burgundy'])
     :is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-agent-detail, .lsts-ai-image)
     :is(.page-title, .agent-title, .empty-state h3, .image-topbar h1) {
-    color: var(--navy);
+    color: var(--lsts-heading-color);
 }
 
 :is(.lsts-ai-chat, .lsts-ai-agents, .lsts-ai-image) .workspace-tabs {

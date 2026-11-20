@@ -13,7 +13,13 @@
     --lsts-heading-color: var(--navy);
 }
 
-:is([data-theme='orange'], [data-theme='burgundy'])
+[data-theme='teal'] .lsts-ai-ui {
+    --lsts-highlight: #254b42;
+    --lsts-hover: #2b4941;
+    --lsts-heading-color: var(--topbar-link);
+}
+
+:is([data-theme='teal'], [data-theme='orange'], [data-theme='burgundy'])
     .lsts-ai-ui
     :is(
         .workspace-tabs .ws-tab.active,
@@ -26,11 +32,11 @@
     color: var(--chip-active-text);
 }
 
-:is([data-theme='orange'], [data-theme='burgundy'])
+:is([data-theme='teal'], [data-theme='orange'], [data-theme='burgundy'])
     .lsts-ai-image
     .image-history-item.active {
     background: var(--lsts-highlight);
-    box-shadow: inset 3px 0 var(--navy);
+    box-shadow: inset 3px 0 var(--lsts-heading-color);
 }
 
 .lsts-ai-ui .lsts-icon {
@@ -48,7 +54,7 @@
 }
 
 .lsts-ai-ui :is(a, button, input, select, textarea, summary):focus-visible {
-    outline: 2px solid var(--navy);
+    outline: 2px solid var(--lsts-heading-color, var(--navy));
     outline-offset: 3px;
 }
 
@@ -129,7 +135,7 @@
     min-block-size: 11.5rem;
     margin: 0;
     padding-inline-start: clamp(12px, 2vw, 24px);
-    border-inline-start: 2px solid var(--navy);
+    border-inline-start: 2px solid var(--lsts-heading-color, var(--navy));
 }
 
 .lsts-ai-home .hero-quote blockquote {
@@ -341,7 +347,7 @@
 .lsts-ai-chat .chat-item.active,
 .lsts-ai-agents .agent-sidebar-conversation.active {
     background: var(--lsts-highlight);
-    box-shadow: inset 3px 0 var(--navy);
+    box-shadow: inset 3px 0 var(--lsts-heading-color, var(--navy));
     color: var(--text-main);
 }
 

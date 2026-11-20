@@ -100,11 +100,24 @@ test('keeps the homepage account controls readable in Orange and Burgundy', asyn
     }
 });
 
-for (const [theme, accent, surface] of [
+for (const [
+    theme,
+    heading,
+    surface,
+    selected = heading,
+    selectedText = 'rgb(255, 255, 255)',
+] of [
+    [
+        'teal',
+        'rgb(176, 237, 225)',
+        'rgb(16, 31, 30)',
+        'rgb(159, 225, 208)',
+        'rgb(16, 31, 30)',
+    ],
     ['orange', 'rgb(191, 72, 0)', 'rgb(255, 248, 241)'],
     ['burgundy', 'rgb(107, 31, 58)', 'rgb(251, 245, 246)'],
 ]) {
-    test(`uses the ${theme} accent for headings and selected navigation on light surfaces`, async (t) => {
+    test(`uses the ${theme} palette for headings and selected navigation`, async (t) => {
         const page = await pageFor(t, 1024);
         await page.setContent(`
         <html data-theme="${theme}">
@@ -112,6 +125,7 @@ for (const [theme, accent, surface] of [
         <body class="lsts-ai-ui">
             <div class="lsts-ai-home">
                 <header class="hero"><h1 class="title">LSTS AI+</h1></header>
+                <a class="card" href="#">Open Agent Workspace</a>
             </div>
             <div class="lsts-ai-agents">
                 <nav class="workspace-tabs">
@@ -121,9 +135,11 @@ for (const [theme, accent, surface] of [
                 <h1 class="page-title">My Agents</h1>
             </div>
             <div class="lsts-ai-catalog lsts-section-shell">
-                <nav class="lsts-section-nav">
-                    <a href="#" aria-current="page">Prompt Library</a>
-                </nav>
+                <aside class="lsts-section-sidebar">
+                    <nav class="lsts-section-nav">
+                        <a href="#" aria-current="page">Prompt Library</a>
+                    </nav>
+                </aside>
                 <div class="lsts-section-content">
                     <header class="page-header"><h1>Prompt Library</h1></header>
                 </div>
@@ -141,7 +157,7 @@ for (const [theme, accent, surface] of [
                 );
 
         for (const selector of ['.hero h1', '.page-title', '.page-header h1']) {
-            assert.equal(await computed(selector, 'color'), accent, selector);
+            assert.equal(await computed(selector, 'color'), heading, selector);
         }
 
         for (const selector of [
@@ -150,12 +166,12 @@ for (const [theme, accent, surface] of [
         ]) {
             assert.equal(
                 await computed(selector, 'backgroundColor'),
-                accent,
+                selected,
                 selector,
             );
             assert.equal(
                 await computed(selector, 'color'),
-                'rgb(255, 255, 255)',
+                selectedText,
                 selector,
             );
         }
@@ -165,6 +181,21 @@ for (const [theme, accent, surface] of [
             'rgba(0, 0, 0, 0)',
         );
         assert.equal(await computed('body', 'backgroundColor'), surface);
+
+        if (theme === 'teal') {
+            const layers = await Promise.all(
+                ['body', '.lsts-section-sidebar', '.card', '.hero'].map(
+                    (selector) => computed(selector, 'backgroundColor'),
+                ),
+            );
+
+            assert.deepEqual(layers, [
+                'rgb(16, 31, 30)',
+                'rgb(23, 45, 42)',
+                'rgb(32, 59, 54)',
+                'rgb(37, 75, 66)',
+            ]);
+        }
     });
 }
 

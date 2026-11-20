@@ -73,7 +73,7 @@
   --topbar-crumb: var(--ink-soft);
 }
 
-/* ---- Option A: xanh teal đậm (bản trước, để so sánh) ---- */
+/* Dark Teal theme */
 [data-theme="teal"]{
   --hero-bg: var(--navy);
   --hero-text: #fff;
@@ -98,29 +98,29 @@
   --showcase-border: transparent;
 
   /* ---- Teal: page-level components ---- */
-  --body-bg: #0F2924;
-  --surface: #153530;
-  --surface-border: #2A6B5E;
-  --page-bg: #153530;
+  --body-bg: #101F1E;
+  --page-bg: #172D2A;
+  --surface: var(--card-bg);
+  --surface-border: var(--line);
 
   --page-header-bg: linear-gradient(135deg, var(--navy) 0%, #2E7A68 100%);
-  --page-header-text: #E8F3F0;
-  --page-header-muted: #A9C8C1;
+  --page-header-text: var(--ink);
+  --page-header-muted: var(--ink-soft);
   --page-header-accent: #F0C878;
   --page-header-stat: #F0C878;
 
-  --text-main: #E8F3F0;
-  --text-soft: #A9C8C1;
+  --text-main: var(--ink);
+  --text-soft: var(--ink-soft);
 
-  --input-bg: #1A423C;
-  --input-border: #2A6B5E;
-  --input-text: #E8F3F0;
+  --input-bg: #182D28;
+  --input-border: #63897D;
+  --input-text: var(--ink);
 
-  --chip-bg: #1A423C;
-  --chip-border: #2A6B5E;
-  --chip-text: #A9C8C1;
-  --chip-active-bg: #F0C878;
-  --chip-active-text: #0F2924;
+  --chip-bg: var(--paper);
+  --chip-border: var(--line);
+  --chip-text: var(--ink-soft);
+  --chip-active-bg: #9FE1D0;
+  --chip-active-text: var(--body-bg);
 
   --section-title: #F0C878;
   --brand-badge-bg: rgba(240,200,120,0.18);
@@ -128,19 +128,19 @@
   --sage-badge-bg: rgba(176,237,225,0.15);
   --sage-badge-text: #B0EDE1;
 
-  --topbar-bg: #153530;
-  --topbar-border: #2A6B5E;
+  --topbar-bg: var(--surface);
+  --topbar-border: var(--line);
   --topbar-link: #B0EDE1;
-  --topbar-crumb: #A9C8C1;
+  --topbar-crumb: var(--ink-soft);
 
   /* ---- Biến gốc (dùng chung bởi chat bubble, modal, agents) phải chuyển tối ---- */
-  --ink: #E8F3F0;           /* chữ chính - sáng trên nền tối */
-  --ink-soft: #A9C8C1;      /* chữ phụ */
-  --card-bg: #153530;       /* nền card/bubble */
-  --paper: #1A423C;         /* nền phụ/chip */
-  --line: #2A6B5E;          /* viền */
-  --navy: #2E7A68;          /* accent (trên nền tối) */
-  --navy-deep: #0F2924;
+  --ink: #EBF5F2;
+  --ink-soft: #B4CCC5;
+  --card-bg: #203B36;
+  --paper: #253F39;
+  --line: #3F6258;
+  --navy: #286F5D;
+  --navy-deep: var(--body-bg);
   --sage: #6E8E82;
   --gold: #F0C878;
 }
