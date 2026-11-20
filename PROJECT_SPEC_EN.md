@@ -106,7 +106,8 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 
 ### 4.9 Homepage
 
-- The homepage displays one of 10 curated AI quotes with the speaker’s name and role. Each page load randomly selects a quote and excludes the one most recently shown in the same browser session.
+- The homepage displays one of 20 curated AI quotes with the speaker’s name and role. Each page load randomly selects a quote and excludes the one most recently shown in the same browser session.
+- The collection has 10 original quotes and 10 quotes about the role of people in AI use. To remove a group from rotation, omit it from `ACTIVE_QUOTES` in `app/Support/HomepageQuotes.php`.
 
 ## 5. AI Tools and Artifacts Phase 1
 

@@ -56,7 +56,8 @@ test('keeps the homepage header height stable across quotes on desktop and mobil
         ),
         ([, text, name, role]) => ({ text, name, role }),
     );
-    assert.ok(quotes.length >= 10);
+    assert.equal(quotes.length, 20);
+    assert.equal(new Set(quotes.map(({ text }) => text)).size, quotes.length);
     const fontCss = typography.replace(
         /url\([^)]+\)/,
         `url(data:font/woff2;base64,${font.toString('base64')})`,
@@ -76,7 +77,7 @@ test('keeps the homepage header height stable across quotes on desktop and mobil
         '750',
     );
 
-    for (const width of [1440, 1280, 1024, 800, 799, 390, 320]) {
+    for (const width of [1440, 1280, 1024, 800, 799, 390, 360, 320]) {
         await page.setViewportSize({ width, height: 740 });
         const heights = await header.evaluate((element, samples) => {
             const quotation = element.querySelector('blockquote');

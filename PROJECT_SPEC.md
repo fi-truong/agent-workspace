@@ -106,7 +106,8 @@ Mọi conversation, attachment, artifact và email draft thuộc về user tạo
 
 ### 4.9 Trang chủ
 
-- Trang chủ hiển thị một trong 10 câu trích dẫn AI đã chọn, kèm tên và chức vụ của tác giả. Mỗi lần tải trang chọn một câu ngẫu nhiên và loại câu vừa hiển thị trong cùng phiên trình duyệt.
+- Trang chủ hiển thị một trong 20 câu trích dẫn AI đã chọn, kèm tên và chức vụ của tác giả. Mỗi lần tải trang chọn một câu ngẫu nhiên và loại câu vừa hiển thị trong cùng phiên trình duyệt.
+- Danh sách gồm 10 câu ban đầu và 10 câu về vai trò của con người. Có thể gỡ một nhóm khỏi vòng xoay bằng cách bỏ nhóm đó khỏi `ACTIVE_QUOTES` trong `app/Support/HomepageQuotes.php`.
 
 ## 5. AI Tool và Artifact — Giai đoạn 1
 
