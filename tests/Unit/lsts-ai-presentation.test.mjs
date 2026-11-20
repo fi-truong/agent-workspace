@@ -39,6 +39,67 @@ async function pageFor(t, width) {
     return browser.newPage({ viewport: { width, height: 740 } });
 }
 
+test('keeps the homepage account controls readable in Orange and Burgundy', async (t) => {
+    const page = await pageFor(t, 1024);
+    await page.setContent(
+        `<style>${base}${presentation}</style><body class="lsts-ai-ui lsts-ai-home">
+            <div class="crumbbar"><div class="wrap"><div class="role-pill role-pill-account">
+                <a href="#" class="role-pill-link"><span class="dot"></span>Viewing as: Example User</a>
+                <a href="#" class="admin-panel-link">Admin Panel</a>
+                <form class="header-logout-form"><button class="header-logout-btn">Logout</button></form>
+            </div></div></div></body>`,
+    );
+
+    const contrast = (control) =>
+        control.evaluate((element) => {
+            const luminance = (color) => {
+                const [red, green, blue] = color
+                    .match(/[\d.]+/g)
+                    .map((value) => {
+                        const channel = Number(value) / 255;
+
+                        return channel <= 0.04045
+                            ? channel / 12.92
+                            : ((channel + 0.055) / 1.055) ** 2.4;
+                    });
+
+                return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+            };
+            const background = element.matches('.role-pill-link')
+                ? element.closest('.role-pill')
+                : element;
+            const text = luminance(getComputedStyle(element).color);
+            const surface = luminance(
+                getComputedStyle(background).backgroundColor,
+            );
+
+            return (
+                (Math.max(text, surface) + 0.05) /
+                (Math.min(text, surface) + 0.05)
+            );
+        });
+
+    for (const theme of ['orange', 'burgundy']) {
+        await page.evaluate((value) => {
+            document.documentElement.dataset.theme = value;
+        }, theme);
+
+        for (const selector of [
+            '.role-pill-link',
+            '.admin-panel-link',
+            '.header-logout-btn',
+        ]) {
+            const control = page.locator(selector);
+            assert.ok((await contrast(control)) >= 4.5, `${theme} ${selector}`);
+            await control.hover();
+            assert.ok(
+                (await contrast(control)) >= 4.5,
+                `${theme} ${selector} hover`,
+            );
+        }
+    }
+});
+
 test('keeps the homepage header height stable across quotes on desktop and mobile', async (t) => {
     const page = await pageFor(t, 1280);
     const [homepage, catalog, font] = await Promise.all([
