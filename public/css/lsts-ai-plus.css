@@ -7,13 +7,13 @@
     --lsts-theme-rail: 72px;
 }
 
-[data-theme='burgundy'] .lsts-ai-ui {
+:is([data-theme='orange'], [data-theme='burgundy']) .lsts-ai-ui {
     --lsts-highlight: color-mix(in srgb, var(--navy) 14%, var(--surface));
     --lsts-hover: color-mix(in srgb, var(--navy) 8%, var(--surface));
     --lsts-heading-color: var(--navy);
 }
 
-[data-theme='burgundy']
+:is([data-theme='orange'], [data-theme='burgundy'])
     .lsts-ai-ui
     :is(
         .workspace-tabs .ws-tab.active,
@@ -26,7 +26,9 @@
     color: var(--chip-active-text);
 }
 
-[data-theme='burgundy'] .lsts-ai-image .image-history-item.active {
+:is([data-theme='orange'], [data-theme='burgundy'])
+    .lsts-ai-image
+    .image-history-item.active {
     background: var(--lsts-highlight);
     box-shadow: inset 3px 0 var(--navy);
 }

@@ -1,7 +1,7 @@
 <div class="theme-switcher" id="themeSwitcher" aria-label="Theme selector">
   <button type="button" class="theme-swatch" data-theme-value="mint" title="Mint (school color)" aria-label="Mint theme" aria-pressed="false"><span class="theme-swatch-color" style="background:#B0EDE1;"></span></button>
   <button type="button" class="theme-swatch" data-theme-value="teal" title="Teal (dark)" aria-label="Teal theme" aria-pressed="false"><span class="theme-swatch-color" style="background:#1F5147;"></span></button>
-  <button type="button" class="theme-swatch" data-theme-value="orange" title="Orange" aria-label="Orange theme" aria-pressed="false"><span class="theme-swatch-color" style="background:#C75B1B;"></span></button>
+  <button type="button" class="theme-swatch" data-theme-value="orange" title="Orange" aria-label="Orange theme" aria-pressed="false"><span class="theme-swatch-color" style="background:#F47316;"></span></button>
   <button type="button" class="theme-swatch" data-theme-value="burgundy" title="Burgundy" aria-label="Burgundy theme" aria-pressed="false"><span class="theme-swatch-color" style="background:#6B1F3A;"></span></button>
 </div>
 

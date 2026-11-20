@@ -148,7 +148,7 @@
 /* Warm Orange theme based on the supplied AI+ mockup. */
 [data-theme="orange"]{
   --mint: #F7DCC8;
-  --navy: #B84F16;
+  --navy: #BF4800;
   --navy-deep: #71300F;
   --navy-light: #D36A28;
   --gold: #F28A35;
@@ -156,12 +156,12 @@
   --gold-text: #71300F;
   --paper: #FFF8F1;
   --ink: #35271F;
-  --ink-soft: #78685D;
-  --line: #EBD8C9;
-  --sage: #C9682D;
+  --ink-soft: #695344;
+  --line: #E5C2A9;
+  --sage: #A64B12;
   --card-bg: #FFFFFF;
 
-  --hero-bg: linear-gradient(135deg, #C75B1B 0%, #A94311 100%);
+  --hero-bg: linear-gradient(135deg, var(--navy) 0%, #A94311 100%);
   --hero-text: #FFFFFF;
   --hero-accent: #FFD0A2;
   --hero-title-em: #FFD0A2;
@@ -174,7 +174,7 @@
   --crumb-strong: #FFFFFF;
   --role-pill-color: var(--navy-deep);
 
-  --showcase-bg: linear-gradient(135deg, #B84F16 0%, #D36A28 100%);
+  --showcase-bg: linear-gradient(135deg, var(--navy) 0%, #D36A28 100%);
   --showcase-text: #FFFFFF;
   --showcase-icon-bg: rgba(255,255,255,0.16);
   --showcase-icon-color: #FFD0A2;
@@ -194,7 +194,7 @@
   --text-main: var(--ink);
   --text-soft: var(--ink-soft);
   --input-bg: var(--paper);
-  --input-border: var(--line);
+  --input-border: #AA7A5C;
   --input-text: var(--ink);
   --chip-bg: var(--paper);
   --chip-border: var(--line);
