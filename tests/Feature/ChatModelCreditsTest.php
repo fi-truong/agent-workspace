@@ -23,7 +23,7 @@ beforeEach(function () {
     ])]);
 });
 
-it('retains old usage and custom balances while adding precise shared credits', function () {
+it('retains legacy usage data and records precise shared usage without a credit ceiling', function () {
     $this->user->update(['token_quota_limit' => 20_000_000]);
     DB::table('usage_logs')->insert([
         'user_id' => $this->user->id, 'activity_title' => 'Legacy', 'source' => 'agent_workspace',
@@ -33,8 +33,9 @@ it('retains old usage and custom balances while adding precise shared credits', 
         UsageLog::create(['user_id' => $this->user->id, 'activity_title' => 'New usage', 'source' => 'agent_workspace', 'model' => $model, 'prompt_tokens' => $tokens]);
     }
     expect(app(TokenQuotaService::class)->summary($this->user))->toMatchArray([
-        'used' => 22501, 'limit' => 20_000_000, 'remaining' => 19_977_499,
-        'credits_used' => 22.501, 'credits_limit' => 20000.0, 'credits_remaining' => 19977.499,
+        'used' => 22501, 'limit' => null, 'remaining' => null,
+        'credits_used' => 22.501, 'credits_limit' => null, 'credits_remaining' => null,
+        'unlimited' => true,
     ]);
     expect(UsageLog::where('model', 'gpt-6-sol')->value('quota_units'))->toBe(20000)
         ->and(UsageLog::where('activity_title', 'Legacy')->value('quota_units'))->toBeNull()
@@ -89,12 +90,12 @@ it('does not change the model or read history of someone elses conversation', fu
     Http::assertNothingSent();
 });
 
-it('blocks the next chat after Sol exhausts the shared credit balance', function () {
+it('does not block a chat when legacy user credit settings are exhausted', function () {
     $this->user->update(['token_quota_limit' => 20000]);
     UsageLog::create(['user_id' => $this->user->id, 'activity_title' => 'Sol', 'source' => 'agent_workspace', 'model' => 'gpt-6-sol', 'prompt_tokens' => 1000]);
     $this->postJson(route('ai-plus.agent-workspace.send'), ['message' => 'School task', 'model' => 'gpt-6-luna'])
-        ->assertStatus(429)->assertSee('Credits');
-    Http::assertNothingSent();
+        ->assertOk()->assertJsonPath('token_quota.unlimited', true)->assertJsonPath('token_quota.credits_used', 21);
+    Http::assertSentCount(2);
 });
 
 it('renders model selection and credits and restores the conversations selected model', function () {
@@ -102,17 +103,14 @@ it('renders model selection and credits and restores the conversations selected 
     $this->get(route('ai-plus.agent-workspace.index', ['conversation_id' => $conversation->id]))
         ->assertOk()->assertViewHas('activeChatModel', 'gpt-6-sol')
         ->assertSee('id="chat-model"', false)->assertSee('id="specialist-model"', false)
-        ->assertViewHas('activeSpecialistModel', 'gpt-6-luna')->assertSee('GPT-6 Sol')->assertSee('20,000 credits used');
-    $this->get(route('ai-plus.my-usage.index'))->assertOk()->assertSee('20,000 of 20,000 credits remaining');
+        ->assertViewHas('activeSpecialistModel', 'gpt-6-luna')->assertSee('GPT-6 Sol')->assertSee('0 credits used');
+    $this->get(route('ai-plus.my-usage.index'))->assertOk()->assertSee('Usage is recorded for your activity')->assertDontSee('credits remaining');
 });
 
-it('lets an admin set fractional credit quotas without changing raw-token storage', function () {
+it('does not offer per-user credit caps in admin user forms', function () {
     $admin = User::factory()->create(['role' => 'admin']);
-    $this->actingAs($admin)->post(route('admin.users.token-quota.update'), [
-        'user_ids' => [$this->user->id], 'action' => 'set', 'credit_quota_limit' => '123.456',
-    ])->assertRedirect();
-    expect($this->user->fresh()->token_quota_limit)->toBe(123456);
-    $this->actingAs($this->user->fresh())->get(route('ai-plus.my-usage.index'))->assertSee('123.456 of 123.456 credits remaining');
+    $this->actingAs($admin)->get(route('admin.users.create'))->assertOk()->assertDontSee('Monthly credit quota');
+    $this->get(route('admin.users.index'))->assertOk()->assertDontSee('tokenQuotaBulkForm')->assertDontSee('Credit quota');
 });
 
 it('shows weighted credit totals separately from actual tokens in the admin month filter', function () {
@@ -120,7 +118,7 @@ it('shows weighted credit totals separately from actual tokens in the admin mont
     $admin = User::factory()->create(['role' => 'admin']);
     $this->actingAs($admin)->get(route('admin.usage.index'))
         ->assertOk()->assertViewHas('summary', fn (array $summary): bool => $summary['total_tokens'] === 1000 && $summary['total_quota_units'] === 20000)
-        ->assertSee('20,000')->assertSee('1,000 actual tokens');
+        ->assertSee('20')->assertSee('1,000 actual tokens');
 });
 
 it('records streamed Sol usage and preserves the chosen model', function () {
@@ -229,14 +227,9 @@ it('saves one specialist model per conversation and applies its Sol credit rate'
         ->assertOk()->assertViewHas('activeSpecialistModel', 'gpt-6-sol');
 });
 
-it('rejects excessive credit precision and lets admins reset credit quotas', function () {
+it('keeps the removed per-user quota update form unavailable', function () {
     $admin = User::factory()->create(['role' => 'admin']);
-    $this->actingAs($admin)->postJson(route('admin.users.token-quota.update'), [
-        'user_ids' => [$this->user->id], 'action' => 'set', 'credit_quota_limit' => '1.0001',
-    ])->assertUnprocessable()->assertJsonValidationErrors('credit_quota_limit');
-    $this->user->update(['token_quota_limit' => 123456]);
-    $this->post(route('admin.users.token-quota.update'), ['user_ids' => [$this->user->id], 'action' => 'reset', 'credit_quota_limit' => null])->assertRedirect();
-    expect($this->user->fresh()->token_quota_limit)->toBeNull();
+    $this->actingAs($admin)->get(route('admin.users.index'))->assertOk()->assertDontSee('Set custom quota');
 });
 
 it('exports the transcript with the selected model and records its credit charge', function () {

@@ -359,12 +359,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!quota) return;
 
     const quotaText = document.querySelector('[data-token-quota-text]');
-    const quotaFill = document.querySelector('[data-token-quota-fill]');
     if (quotaText) {
       const format = (units) => (Number(units) / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
-      quotaText.textContent = `${format(quota.used)} / ${format(quota.limit)} credits used (in ${quota.month_name})`;
+      quotaText.textContent = `${format(quota.used)} credits used in ${quota.month_name}`;
     }
-    if (quotaFill) quotaFill.style.width = `${quota.percentage}%`;
   }
 
   function renderInitialMessages() {
@@ -867,21 +865,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
   let sending = false;
   let pendingImages = [];
-  let pendingImageBytes = [];
   let pendingDocuments = [];
-  let pendingAttachmentBytes = 0;
   let pendingReads = 0;
-  let pendingImageReads = 0;
   let imagePreviewBox = null;
 
   // Cac dinh dang tai lieu (ngoai anh) duoc phep dinh kem trong o chat - khop voi
   // KnowledgeService::CHAT_DOCUMENT_EXTENSIONS phia backend.
   const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'html', 'js', 'jsx', 'mjs', 'cjs', 'css', 'ts', 'tsx', 'json', 'xml', 'md', 'php', 'py', 'java', 'sql', 'yaml', 'yml', 'sh', 'bash', 'c', 'h', 'cpp', 'hpp', 'cs', 'go', 'rb', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
-  const MAX_ATTACHMENTS = 5;
-  const MAX_IMAGES = 4;
-  const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
-  const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-  const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
   const IMAGE_MIME_BY_EXTENSION = {
     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
     gif: 'image/gif', webp: 'image/webp',
@@ -927,46 +917,22 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     const isImage = Boolean(imageMime);
-    if (pendingImages.length + pendingDocuments.length + pendingReads >= MAX_ATTACHMENTS) {
-      appendWarning('Mỗi lượt chat chỉ hỗ trợ tối đa ' + MAX_ATTACHMENTS + ' tệp đính kèm.');
-      return;
-    }
-    if (isImage && pendingImages.length + pendingImageReads >= MAX_IMAGES) {
-      appendWarning('You can attach up to 4 images per message.');
-      return;
-    }
-    if (file.size > (isImage ? MAX_IMAGE_BYTES : MAX_DOCUMENT_BYTES)) {
-      appendWarning(isImage ? 'Mỗi ảnh chỉ được tối đa 4 MB.' : 'Mỗi tài liệu chỉ được tối đa 5 MB.');
-      return;
-    }
-    if (pendingAttachmentBytes + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
-      appendWarning('Tổng dung lượng tệp trong một lượt chat chỉ được tối đa 15 MB.');
-      return;
-    }
-
     if (isImage) {
       pendingReads++;
-      pendingImageReads++;
-      pendingAttachmentBytes += file.size;
       updateAttachmentReadState();
       const reader = new FileReader();
       reader.onload = function (ev) {
         pendingReads--;
-        pendingImageReads--;
         updateAttachmentReadState();
         if (typeof ev.target?.result !== 'string' || !ev.target.result.startsWith('data:image/')) {
-          pendingAttachmentBytes -= file.size;
           appendWarning('Could not read image "' + file.name + '". Please choose it again.');
           return;
         }
         pendingImages.push(ev.target.result);
-        pendingImageBytes.push(file.size);
         renderImagePreviews();
       };
       reader.onerror = reader.onabort = function () {
         pendingReads--;
-        pendingImageReads--;
-        pendingAttachmentBytes -= file.size;
         updateAttachmentReadState();
         appendWarning('Could not read image "' + file.name + '". Please choose it again.');
       };
@@ -974,8 +940,6 @@ document.addEventListener('DOMContentLoaded', function () {
         reader.readAsDataURL(file.type === imageMime ? file : new File([file], file.name, { type: imageMime }));
       } catch (error) {
         pendingReads--;
-        pendingImageReads--;
-        pendingAttachmentBytes -= file.size;
         updateAttachmentReadState();
         appendWarning('Could not read image "' + file.name + '". Please choose it again.');
       }
@@ -988,14 +952,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     pendingReads++;
-    pendingAttachmentBytes += file.size;
     updateAttachmentReadState();
     const reader = new FileReader();
     reader.onload = function (ev) {
       pendingReads--;
       updateAttachmentReadState();
       if (typeof ev.target?.result !== 'string' || !ev.target.result.includes(';base64,')) {
-        pendingAttachmentBytes -= file.size;
         appendWarning('Could not read file "' + file.name + '". Please choose it again.');
         return;
       }
@@ -1004,7 +966,6 @@ document.addEventListener('DOMContentLoaded', function () {
     };
     reader.onerror = reader.onabort = function () {
       pendingReads--;
-      pendingAttachmentBytes -= file.size;
       updateAttachmentReadState();
       appendWarning('Could not read file "' + file.name + '". Please choose it again.');
     };
@@ -1012,7 +973,6 @@ document.addEventListener('DOMContentLoaded', function () {
       reader.readAsDataURL(file.type ? file : new File([file], file.name, { type: 'application/octet-stream' }));
     } catch (error) {
       pendingReads--;
-      pendingAttachmentBytes -= file.size;
       updateAttachmentReadState();
       appendWarning('Could not read file "' + file.name + '". Please choose it again.');
     }
@@ -1049,9 +1009,7 @@ document.addEventListener('DOMContentLoaded', function () {
       remove.textContent = '×';
       remove.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(0,0,0,0.6);color:#fff;font-size:12px;line-height:1;cursor:pointer;';
       remove.addEventListener('click', () => {
-        pendingAttachmentBytes -= pendingImageBytes[idx] || 0;
         pendingImages.splice(idx, 1);
-        pendingImageBytes.splice(idx, 1);
         renderImagePreviews();
       });
       wrap.appendChild(remove);
@@ -1078,7 +1036,6 @@ document.addEventListener('DOMContentLoaded', function () {
       remove.textContent = '×';
       remove.style.cssText = 'position:absolute;top:2px;right:4px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(0,0,0,0.12);color:var(--text-main);font-size:12px;line-height:1;cursor:pointer;';
       remove.addEventListener('click', () => {
-        pendingAttachmentBytes -= pendingDocuments[idx].size || 0;
         pendingDocuments.splice(idx, 1);
         renderImagePreviews();
       });
@@ -1153,9 +1110,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const images = pendingImages;
     const documents = pendingDocuments.map((d) => ({ name: d.name, data_url: d.dataUrl }));
     pendingImages = [];
-    pendingImageBytes = [];
     pendingDocuments = [];
-    pendingAttachmentBytes = 0;
     renderImagePreviews();
 
     const csrfMeta = document.querySelector('meta[name="csrf-token"]');

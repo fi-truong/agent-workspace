@@ -37,30 +37,8 @@ class KnowledgeService
 
     public const CHAT_DOCUMENT_EXTENSIONS = ['txt', 'csv', 'html', ...self::CHAT_CODE_EXTENSIONS, 'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
 
-    // Direct chat attachments remain deliberately small so one turn cannot
-    // consume excessive context or upload bandwidth.
-    public const MAX_CHAT_DOCUMENT_SIZE_KB = 5120;
-
-    public const MAX_AGENT_FILES = 10;
-
-    // Agent Knowledge is persistent and intended to accommodate a textbook or
-    // other substantial teaching reference.
-    public const MAX_AGENT_FILE_SIZE_MB = 15;
-
-    public const MAX_AGENT_FILE_SIZE_KB = self::MAX_AGENT_FILE_SIZE_MB * 1024;
-
-    public const MAX_AGENT_TOTAL_SIZE_MB = 50;
-
-    public const MAX_AGENT_TOTAL_SIZE_KB = self::MAX_AGENT_TOTAL_SIZE_MB * 1024;
-
-    public const MAX_HTML_CODE_CONTEXT_CHARS = 20_000;
-
-    public const MAX_SOURCE_CODE_CONTEXT_CHARS = 20_000;
-
     /** @var array<int, string> */
     private const OCR_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
-
-    private const MAX_EMBEDDED_OFFICE_IMAGES_FOR_OCR = 5;
 
     private ?string $ocrBinary = null;
 
@@ -106,34 +84,6 @@ class KnowledgeService
         }
 
         return $saved;
-    }
-
-    /**
-     * @param  array<int, UploadedFile>  $newFiles
-     * @param  array<int, array{path: string, original_name: string}>  $existingFiles
-     */
-    public function ensureAgentKnowledgeLimits(array $newFiles, array $existingFiles = []): void
-    {
-        if (count($existingFiles) + count($newFiles) > self::MAX_AGENT_FILES) {
-            throw ValidationException::withMessages([
-                'knowledge' => 'Mỗi Agent chỉ được tối đa '.self::MAX_AGENT_FILES.' file Knowledge.',
-            ]);
-        }
-
-        $existingBytes = collect($existingFiles)->sum(function (array $file): int {
-            $path = $file['path'] ?? '';
-
-            return $path !== '' && Storage::disk('knowledge')->exists($path)
-                ? (int) Storage::disk('knowledge')->size($path)
-                : 0;
-        });
-        $newBytes = collect($newFiles)->sum(fn (UploadedFile $file): int => (int) $file->getSize());
-
-        if ($existingBytes + $newBytes > self::MAX_AGENT_TOTAL_SIZE_KB * 1024) {
-            throw ValidationException::withMessages([
-                'knowledge' => 'Tổng dung lượng Knowledge của mỗi Agent chỉ được tối đa 50 MB.',
-            ]);
-        }
     }
 
     public function deleteAgentKnowledge(int $userId, int $agentId): void
@@ -283,7 +233,6 @@ class KnowledgeService
     {
         // Preserve the original retrieval contract for callers that only need
         // the best chunks. Scope labelling uses retrieveContextResult() below.
-        $topK ??= (int) config('openai.rag_top_k', 4);
         $chunks = KnowledgeChunk::where('agent_id', $agent->id)->get();
         if ($chunks->isEmpty()) {
             return '';
@@ -295,8 +244,10 @@ class KnowledgeService
             ? $semanticChunks->map(fn (KnowledgeChunk $chunk) => [
                 'chunk' => $chunk,
                 'score' => $this->embeddingService->cosineSimilarity($queryEmbedding, $chunk->embedding),
-            ])->sortByDesc('score')->take($topK)
-            : $this->rankKeywordChunks($chunks->all(), $query, $topK);
+            ])->filter(fn (array $item): bool => $item['score'] >= (float) config('openai.rag_relevance_threshold', 0.32))
+                ->sortByDesc('score')
+            : $this->rankKeywordChunks($chunks->all(), $query)
+                ->filter(fn (array $item): bool => $item['score'] > 0);
 
         if ($scored->isEmpty()) {
             return '';
@@ -321,8 +272,6 @@ class KnowledgeService
      */
     public function retrieveContextResult(Agent $agent, string $query, ?int $topK = null): array
     {
-        $topK ??= (int) config('openai.rag_top_k', 4);
-
         $chunks = KnowledgeChunk::where('agent_id', $agent->id)->get();
 
         if ($chunks->isEmpty()) {
@@ -336,10 +285,12 @@ class KnowledgeService
             $scored = $semanticChunks->map(fn (KnowledgeChunk $chunk) => [
                 'chunk' => $chunk,
                 'score' => $this->embeddingService->cosineSimilarity($queryEmbedding, $chunk->embedding),
-            ])->sortByDesc('score')->take($topK);
+            ])->filter(fn (array $item): bool => $item['score'] >= (float) config('openai.rag_relevance_threshold', 0.32))
+                ->sortByDesc('score');
             $isRelevant = (float) data_get($scored->first(), 'score', 0) >= (float) config('openai.rag_relevance_threshold', 0.32);
         } else {
-            $scored = $this->rankKeywordChunks($chunks->all(), $query, $topK);
+            $scored = $this->rankKeywordChunks($chunks->all(), $query)
+                ->filter(fn (array $item): bool => $item['score'] > 0);
             $isRelevant = (int) data_get($scored->first(), 'score', 0) > 0;
         }
 
@@ -416,7 +367,6 @@ class KnowledgeService
      */
     public function retrieveInlineContext(string $text, string $query, string $sourceFile, ?int $topK = null): string
     {
-        $topK ??= (int) config('openai.rag_top_k', 4);
         $chunks = $this->chunkText(
             $text,
             (int) config('openai.rag_chunk_chars'),
@@ -439,16 +389,21 @@ class KnowledgeService
                 'content' => $chunk,
                 'score' => $this->embeddingService->cosineSimilarity($queryVector, $vectors[$index + 1]),
             ], $chunks, array_keys($chunks));
+            $ranked = array_values(array_filter(
+                $ranked,
+                fn (array $chunk): bool => $chunk['score'] >= (float) config('openai.rag_relevance_threshold', 0.32),
+            ));
             usort($ranked, fn (array $left, array $right): int => $right['score'] <=> $left['score']);
         } else {
-            $ranked = $this->rankKeywordTextChunks($chunks, $query, $topK);
+            $ranked = array_values(array_filter(
+                $this->rankKeywordTextChunks($chunks, $query),
+                fn (array $chunk): bool => $chunk['score'] > 0,
+            ));
         }
-
-        $parts = array_slice($ranked, 0, $topK);
 
         return implode("\n\n", array_map(
             fn (array $chunk): string => "[Trích từ file: {$sourceFile}]\n{$chunk['content']}\n[/Trích]",
-            $parts,
+            $ranked,
         ));
     }
 
@@ -491,12 +446,12 @@ class KnowledgeService
      * @param  array<int, KnowledgeChunk>  $chunks
      * @return Collection<int, array{chunk: KnowledgeChunk, score: int}>
      */
-    private function rankKeywordChunks(array $chunks, string $query, int $topK): Collection
+    private function rankKeywordChunks(array $chunks, string $query): Collection
     {
         $tokens = $this->queryTokens($query);
 
         if ($tokens === []) {
-            return collect($chunks)->take($topK)->map(fn (KnowledgeChunk $chunk) => ['chunk' => $chunk, 'score' => 0]);
+            return collect($chunks)->map(fn (KnowledgeChunk $chunk) => ['chunk' => $chunk, 'score' => 0]);
         }
 
         return collect($chunks)->map(function (KnowledgeChunk $chunk) use ($tokens) {
@@ -504,14 +459,14 @@ class KnowledgeService
             $score = array_sum(array_map(fn (string $token) => mb_substr_count($lower, $token), $tokens));
 
             return ['chunk' => $chunk, 'score' => $score];
-        })->sortByDesc('score')->take($topK);
+        })->sortByDesc('score');
     }
 
     /**
      * @param  array<int, string>  $chunks
      * @return array<int, array{content: string, score: int}>
      */
-    private function rankKeywordTextChunks(array $chunks, string $query, int $topK): array
+    private function rankKeywordTextChunks(array $chunks, string $query): array
     {
         $tokens = $this->queryTokens($query);
         $ranked = array_map(function (string $chunk) use ($tokens): array {
@@ -522,7 +477,7 @@ class KnowledgeService
         }, $chunks);
         usort($ranked, fn (array $left, array $right): int => $right['score'] <=> $left['score']);
 
-        return array_slice($ranked, 0, $topK);
+        return $ranked;
     }
 
     /**
@@ -537,8 +492,6 @@ class KnowledgeService
         }
 
         $parts = [];
-        $total = 0;
-        $maxContext = 40000;
 
         foreach ($files as $file) {
             $path = $file['path'];
@@ -548,25 +501,13 @@ class KnowledgeService
                 continue;
             }
 
-            if ($total >= $maxContext) {
-                break;
-            }
-
             $text = $this->extractText($path, $userId, $agentId);
 
             if (! $text) {
                 continue;
             }
 
-            $text = Str::limit($text, 20000);
             $text = $this->piiFilter->filter($text)['filtered'];
-
-            $remaining = $maxContext - $total;
-            if (mb_strlen($text) > $remaining) {
-                $text = mb_substr($text, 0, $remaining);
-            }
-
-            $total += mb_strlen($text);
             $parts[] = "[Kiến thức từ file: {$originalName}]\n{$text}\n[/Kiến thức từ file]";
         }
 
@@ -788,7 +729,7 @@ class KnowledgeService
                 '-l', (string) config('openai.knowledge_ocr_languages', 'vie+eng'),
                 '--psm', '3',
             ]);
-            $process->setTimeout(max(5, min((int) config('openai.knowledge_ocr_timeout', 30), 60)));
+            $process->setTimeout(0);
             $process->run();
 
             if (! $process->isSuccessful()) {
@@ -800,14 +741,7 @@ class KnowledgeService
                 return '';
             }
 
-            $output = trim($process->getOutput());
-            $maximumCharacters = max(1, (int) config('openai.knowledge_ocr_max_chars', 60_000));
-            if (mb_strlen($output) > $maximumCharacters) {
-                return mb_substr($output, 0, $maximumCharacters)
-                    ."\n[OCR EXTRACTION TRUNCATED: only the first {$maximumCharacters} characters were retained.]";
-            }
-
-            return $output;
+            return trim($process->getOutput());
         } catch (Throwable $exception) {
             Log::warning('Knowledge image OCR failed unexpectedly', [
                 'source' => $source,
@@ -859,17 +793,17 @@ class KnowledgeService
     {
         $html = $this->sourceCodeForPiiScan($html);
 
-        return Str::limit(trim($html), self::MAX_HTML_CODE_CONTEXT_CHARS, "\n<!-- Source truncated because it exceeds the safe chat limit. -->");
+        return trim($html);
     }
 
-    public function sourceCodeForEditing(string $source, int $maxCharacters = self::MAX_SOURCE_CODE_CONTEXT_CHARS): string
+    public function sourceCodeForEditing(string $source): string
     {
         $source = $this->sourceCodeForPiiScan($source);
         if (! mb_check_encoding($source, 'UTF-8') || trim($source) === '') {
             return '';
         }
 
-        return mb_substr($source, 0, $maxCharacters);
+        return $source;
     }
 
     public function sourceCodeForPiiScan(string $source): string
@@ -923,14 +857,13 @@ class KnowledgeService
                 return '';
             }
 
-            $maxPages = max(1, (int) config('openai.pdf_scan_max_pages', 10));
             $firstPage = max(1, $firstPage);
-            $lastPage = min($lastPage ?? ($firstPage + $maxPages - 1), $firstPage + $maxPages - 1);
-            $process = new Process([
-                $extractor, '-layout', '-enc', 'UTF-8', '-f', (string) $firstPage,
-                '-l', (string) $lastPage, $input, '-',
-            ]);
-            $process->setTimeout(45);
+            $arguments = [$extractor, '-layout', '-enc', 'UTF-8', '-f', (string) $firstPage];
+            if ($lastPage !== null) {
+                $arguments = [...$arguments, '-l', (string) max($firstPage, $lastPage)];
+            }
+            $process = new Process([...$arguments, $input, '-']);
+            $process->setTimeout(0);
             $process->run();
 
             if (! $process->isSuccessful()) {
@@ -989,15 +922,16 @@ class KnowledgeService
                 return [];
             }
 
-            $maxPages = max(1, (int) config('openai.pdf_scan_max_pages', 10));
             $firstPage = max(1, $firstPage);
-            $lastPage = min($lastPage ?? ($firstPage + $maxPages - 1), $firstPage + $maxPages - 1);
+            $arguments = [$renderer, '-jpeg', '-f', (string) $firstPage];
+            if ($lastPage !== null) {
+                $arguments = [...$arguments, '-l', (string) max($firstPage, $lastPage)];
+            }
             $process = new Process([
-                $renderer, '-jpeg', '-f', (string) $firstPage, '-l', (string) $lastPage,
-                '-scale-to-x', (string) max(320, config('openai.pdf_scan_max_width', 1280)), '-scale-to-y', '-1',
+                ...$arguments,
                 $input, $prefix,
             ]);
-            $process->setTimeout(45);
+            $process->setTimeout(0);
             $process->run();
 
             if (! $process->isSuccessful()) {
@@ -1010,13 +944,10 @@ class KnowledgeService
             natsort($pages);
 
             return collect($pages)
-                ->take($maxPages)
                 ->map(function (string $page): ?string {
                     $image = file_get_contents($page);
 
-                    return $image !== false && strlen($image) <= 2 * 1024 * 1024
-                        ? 'data:image/jpeg;base64,'.base64_encode($image)
-                        : null;
+                    return $image !== false ? 'data:image/jpeg;base64,'.base64_encode($image) : null;
                 })
                 ->filter()
                 ->values()
@@ -1071,15 +1002,10 @@ class KnowledgeService
         return null;
     }
 
-    /**
-     * Ap PII filter (Layer 1, regex) + cat do dai - dung cho text trich tu tai lieu
-     * dinh kem trong chat truoc khi dua vao ngu canh gui cho model.
-     */
-    public function filterAndTruncate(string $text, int $maxChars = 20000): string
+    /** Apply PII filtering without cutting extracted document content. */
+    public function filterExtractedText(string $text): string
     {
-        $text = $this->piiFilter->filter($text)['filtered'];
-
-        return Str::limit($text, $maxChars);
+        return $this->piiFilter->filter($text)['filtered'];
     }
 
     private function readPdf(Filesystem $disk, string $path): string
@@ -1237,7 +1163,7 @@ class KnowledgeService
 
         try {
             $process = new Process([$textutil, '-convert', 'txt', '-stdout', $path]);
-            $process->setTimeout(20);
+            $process->setTimeout(0);
             $process->run();
 
             return $process->isSuccessful() ? trim($process->getOutput()) : '';
@@ -1341,7 +1267,7 @@ class KnowledgeService
 
     /**
      * If a modern Office document has no selectable text, it is commonly a
-     * scan stored as images. OCR a bounded number of embedded images locally.
+     * scan stored as images. OCR every supported embedded image locally.
      */
     private function extractEmbeddedOfficeImagesText(string $path, string $mediaPrefix, string $source): string
     {
@@ -1352,9 +1278,7 @@ class KnowledgeService
 
         try {
             $parts = [];
-            $processed = 0;
-
-            for ($index = 0; $index < $archive->numFiles && $processed < self::MAX_EMBEDDED_OFFICE_IMAGES_FOR_OCR; $index++) {
+            for ($index = 0; $index < $archive->numFiles; $index++) {
                 $name = $archive->getNameIndex($index);
                 if (! is_string($name) || ! str_starts_with($name, $mediaPrefix)) {
                     continue;
@@ -1370,7 +1294,6 @@ class KnowledgeService
                     continue;
                 }
 
-                $processed++;
                 $text = $this->ocrImage($image, $extension, $source.' embedded image');
                 if ($text !== '') {
                     $parts[] = $text;
@@ -1512,10 +1435,9 @@ class KnowledgeService
     public static function validationRules(): array
     {
         return [
-            'knowledge' => 'nullable|array|max:'.self::MAX_AGENT_FILES,
+            'knowledge' => 'nullable|array',
             'knowledge.*' => [
                 'file',
-                'max:'.self::MAX_AGENT_FILE_SIZE_KB,
                 'mimes:'.implode(',', self::ALLOWED_EXTENSIONS),
             ],
         ];

@@ -43,14 +43,10 @@ class SchoolKnowledgeController extends Controller
     public function upload(Request $request, SchoolKnowledgeService $schoolKnowledge): RedirectResponse
     {
         $data = $request->validate([
-            'documents' => ['required', 'array', 'max:'.SchoolKnowledgeService::MAX_UPLOAD_FILES],
-            'documents.*' => ['required', 'file', 'max:5120'],
+            'documents' => ['required', 'array'],
+            'documents.*' => ['required', 'file'],
         ]);
         $files = $data['documents'];
-        $totalBytes = array_sum(array_map(fn ($file) => $file->getSize() ?: 0, $files));
-        if ($totalBytes > SchoolKnowledgeService::MAX_TOTAL_UPLOAD_BYTES) {
-            return back()->withErrors(['documents' => 'The total upload size must not exceed 25 MB.']);
-        }
 
         $added = 0;
         $errors = [];

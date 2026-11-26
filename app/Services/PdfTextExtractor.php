@@ -35,13 +35,13 @@ try {
 PHP;
 
             try {
-                $result = Process::input($binary)->timeout(20)->run([
-                    $php, '-d', 'memory_limit=256M', '-d', 'display_errors=stderr',
+                $result = Process::input($binary)->timeout(0)->run([
+                    $php, '-d', 'display_errors=stderr',
                     '-d', 'log_errors=0', '-r', $script, base_path('vendor/autoload.php'),
                 ]);
             } catch (ProcessTimedOutException) {
-                Log::warning('PDF text extraction timed out', ['timeout_seconds' => 20]);
-                throw ValidationException::withMessages(['documents' => 'The PDF took too long to read. Split it into smaller files and try again.']);
+                Log::warning('PDF text extraction timed out');
+                throw ValidationException::withMessages(['documents' => 'PDF text extraction stopped before it could finish. Try again or ask an administrator to check the server.']);
             } catch (Throwable $exception) {
                 Log::warning('PDF text extraction unavailable', ['exception' => $exception::class]);
                 throw ValidationException::withMessages(['documents' => 'PDF text extraction is unavailable on this server.']);

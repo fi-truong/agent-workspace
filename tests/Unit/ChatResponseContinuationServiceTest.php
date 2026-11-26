@@ -6,13 +6,12 @@ use App\Services\ChatCompletionService;
 use App\Services\ChatResponseContinuationService;
 use App\Services\Guardrail\RegexPiiFilter;
 use App\Services\OpenAIClient;
-use App\Services\TokenQuotaService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 uses()->group('openai', 'unit');
 
-it('continues a truncated streamed reply once and emits only the continuation delta', function () {
+it('continues a truncated streamed reply and emits only the continuation delta', function () {
     config(['openai.api_key' => 'sk-test', 'openai.max_tokens' => 8192]);
 
     $streamEvents = [
@@ -26,10 +25,8 @@ it('continues a truncated streamed reply once and emits only the continuation de
     Http::fake(['https://api.openai.com/*' => Http::response($streamBody, 200, ['Content-Type' => 'text/event-stream'])]);
     Http::preventStrayRequests();
 
-    $quota = Mockery::mock(TokenQuotaService::class);
-    $quota->shouldReceive('remainingTokens')->once()->andReturn(100_000);
     $chat = new ChatCompletionService(new OpenAIClient, new RegexPiiFilter);
-    $service = new ChatResponseContinuationService($chat, $quota);
+    $service = new ChatResponseContinuationService($chat);
     $conversation = new Conversation;
     $conversation->id = 42;
     $user = new User;
@@ -43,7 +40,7 @@ it('continues a truncated streamed reply once and emits only the continuation de
         'model' => 'gpt-6-luna',
         'finish_reason' => 'length',
         'tool_calls' => [],
-    ], $conversation, $user, 'gpt-6-luna', [
+    ], $conversation, 'gpt-6-luna', [
         ['role' => 'user', 'content' => 'Tạo khảo sát song ngữ về chất lượng bữa ăn.'],
     ], 'You help create school surveys.', 'safe-id', static function (string $delta) use (&$deltas): void {
         $deltas[] = $delta;
@@ -57,6 +54,6 @@ it('continues a truncated streamed reply once and emits only the continuation de
 
     Http::assertSentCount(1);
     Http::assertSent(fn (Request $request): bool => ! isset($request->data()['tools'])
-        && $request->data()['max_completion_tokens'] === 8192
+        && ! isset($request->data()['max_completion_tokens'])
         && str_contains(json_encode($request->data()['messages'], JSON_UNESCAPED_UNICODE), 'Continue the answer from the exact point'));
 });

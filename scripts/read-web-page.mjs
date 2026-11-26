@@ -69,9 +69,9 @@ try {
     }
   });
 
-  const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+  const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 0 });
   await page.waitForTimeout(1_500);
-  const text = await page.locator('body').innerText({ timeout: 5_000 });
+  const text = await page.locator('body').innerText({ timeout: 0 });
 
   process.stdout.write(JSON.stringify({
     ok: response?.ok() ?? false,

@@ -62,7 +62,7 @@ it('sends system prompt when provided', function () {
     });
 });
 
-it('raises the output budget for a long prompt', function () {
+it('leaves completion length to the provider instead of adding an AI+ token cap', function () {
     config([
         'openai.api_key' => 'sk-test',
         'openai.max_tokens' => 8192,
@@ -82,7 +82,7 @@ it('raises the output budget for a long prompt', function () {
     (new ChatCompletionService(new OpenAIClient, new RegexPiiFilter))
         ->complete([['role' => 'user', 'content' => str_repeat('a', 101)]]);
 
-    Http::assertSent(fn (Request $request): bool => $request->data()['max_completion_tokens'] === 16384);
+    Http::assertSent(fn (Request $request): bool => ! isset($request->data()['max_completion_tokens']));
 });
 
 it('filters PII before sending to OpenAI', function () {

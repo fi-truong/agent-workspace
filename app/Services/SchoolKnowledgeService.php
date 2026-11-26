@@ -23,10 +23,6 @@ use Throwable;
  */
 class SchoolKnowledgeService
 {
-    public const MAX_UPLOAD_FILES = 10;
-
-    public const MAX_TOTAL_UPLOAD_BYTES = 25 * 1024 * 1024;
-
     /**
      * Every public page currently nested under Introduction in the official
      * English LSTS menu (School, Campuses, and Curriculum).
@@ -212,7 +208,6 @@ class SchoolKnowledgeService
             return '';
         }
 
-        $topK ??= (int) config('openai.rag_top_k', 4);
         $chunks = SchoolKnowledgeChunk::query()
             ->with('source:id,title,status')
             ->whereHas('source', fn ($source) => $source->where('status', 'ready'))
@@ -228,9 +223,11 @@ class SchoolKnowledgeService
             $ranked = $semanticChunks->map(fn (SchoolKnowledgeChunk $chunk) => [
                 'chunk' => $chunk,
                 'score' => $this->embeddingService->cosineSimilarity($queryEmbedding, $chunk->embedding),
-            ])->sortByDesc('score')->take($topK);
+            ])->filter(fn (array $item): bool => $item['score'] >= (float) config('openai.rag_relevance_threshold', 0.32))
+                ->sortByDesc('score');
         } else {
-            $ranked = $this->rankKeywordChunks($chunks, $query, $topK);
+            $ranked = $this->rankKeywordChunks($chunks, $query)
+                ->filter(fn (array $item): bool => $item['score'] > 0);
         }
 
         if ($ranked->isEmpty()) {
@@ -341,7 +338,7 @@ class SchoolKnowledgeService
     }
 
     /** @param Collection<int, SchoolKnowledgeChunk> $chunks */
-    private function rankKeywordChunks(Collection $chunks, string $query, int $topK): Collection
+    private function rankKeywordChunks(Collection $chunks, string $query): Collection
     {
         $stopWords = ['của', 'và', 'là', 'có', 'cho', 'theo', 'với', 'một', 'những', 'để', 'trong', 'từ', 'không', 'được', 'cần', 'này', 'đó', 'các', 'vào', 'trên', 'the', 'of', 'and', 'is', 'to', 'in', 'for', 'with', 'on', 'at'];
         $tokens = (array) preg_split('/[\s,.;:!?\/|()\[\]{}]+/u', mb_strtolower($query));
@@ -371,6 +368,6 @@ class SchoolKnowledgeService
             ));
 
             return ['chunk' => $chunk, 'score' => $contentScore + $titleScore];
-        })->sortByDesc('score')->take($topK);
+        })->sortByDesc('score');
     }
 }

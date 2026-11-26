@@ -76,7 +76,7 @@ class AgentConnectionService
 
         return $agent->connectedAgents()->with('sharedRecipients:users.id')->where('agents.id', '!=', $agent->id)->get()
             ->filter(fn (Agent $child): bool => $this->hasDelegatedChildAccess($user, $agent, $child))
-            ->take((int) config('agent_connections.max_connections', 10))->values();
+            ->values();
     }
 
     private function hasDelegatedChildAccess(User $user, Agent $parent, Agent $child): bool

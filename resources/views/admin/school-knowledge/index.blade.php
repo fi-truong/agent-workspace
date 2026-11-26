@@ -45,7 +45,7 @@
   <section class="table-section">
     <div class="table-toolbar"><h3 style="font-family:var(--lsts-font);font-size:18px;margin:0;">Upload school documents</h3></div>
     <form method="POST" action="{{ route('admin.school-knowledge.upload') }}" enctype="multipart/form-data" style="padding:22px 24px;">@csrf
-      <p class="text-muted" style="margin-top:0;line-height:1.5;">Up to 10 documents at once, 5 MB each and 25 MB total. Supported: {{ strtoupper(implode(', ', $allowedExtensions)) }}. Uploaded files remain private.</p>
+      <p class="text-muted" style="margin-top:0;line-height:1.5;">Supported formats: {{ strtoupper(implode(', ', $allowedExtensions)) }}. Uploaded files remain private.</p>
       <input name="documents[]" type="file" multiple required accept="{{ collect($allowedExtensions)->map(fn ($extension) => '.'.$extension)->implode(',') }}" style="width:100%;">
       <button type="submit" class="btn-primary" style="margin-top:16px;">Upload and index</button>
     </form>

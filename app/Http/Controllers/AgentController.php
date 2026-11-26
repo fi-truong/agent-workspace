@@ -108,7 +108,6 @@ class AgentController extends Controller
 
         $sharingSettings = $this->sharing->settings($request);
         $this->agentConnections->validate($request->input('connections', []), $user);
-        $this->knowledgeService->ensureAgentKnowledgeLimits($request->file('knowledge', []));
 
         /** @var Agent $agent */
         $agent = $user->agents()->create([
@@ -174,8 +173,8 @@ class AgentController extends Controller
             $this->agentConnections->validate($request->input('connections', []), $request->user(), $agent);
         }
 
-        // Validate and persist Knowledge first. This prevents partial Agent edits when
-        // the aggregate Knowledge limit is exceeded.
+        // Validate and persist Knowledge first. This prevents partial Agent edits
+        // if a file is invalid or cannot be stored.
         $this->syncKnowledgeFiles($request, $agent);
 
         $agent->update([
@@ -315,8 +314,6 @@ class AgentController extends Controller
             $existing,
             fn (array $file): bool => ! in_array($file['path'], $removePaths, true),
         ));
-
-        $this->knowledgeService->ensureAgentKnowledgeLimits(array_values($newFiles), $kept);
 
         // Lưu file mới nếu có.
         $savedNew = $this->knowledgeService->saveFiles(array_values($newFiles), $agent->user_id, $agent->id);

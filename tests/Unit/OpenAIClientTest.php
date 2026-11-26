@@ -36,7 +36,7 @@ it('sends correct payload to chat completions', function () {
             && $request->hasHeader('Content-Type', 'application/json')
             && ($payload['model'] ?? null) === 'gpt-6-luna'
             && ($payload['messages'][0]['content'] ?? null) === 'Hi'
-            && isset($payload['max_completion_tokens'])
+            && ! isset($payload['max_completion_tokens'])
             && ! isset($payload['temperature']);
     });
 });
@@ -72,15 +72,16 @@ it('can require the file tool after the user request was independently confirmed
     ] && $request['parallel_tool_calls'] === false);
 });
 
-it('distinguishes an empty output limit response from a generic empty response', function () {
+it('returns an empty provider-truncated response so the chat can continue it', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::fake(['https://api.openai.com/*' => Http::response([
         'choices' => [['message' => ['content' => ''], 'finish_reason' => 'length']],
         'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 2048],
     ])]);
 
-    expect(fn () => (new OpenAIClient)->chat([['role' => 'user', 'content' => 'Analyze synthetic results']]))
-        ->toThrow(RuntimeException::class, 'vượt giới hạn token');
+    $result = (new OpenAIClient)->chat([['role' => 'user', 'content' => 'Analyze synthetic results']]);
+
+    expect($result['content'])->toBe('')->and($result['finish_reason'])->toBe('length');
 });
 
 it('decodes streamed function-call arguments without exposing them as text deltas', function () {

@@ -39,6 +39,21 @@ it('stores uploaded txt file into knowledge path', function () {
     Storage::disk('knowledge')->assertExists($knowledge[0]['path']);
 });
 
+it('stores an Agent system prompt beyond the old MySQL TEXT column size', function () {
+    $systemPrompt = str_repeat('Use the complete reference material. ', 2100).'AGENT_PROMPT_END_MARKER';
+
+    $this->post('/ai-plus/agent-workspace/agents', [
+        'category_group' => 'teaching',
+        'category' => 'lesson_planning',
+        'title' => 'Long instruction Agent',
+        'system_prompt' => $systemPrompt,
+    ], ['Accept' => 'application/json'])->assertStatus(201);
+
+    $storedPrompt = $this->user->agents()->firstOrFail()->system_prompt;
+    expect(mb_strlen($storedPrompt))->toBe(mb_strlen($systemPrompt))
+        ->and($storedPrompt)->toEndWith('AGENT_PROMPT_END_MARKER');
+});
+
 it('stores a pdf file with correct mime', function () {
     $file = UploadedFile::fake()->create('tai-lieu.pdf', 20, 'application/pdf');
 
@@ -84,14 +99,15 @@ it('accepts an HTML file as Agent Knowledge', function () {
     expect(Agent::first()->knowledge_files[0]['original_name'])->toBe('saved-page.html');
 });
 
-it('renders Agent Knowledge upload limits from the backend configuration', function () {
+it('does not render application-defined Agent Knowledge file limits', function () {
     $this->get('/ai-plus/agent-workspace/agents')
         ->assertOk()
         ->assertSee('Instructions (System Prompt)')
-        ->assertSee('maxKnowledgeFiles = 10;', false)
-        ->assertSee('maxKnowledgeFileBytes = 15728640;', false)
-        ->assertSee('maxKnowledgeTotalBytes = 52428800;', false)
-        ->assertSee('Up to 10 files per Agent · 15 MB per file · 50 MB total.');
+        ->assertSee('The server may enforce its own upload limits.')
+        ->assertSee('Usage from each call is recorded.')
+        ->assertDontSee('LSTS AI+ Credits apply to these calls.')
+        ->assertDontSee('maxKnowledgeFiles')
+        ->assertDontSee('Up to 10 files per Agent');
 });
 
 it('accepts Agent Knowledge files larger than the previous client-side five MB limit', function () {
@@ -158,7 +174,7 @@ it('rejects disallowed file extension', function () {
     Storage::disk('knowledge')->assertDirectoryEmpty($this->user->id);
 });
 
-it('limits each agent to ten Knowledge files', function () {
+it('accepts more than ten Knowledge files for one Agent', function () {
     $files = collect(range(1, 11))
         ->map(fn (int $number) => UploadedFile::fake()->create("knowledge-{$number}.txt", 10, 'text/plain'))
         ->all();
@@ -166,16 +182,15 @@ it('limits each agent to ten Knowledge files', function () {
     $this->post('/ai-plus/agent-workspace/agents', [
         'category_group' => 'teaching',
         'category' => 'lesson_planning',
-        'title' => 'Too many files',
+        'title' => 'Many files',
         'knowledge' => $files,
     ], ['Accept' => 'application/json'])
-        ->assertStatus(422)
-        ->assertJsonValidationErrors('knowledge');
+        ->assertStatus(201);
 
-    expect($this->user->agents()->count())->toBe(0);
+    expect($this->user->agents()->firstOrFail()->knowledge_files)->toHaveCount(11);
 });
 
-it('limits new Agent Knowledge to fifty MB in total', function () {
+it('accepts Agent Knowledge with a combined size above fifty MB', function () {
     $files = collect(range(1, 4))
         ->map(fn (int $number) => UploadedFile::fake()->create("large-{$number}.txt", 14000, 'text/plain'))
         ->all();
@@ -183,16 +198,15 @@ it('limits new Agent Knowledge to fifty MB in total', function () {
     $this->post('/ai-plus/agent-workspace/agents', [
         'category_group' => 'teaching',
         'category' => 'lesson_planning',
-        'title' => 'Too much Knowledge',
+        'title' => 'Large Knowledge set',
         'knowledge' => $files,
     ], ['Accept' => 'application/json'])
-        ->assertStatus(422)
-        ->assertJsonValidationErrors('knowledge');
+        ->assertStatus(201);
 
-    expect($this->user->agents()->count())->toBe(0);
+    expect($this->user->agents()->firstOrFail()->knowledge_files)->toHaveCount(4);
 });
 
-it('counts retained Knowledge files toward the Agent file limit on update', function () {
+it('allows an Agent to retain existing Knowledge files and add more than ten in total', function () {
     $agent = $this->user->agents()->create([
         'title' => 'Agent with existing Knowledge',
     ]);
@@ -209,15 +223,14 @@ it('counts retained Knowledge files toward the Agent file limit on update', func
         ->all();
 
     $this->put("/ai-plus/agent-workspace/agents/{$agent->id}", [
-        'title' => 'Should not be saved',
+        'title' => 'Updated with more files',
         'knowledge' => $newFiles,
     ], ['Accept' => 'application/json'])
-        ->assertStatus(422)
-        ->assertJsonValidationErrors('knowledge');
+        ->assertOk();
 
     $agent->refresh();
-    expect($agent->title)->toBe('Agent with existing Knowledge')
-        ->and($agent->knowledge_files)->toHaveCount(8);
+    expect($agent->title)->toBe('Updated with more files')
+        ->and($agent->knowledge_files)->toHaveCount(11);
 });
 
 it('keeps existing files and adds new files on update', function () {

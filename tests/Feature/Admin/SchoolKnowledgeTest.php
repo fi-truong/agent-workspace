@@ -4,6 +4,7 @@ use App\Models\AppSetting;
 use App\Models\SchoolKnowledgeChunk;
 use App\Models\SchoolKnowledgeSource;
 use App\Models\User;
+use App\Services\SchoolKnowledgeService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -33,16 +34,18 @@ test('administrators can toggle the shared School Knowledge Base', function () {
     expect(AppSetting::boolean('school_knowledge_enabled', true))->toBeFalse();
 });
 
-test('School Knowledge Base page offers the suggested LSTS starter import', function () {
+test('School Knowledge Base page shows the starter import and supported upload formats', function () {
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
 
     $this->actingAs($admin)
         ->get(route('admin.school-knowledge.index'))
         ->assertOk()
-        ->assertSee('Import basic school information');
+        ->assertSee('Import basic school information')
+        ->assertSee('Supported formats:')
+        ->assertDontSee('Up to 10 documents at once, 5 MB each and 25 MB total.');
 });
 
-test('keyword fallback prioritizes a matching School Knowledge source title', function () {
+test('keyword fallback prioritizes a matching source title and retains other matching sources', function () {
     config(['openai.rag_embeddings_enabled' => false, 'openai.rag_top_k' => 1]);
     $generic = SchoolKnowledgeSource::create(['type' => 'website', 'title' => 'LSTS official website', 'status' => 'ready']);
     SchoolKnowledgeChunk::create([
@@ -59,9 +62,11 @@ test('keyword fallback prioritizes a matching School Knowledge source title', fu
         'embedding' => [],
     ]);
 
-    $context = app(\App\Services\SchoolKnowledgeService::class)
+    $context = app(SchoolKnowledgeService::class)
         ->retrieveContext('Trường Đinh Thiện Lý do ai sáng lập?');
 
     expect($context)->toContain('Công ty Phú Mỹ Hưng')
-        ->not->toContain('giới thiệu các hoạt động');
+        ->toContain('giới thiệu các hoạt động');
+    expect(strpos($context, 'Công ty Phú Mỹ Hưng'))
+        ->toBeLessThan(strpos($context, 'giới thiệu các hoạt động'));
 });

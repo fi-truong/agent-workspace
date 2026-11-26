@@ -35,14 +35,14 @@ use App\Http\Middleware\MeasureChatPerformance;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/ai-plus/agent-workspace/send', [ChatMessageController::class, 'store'])
-    ->middleware(['auth', 'ai.policy', MeasureChatPerformance::class, 'throttle:chat'])
+    ->middleware(['auth', 'ai.policy', MeasureChatPerformance::class])
     ->name('ai-plus.agent-workspace.send');
 
 Route::post('/ai-plus/agent-workspace/send-stream', [ChatMessageController::class, 'stream'])
-    ->middleware(['auth', 'ai.policy', MeasureChatPerformance::class, 'throttle:chat'])
+    ->middleware(['auth', 'ai.policy', MeasureChatPerformance::class])
     ->name('ai-plus.agent-workspace.send-stream');
 Route::post('/ai-plus/agent-workspace/generate-image', [ChatMessageController::class, 'generateImage'])
-    ->middleware(['auth', 'ai.policy', 'throttle:image-generation'])
+    ->middleware(['auth', 'ai.policy'])
     ->name('ai-plus.agent-workspace.generate-image');
 
 Route::inertia('/', 'welcome')->name('home');
@@ -60,7 +60,7 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::post('/ai-plus/guide/reply', [AiPlusGuideController::class, 'reply'])
-    ->middleware(['auth', 'ai.policy', 'throttle:chat'])
+    ->middleware(['auth', 'ai.policy'])
     ->name('ai-plus.guide.reply');
 
 // AI+ Module Routes
@@ -77,7 +77,6 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware(['auth', 'ai.policy'])->g
     Route::patch('/agent-workspace/conversations/{conversation}/move', [ChatMessageController::class, 'move'])
         ->name('conversations.move');
     Route::post('/agent-workspace/conversations/{conversation}/export', [ChatMessageController::class, 'exportConversation'])
-        ->middleware('throttle:chat')
         ->name('conversations.export');
     Route::delete('/agent-workspace/conversations/{conversation}', [ChatMessageController::class, 'destroy'])
         ->name('conversations.destroy');
@@ -86,12 +85,12 @@ Route::prefix('ai-plus')->name('ai-plus.')->middleware(['auth', 'ai.policy'])->g
     Route::get('/agent-workspace/images/{message}/download', [ChatMessageController::class, 'downloadImage'])->name('agent-workspace.images.download');
     Route::delete('/agent-workspace/images/{message}', [ChatMessageController::class, 'destroyImage'])->name('agent-workspace.images.destroy');
     Route::get('/agent-workspace/agents', [AgentController::class, 'index'])->name('agent-workspace.agents.index');
-    Route::post('/agent-workspace/agents', [AgentController::class, 'store'])->middleware('throttle:agent-upload')->name('agent-workspace.agents.store');
+    Route::post('/agent-workspace/agents', [AgentController::class, 'store'])->name('agent-workspace.agents.store');
     Route::get('/agent-workspace/agents/sharing-users', [AgentController::class, 'sharingUsers'])->middleware('throttle:60,1')->name('agent-workspace.agents.sharing-users');
     Route::get('/agent-workspace/agents/connection-options', [AgentController::class, 'connectionOptions'])->name('agent-workspace.agents.connection-options');
     Route::get('/agent-workspace/agents/{agent}/avatar', [AgentController::class, 'avatar'])->name('agent-workspace.agents.avatar');
     Route::get('/agent-workspace/agents/{agent}', [AgentController::class, 'show'])->name('agent-workspace.agents.show');
-    Route::put('/agent-workspace/agents/{agent}', [AgentController::class, 'update'])->middleware('throttle:agent-upload')->name('agent-workspace.agents.update');
+    Route::put('/agent-workspace/agents/{agent}', [AgentController::class, 'update'])->name('agent-workspace.agents.update');
     Route::delete('/agent-workspace/agents/{agent}', [AgentController::class, 'destroy'])->name('agent-workspace.agents.destroy');
     Route::get('/prompt-library', [PromptLibraryController::class, 'index'])->name('prompt-library.index');
     Route::get('/agent-templates', [AgentTemplateController::class, 'index'])->name('agent-templates.index');
@@ -149,7 +148,6 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'ai.policy', 'admin'
     Route::post('tickets/{ticket}/replies', [TicketController::class, 'reply'])->name('tickets.replies.store');
 
     // Users & Roles
-    Route::post('users/token-quota', [UserController::class, 'updateTokenQuota'])->name('users.token-quota.update');
     Route::post('users/units', [UserController::class, 'storeUnit'])->name('users.units.store');
     Route::put('users/units', [UserController::class, 'updateUnit'])->name('users.units.update');
     Route::delete('users/units', [UserController::class, 'destroyUnit'])->name('users.units.destroy');

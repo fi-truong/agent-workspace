@@ -120,8 +120,7 @@
           <div class="user-name">{{ $userName }}</div>
           <div class="user-quota" data-token-quota>
             @if($tokenQuota)
-            <span data-token-quota-text>{{ \App\Services\ChatModelService::formatCredits($tokenQuota['used']) }} / {{ \App\Services\ChatModelService::formatCredits($tokenQuota['limit']) }} credits used (in {{ $tokenQuota['month_name'] }})</span>
-            <div class="quota-bar"><div class="quota-fill" data-token-quota-fill style="width: {{ $tokenQuota['percentage'] }}%"></div></div>
+            <span data-token-quota-text>{{ \App\Services\ChatModelService::formatCredits($tokenQuota['used']) }} credits used in {{ $tokenQuota['month_name'] }}</span>
             @endif
           </div>
         </div>
@@ -229,7 +228,7 @@
         </div>
         <input type="file" id="chat-image-input" accept="image/png,image/jpeg,image/gif,image/webp,.html,.js,.jsx,.mjs,.cjs,.css,.ts,.tsx,.json,.xml,.md,.php,.py,.java,.sql,.yaml,.yml,.sh,.bash,.c,.h,.cpp,.hpp,.cs,.go,.rb,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple style="display:none;">
         <div class="input-hint">
-          LSTS AI+ is for LSTS-related work • <a href="{{ route('ai-plus.ai-policy.index') }}">Read the AI policy</a> • Scanned PDFs: up to {{ config('openai.pdf_scan_max_pages') }} pages; for longer files, specify pages to read (for example, “pages 12–15”) to reduce token use • Press Enter to send, Shift+Enter for new line • Public links are read automatically • Your data is protected by PII filtering • Upload up to 5 files (15 MB total) for analysis • Source code files are read as text and never executed; code context is limited to 20,000 characters per file
+          LSTS AI+ is for LSTS-related work • <a href="{{ route('ai-plus.ai-policy.index') }}">Read the AI policy</a> • Scanned PDFs are analyzed as page images • Press Enter to send, Shift+Enter for new line • Public links are read automatically • Your data is protected by PII filtering • Server and AI provider limits may still apply • Source code files are read as text and never executed
         </div>
       </div>
     </div>

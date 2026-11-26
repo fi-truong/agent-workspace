@@ -195,7 +195,6 @@ class AgentWorkspaceController extends Controller
 
                 $agentConnectionSummaries[$parent->id] = $parent->connectedAgents
                     ->filter(fn (Agent $child): bool => $child->id !== $parent->id && $agentConnections->canUse($user, $child))
-                    ->take((int) config('agent_connections.max_connections', 10))
                     ->map(fn (Agent $child): array => ['id' => $child->id, 'title' => $child->title])
                     ->values()->all();
             }

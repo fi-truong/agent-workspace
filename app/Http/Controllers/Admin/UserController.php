@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminAuditLog;
 use App\Models\AppSetting;
 use App\Models\User;
-use App\Services\ChatModelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +21,6 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        $defaultTokenQuota = max((int) (config('usage.token_limits.'.config('usage.phase', 'testing')) ?? config('usage.token_limits.testing', 20_000_000)), 1);
         $query = User::query()->withCount([
             'agents',
             'conversations',
@@ -55,15 +53,11 @@ class UserController extends Controller
             $query->where('is_active', $request->boolean('active'));
         }
 
-        $sortableColumns = ['name', 'email', 'role', 'last_login_at', 'department', 'token_quota_limit', 'is_active', 'created_at'];
+        $sortableColumns = ['name', 'email', 'role', 'last_login_at', 'department', 'is_active', 'created_at'];
         $sortBy = $request->query('sort_by');
         $sortDirection = $request->query('sort_dir') === 'desc' ? 'desc' : 'asc';
         if (in_array($sortBy, $sortableColumns, true)) {
-            if ($sortBy === 'token_quota_limit') {
-                $query->orderByRaw('COALESCE(token_quota_limit, ?) '.$sortDirection, [$defaultTokenQuota]);
-            } else {
-                $query->orderBy($sortBy, $sortDirection);
-            }
+            $query->orderBy($sortBy, $sortDirection);
             $query->orderBy('id');
         } else {
             match ($request->get('sort', 'newest')) {
@@ -91,7 +85,7 @@ class UserController extends Controller
 
         $activeStatuses = ['1' => 'Active', '0' => 'Inactive'];
 
-        return view('admin.users.index', compact('users', 'roles', 'departments', 'unitUserCounts', 'activeStatuses', 'defaultTokenQuota'));
+        return view('admin.users.index', compact('users', 'roles', 'departments', 'unitUserCounts', 'activeStatuses'));
     }
 
     public function storeUnit(Request $request): RedirectResponse
@@ -198,7 +192,6 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        $this->normaliseCreditQuota($request);
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email',
@@ -207,7 +200,6 @@ class UserController extends Controller
             'department' => ['nullable', 'string', 'max:100', Rule::in($this->departments())],
             'employee_id' => 'nullable|string|max:50',
             'is_active' => 'boolean',
-            'token_quota_limit' => 'nullable|integer|min:1|max:1000000000',
         ]);
 
         $data['password'] = Hash::make($data['password']);
@@ -232,7 +224,6 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
-        $this->normaliseCreditQuota($request);
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email,'.$user->id,
@@ -241,7 +232,6 @@ class UserController extends Controller
             'department' => ['nullable', 'string', 'max:100', Rule::in($this->departments())],
             'employee_id' => 'nullable|string|max:50',
             'is_active' => 'boolean',
-            'token_quota_limit' => 'nullable|integer|min:1|max:1000000000',
         ]);
 
         // An unchecked HTML checkbox is omitted from the request. On an edit, that
@@ -266,56 +256,9 @@ class UserController extends Controller
         $data['is_active'] = $isActive;
 
         $user->update($data);
-        AdminAuditLog::record('user.updated', $user, ['role' => $user->role, 'is_active' => $user->is_active, 'token_quota_limit' => $user->token_quota_limit]);
+        AdminAuditLog::record('user.updated', $user, ['role' => $user->role, 'is_active' => $user->is_active]);
 
         return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
-    }
-
-    /** Apply a custom monthly quota or restore the phase default for selected users. */
-    public function updateTokenQuota(Request $request): RedirectResponse
-    {
-        $this->normaliseCreditQuota($request);
-        $data = $request->validate([
-            'user_ids' => ['required', 'array', 'min:1'],
-            'user_ids.*' => ['integer', 'exists:users,id'],
-            'action' => ['required', 'in:set,reset'],
-            'token_quota_limit' => ['nullable', 'integer', 'min:1', 'max:1000000000'],
-        ]);
-        if ($data['action'] === 'set' && empty($data['token_quota_limit'])) {
-            return back()->withErrors(['credit_quota_limit' => 'Enter a credit quota to apply.'])->withInput();
-        }
-
-        $limit = $data['action'] === 'set' ? (int) $data['token_quota_limit'] : null;
-        $selectedUsers = User::query()->whereIn('id', $data['user_ids'])->get();
-        foreach ($selectedUsers as $user) {
-            $user->update(['token_quota_limit' => $limit]);
-            AdminAuditLog::record('user.token_quota_updated', $user, [
-                'token_quota_limit' => $limit,
-                'mode' => $limit === null ? 'default' : 'custom',
-                'bulk_count' => $selectedUsers->count(),
-            ]);
-        }
-
-        $message = $limit === null
-            ? 'Restored the default credit quota for '.$selectedUsers->count().' user(s).'
-            : 'Set '.ChatModelService::formatCredits($limit).' monthly credits for '.$selectedUsers->count().' user(s).';
-
-        return redirect()->route('admin.users.index')->with('success', $message);
-    }
-
-    private function normaliseCreditQuota(Request $request): void
-    {
-        if (! $request->exists('credit_quota_limit')) {
-            return;
-        }
-        $data = $request->validate([
-            'credit_quota_limit' => ['nullable', 'numeric', 'decimal:0,3', 'min:0.001', 'max:1000000'],
-        ]);
-        // Keep existing integer storage and legacy API compatibility; one unit
-        // is 0.001 credit. Existing overrides need no data rewrite.
-        $request->merge(['token_quota_limit' => isset($data['credit_quota_limit'])
-            ? (int) round((float) $data['credit_quota_limit'] * ChatModelService::UNITS_PER_CREDIT)
-            : null]);
     }
 
     public function destroy(User $user)

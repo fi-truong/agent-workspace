@@ -8,7 +8,6 @@ use App\Models\SupportTicketReply;
 use App\Models\SupportTicketReplyAttachment;
 use App\Models\UsageLog;
 use App\Models\User;
-use App\Services\TokenQuotaService;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
@@ -88,7 +87,7 @@ test('administrators can filter token and image usage by a previous month', func
     $this->actingAs($admin)
         ->get(route('admin.usage.index', ['month' => '2026-09', 'search' => 'September']))
         ->assertOk()
-        ->assertSee('September 2026 credit usage')
+        ->assertSee('September 2026 usage')
         ->assertSee('value="2026-09"', false)
         ->assertViewHas('summary', fn (array $summary) => $summary['total_tokens'] === 1010)
         ->assertViewHas('users', fn ($users) => (int) $users->first()->used_tokens === 1010)
@@ -209,43 +208,16 @@ test('administrators can create an active user with profile fields', function ()
     ]);
 });
 
-test('administrators can set and reset a custom monthly quota for selected users', function () {
+test('the user list no longer displays per-user credit quota controls', function () {
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-    $first = User::factory()->create(['name' => 'Quota One']);
-    $second = User::factory()->create(['name' => 'Quota Two']);
-
-    $this->actingAs($admin)
-        ->post(route('admin.users.token-quota.update'), [
-            'user_ids' => [$first->id, $second->id],
-            'action' => 'set',
-            'token_quota_limit' => 10_000_000,
-        ])
-        ->assertRedirect(route('admin.users.index'));
-
-    expect($first->fresh()->token_quota_limit)->toBe(10_000_000)
-        ->and($second->fresh()->token_quota_limit)->toBe(10_000_000)
-        ->and(app(TokenQuotaService::class)->summary($first->fresh())['limit'])->toBe(10_000_000);
-
-    $this->post(route('admin.users.token-quota.update'), [
-        'user_ids' => [$first->id, $second->id],
-        'action' => 'reset',
-    ])->assertRedirect(route('admin.users.index'));
-
-    expect($first->fresh()->token_quota_limit)->toBeNull()
-        ->and($second->fresh()->token_quota_limit)->toBeNull();
-});
-
-test('the user list selects token quota recipients with checkboxes', function () {
-    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-    $user = User::factory()->create(['name' => 'Checkbox Recipient']);
+    $user = User::factory()->create(['name' => 'Usage Recipient']);
 
     $this->actingAs($admin)
         ->get(route('admin.users.index'))
         ->assertOk()
-        ->assertSee('No users selected. Tick users in the list below.')
-        ->assertSee('tokenQuotaBulkForm', false)
-        ->assertSee('token-quota-user-checkbox', false)
-        ->assertSee('Checkbox Recipient');
+        ->assertDontSee('tokenQuotaBulkForm', false)
+        ->assertDontSee('Credit quota')
+        ->assertSee('Usage Recipient');
 });
 
 test('user table column sorting applies to every page and preserves filters', function () {
@@ -276,19 +248,6 @@ test('user table column sorting applies to every page and preserves filters', fu
         ->assertViewHas('users', fn ($users) => $users->first()->name === 'Staff 17');
 });
 
-test('user table sorts token quota by the displayed effective limit', function () {
-    $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
-    config(['usage.phase' => 'testing', 'usage.token_limits.testing' => 20_000_000]);
-    User::factory()->create(['name' => 'Default Quota', 'role' => 'staff', 'token_quota_limit' => null]);
-    User::factory()->create(['name' => 'Low Quota', 'role' => 'staff', 'token_quota_limit' => 5_000_000]);
-    User::factory()->create(['name' => 'High Quota', 'role' => 'staff', 'token_quota_limit' => 30_000_000]);
-
-    $this->actingAs($admin)
-        ->get(route('admin.users.index', ['role' => 'staff', 'sort_by' => 'token_quota_limit', 'sort_dir' => 'asc']))
-        ->assertOk()
-        ->assertViewHas('users', fn ($users) => $users->pluck('name')->all() === ['Low Quota', 'Default Quota', 'High Quota']);
-});
-
 test('every sortable user column supports ascending and descending order', function () {
     $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
     User::factory()->create([
@@ -297,7 +256,6 @@ test('every sortable user column supports ascending and descending order', funct
         'role' => 'staff',
         'department' => 'A Department',
         'last_login_at' => '2025-01-01 09:00:00',
-        'token_quota_limit' => 10_000_000,
         'is_active' => false,
         'created_at' => '2025-01-01 09:00:00',
     ]);
@@ -307,13 +265,12 @@ test('every sortable user column supports ascending and descending order', funct
         'role' => 'teacher',
         'department' => 'B Department',
         'last_login_at' => '2026-01-01 09:00:00',
-        'token_quota_limit' => 30_000_000,
         'is_active' => true,
         'created_at' => '2026-01-01 09:00:00',
     ]);
 
     $this->actingAs($admin);
-    foreach (['name', 'email', 'role', 'last_login_at', 'department', 'token_quota_limit', 'is_active', 'created_at'] as $column) {
+    foreach (['name', 'email', 'role', 'last_login_at', 'department', 'is_active', 'created_at'] as $column) {
         $this->get(route('admin.users.index', ['search' => 'Sort Marker', 'sort_by' => $column, 'sort_dir' => 'asc']))
             ->assertOk()
             ->assertViewHas('users', fn ($users) => $users->pluck('name')->all() === ['Sort Marker Alpha', 'Sort Marker Beta']);

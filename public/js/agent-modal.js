@@ -58,9 +58,6 @@ document.addEventListener('DOMContentLoaded', function () {
   const chipsContainer = document.getElementById('knowledge-file-chips');
   const savedList = document.getElementById('knowledge-saved-list');
   const limitStatus = document.getElementById('knowledge-limit-status');
-  const MAX_KNOWLEDGE_FILES = Number(window.AgentModalConfig.maxKnowledgeFiles);
-  const MAX_KNOWLEDGE_FILE_BYTES = Number(window.AgentModalConfig.maxKnowledgeFileBytes);
-  const MAX_KNOWLEDGE_TOTAL_BYTES = Number(window.AgentModalConfig.maxKnowledgeTotalBytes);
 
   // Danh sách file đã lưu khi edit (path), để gửi knowledge_remove
   let savedFiles = [];
@@ -132,9 +129,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!limitStatus) return;
     const fileCount = activeSavedFiles().length + allFiles.length;
     const newBytes = allFiles.reduce((total, file) => total + file.size, 0);
-    limitStatus.textContent = fileCount + ' / ' + MAX_KNOWLEDGE_FILES + ' files selected'
+    limitStatus.textContent = fileCount + ' files selected'
       + (newBytes ? ' · ' + (newBytes / 1024 / 1024).toFixed(1) + ' MB new files' : '')
-      + (activeSavedFiles().length ? ' · total size including saved files is verified when saving' : '');
+      + (activeSavedFiles().length ? ' · existing files retained unless removed' : '');
   }
 
   function renderChips(files) {
@@ -253,20 +250,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const prospectiveFiles = existingIdx >= 0
           ? allFiles.map((file, index) => index === existingIdx ? f : file)
           : [...allFiles, f];
-
-        if (activeSavedFiles().length + prospectiveFiles.length > MAX_KNOWLEDGE_FILES) {
-          showToast('⚠️ Each Agent can have up to ' + MAX_KNOWLEDGE_FILES + ' Knowledge files');
-          return;
-        }
-        if (f.size > MAX_KNOWLEDGE_FILE_BYTES) {
-          showToast('⚠️ "' + f.name + '" exceeds the ' + Math.round(MAX_KNOWLEDGE_FILE_BYTES / 1024 / 1024) + ' MB per-file limit');
-          return;
-        }
-        const newBytes = prospectiveFiles.reduce((total, file) => total + file.size, 0);
-        if (newBytes > MAX_KNOWLEDGE_TOTAL_BYTES) {
-          showToast('⚠️ New Knowledge files exceed the ' + Math.round(MAX_KNOWLEDGE_TOTAL_BYTES / 1024 / 1024) + ' MB total limit');
-          return;
-        }
 
         if (existingIdx >= 0) allFiles[existingIdx] = f;
         else allFiles.push(f);
@@ -409,11 +392,6 @@ document.addEventListener('DOMContentLoaded', function () {
         row.append(role);
       }
       checkbox.addEventListener('change', () => {
-        if (checkbox.checked && selectedConnections.size >= Number(window.AgentModalConfig.maxConnections)) {
-          checkbox.checked = false;
-          connectionsStatus.textContent = 'Choose up to ' + window.AgentModalConfig.maxConnections + ' connected Agents.';
-          return;
-        }
         if (checkbox.checked) selectedConnections.set(id, '');
         else selectedConnections.delete(id);
         renderConnections();
@@ -421,7 +399,7 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       connectionsList.append(row);
     });
-    connectionsStatus.textContent = selectedConnections.size + ' / ' + window.AgentModalConfig.maxConnections + ' Agents connected'
+    connectionsStatus.textContent = selectedConnections.size + ' Agents connected'
       + (connectionOptions.length === 0 ? ' · Create or add another Agent first.' : '');
   }
 

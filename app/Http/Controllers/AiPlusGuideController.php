@@ -19,20 +19,13 @@ class AiPlusGuideController extends Controller
         abort_unless(AppSetting::boolean('ai_plus_homepage_guide_enabled'), 404);
 
         $data = $request->validate([
-            'message' => ['required', 'string', 'max:800'],
-            'history' => ['nullable', 'array', 'max:8'],
+            'message' => ['required', 'string'],
+            'history' => ['nullable', 'array'],
             'history.*.role' => ['required_with:history', 'in:user,assistant'],
-            'history.*.content' => ['required_with:history', 'string', 'max:1200'],
+            'history.*.content' => ['required_with:history', 'string'],
         ]);
 
         $user = $request->user();
-
-        if ($tokenQuota->isExhausted($user)) {
-            return response()->json([
-                'error' => 'Bạn đã dùng hết AI+ Credits của tháng này. Vui lòng quay lại vào chu kỳ tiếp theo.',
-                'token_quota' => $tokenQuota->summary($user),
-            ], 429);
-        }
 
         $history = collect($data['history'] ?? [])
             ->map(fn (array $item): array => [
@@ -76,11 +69,11 @@ Bạn có thể hướng dẫn về:
 - Prompt Library: tìm và dùng prompt mẫu; đường dẫn /ai-plus/prompt-library.
 - Agent Templates: dùng hoặc tùy biến agent mẫu; đường dẫn /ai-plus/agent-templates.
 - Sharing & Showcase: xem các sản phẩm được chia sẻ; đường dẫn /ai-plus/sharing-showcase.
-- My Usage: xem AI+ Credits còn lại và token thực tế; đường dẫn /ai-plus/my-usage.
+- My Usage: xem AI+ Credits đã sử dụng và token thực tế; đường dẫn /ai-plus/my-usage.
 - AI Policy & Guidelines: quy định dùng AI an toàn; đường dẫn /ai-plus/ai-policy.
 - Support: gửi yêu cầu hỗ trợ; đường dẫn /ai-plus/support.
 
-Trả lời bằng tiếng Việt, tối đa 4 câu hoặc 4 gạch đầu dòng. Nếu phù hợp, nêu rõ tên khu vực và đường dẫn. Không thực hiện tác vụ, không yêu cầu hoặc xử lý file, không tự nhận đã truy cập dữ liệu người dùng. Nếu câu hỏi nằm ngoài AI Plus, lịch sự nói bạn chỉ hỗ trợ định hướng sử dụng AI Plus.
+Trả lời bằng tiếng Việt. Nếu phù hợp, nêu rõ tên khu vực và đường dẫn. Không thực hiện tác vụ, không yêu cầu hoặc xử lý file, không tự nhận đã truy cập dữ liệu người dùng. Nếu câu hỏi nằm ngoài AI Plus, lịch sự nói bạn chỉ hỗ trợ định hướng sử dụng AI Plus.
 PROMPT;
     }
 }

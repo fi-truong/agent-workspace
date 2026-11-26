@@ -15,7 +15,7 @@
 
 ## 2. Chỉ số và tiêu chí thành công của pilot
 
-- **Current state:** Hai bản spec yêu cầu xác định chỉ số thành công trước pilot nhưng owner, cách đo và ngưỡng mục tiêu đều `TBD`. My Usage/quota và luồng support ticket được mô tả là hiện có; sự tồn tại của chúng chưa chứng minh các chỉ số pilot đã được định nghĩa hay đo kiểm.
+- **Current state:** Hai bản spec yêu cầu xác định chỉ số thành công trước pilot nhưng owner, cách đo và ngưỡng mục tiêu đều `TBD`. My Usage/usage reporting và luồng support ticket được mô tả là hiện có; sự tồn tại của chúng chưa chứng minh các chỉ số pilot đã được định nghĩa hay đo kiểm.
 - **Decision needed:** Chốt định nghĩa, cách tính, kỳ đo, mục tiêu và cách phân tách tối thiểu cho:
   - Số người dùng được kích hoạt và số người dùng hoạt động (bao gồm weekly active users).
   - Tỷ lệ chat hoàn tất và tỷ lệ export hoàn tất; định nghĩa rõ mẫu số và trường hợp lỗi.
@@ -38,12 +38,12 @@
 
 ## 4. Ngân sách API và xử lý vượt ngưỡng
 
-- **Current state:** Quota token theo user/phase đã được mô tả trong spec, nhưng quota token không phải giới hạn chi phí tiền tệ hay chi phí tạo ảnh. Ngân sách production/pilot, cost cap và cảnh báo chi phí đều `TBD`.
+- **Current state:** AI+ ghi usage theo user/model nhưng không áp quota để chặn request. Usage units không phản ánh chính xác chi phí tiền tệ hoặc tạo ảnh. Ngân sách production/pilot, cost cap và cảnh báo chi phí đều `TBD`.
 - **Decision needed:** Chốt ngân sách pilot, phạm vi chi phí được tính (chat, ảnh, embedding và phần liên quan), ngưỡng cảnh báo, cost limit, nguồn đối soát, người được quyền quyết định tiếp tục/tạm dừng và quy trình khi chạm hoặc vượt ngưỡng. Chốt cách thông báo người dùng và ghi nhận ngoại lệ nếu có.
 - **Decision owner:** TBD.
 - **Due date:** TBD.
 - **Evidence of completion:** Quyết định ngân sách và quy trình vượt ngưỡng được duyệt; bằng chứng cấu hình/đối soát/cảnh báo và một lần kiểm tra luồng xử lý theo quyết định đó.
-- **Risk if unresolved:** Chi phí có thể vượt mức chấp nhận được dù quota token của từng user chưa hết.
+- **Risk if unresolved:** Chi phí có thể vượt mức chấp nhận được; usage reporting không tự giới hạn hoặc cảnh báo chi tiêu.
 
 ## 5. Backup và restore
 
@@ -68,7 +68,7 @@
   | Ảnh | Ảnh có thể thuộc chat hoặc nội dung tạo bởi hệ thống; retention `TBD` | Thời hạn, quan hệ với conversation/artifact, xóa file/metadata và các bản sao liên quan. |
   | Email nháp | Email nháp lưu subject/body, liên kết user/conversation; retention `TBD` | Thời hạn, quyền yêu cầu xóa, quan hệ với conversation và cách xóa dữ liệu liên quan. |
   | Audit | Admin audit log được nêu trong spec; retention `TBD` | Thời hạn, quyền truy cập, ngoại lệ giữ bằng chứng và quy trình xóa. |
-  | Usage log | Dùng cho quota/hoạt động; retention `TBD` | Thời hạn, mức chi tiết cần giữ, đối soát chi phí và quy trình xóa. |
+  | Usage log | Dùng cho usage reporting; retention `TBD` | Thời hạn, mức chi tiết cần giữ, đối soát chi phí và quy trình xóa. |
   | Bản sao lưu | Backup database và private files được yêu cầu; retention `TBD` | Thời hạn, nơi lưu/bảo vệ, mã hóa, cách hết hạn/xóa và xử lý dữ liệu bị xóa trong bản sao lưu. |
 
 - **Decision owner:** TBD.

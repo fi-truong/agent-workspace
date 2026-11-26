@@ -27,7 +27,7 @@ class ChatCompletionService
         }
 
         try {
-            return $this->client->chat($payload, $safetyIdentifier, $maxCompletionTokens === null ? $this->outputTokenLimit($payload) : min($maxCompletionTokens, $this->outputTokenLimit($payload)), $tools, $timeoutSeconds, $model, $reasoningEffort, $allowEmptyResponse, $requiredToolName);
+            return $this->client->chat($payload, $safetyIdentifier, $maxCompletionTokens, $tools, $timeoutSeconds, $model, $reasoningEffort, $allowEmptyResponse, $requiredToolName);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }
@@ -52,7 +52,7 @@ class ChatCompletionService
         }
 
         try {
-            return $this->client->streamChat($payload, $onDelta, $safetyIdentifier, $maxCompletionTokens === null ? $this->outputTokenLimit($payload) : min($maxCompletionTokens, $this->outputTokenLimit($payload)), $tools, $timeoutSeconds, $model);
+            return $this->client->streamChat($payload, $onDelta, $safetyIdentifier, $maxCompletionTokens, $tools, $timeoutSeconds, $model);
         } catch (\Throwable $e) {
             throw new \RuntimeException(OpenAIErrorMapper::message($e), 0, $e);
         }
@@ -101,40 +101,6 @@ class ChatCompletionService
         }
 
         return $content;
-    }
-
-    /**
-     * Keep everyday replies responsive, but give a longer completion budget to
-     * long prompts and extracted documents. Input and output tokens are billed
-     * independently, so this changes only how much the model may return.
-     *
-     * @param  array<int, array<string, mixed>>  $payload
-     */
-    private function outputTokenLimit(array $payload): int
-    {
-        $inputText = '';
-
-        foreach ($payload as $message) {
-            $content = $message['content'] ?? '';
-
-            if (is_string($content)) {
-                $inputText .= $content;
-
-                continue;
-            }
-
-            if (is_array($content)) {
-                foreach ($content as $part) {
-                    if (($part['type'] ?? null) === 'text') {
-                        $inputText .= (string) ($part['text'] ?? '');
-                    }
-                }
-            }
-        }
-
-        return mb_strlen($inputText) >= (int) config('openai.long_output_input_chars')
-            ? max((int) config('openai.max_tokens'), (int) config('openai.long_max_tokens'))
-            : (int) config('openai.max_tokens');
     }
 
     /**

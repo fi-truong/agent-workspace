@@ -67,6 +67,34 @@ it('answers guide questions for signed-in users and records token usage', functi
     expect(UsageLog::where('user_id', $user->id)->value('source'))->toBe('ai_plus_guide');
 });
 
+it('passes long guide messages and full history without AI+ count or character caps', function () {
+    AppSetting::create(['key' => 'ai_plus_homepage_guide_enabled', 'value' => 'true']);
+    $user = User::factory()->create();
+    config(['openai.api_key' => 'sk-test']);
+    $history = collect(range(1, 9))->map(fn (int $index): array => [
+        'role' => $index % 2 ? 'user' : 'assistant',
+        'content' => str_repeat("History item {$index}. ", 80)."GUIDE_HISTORY_{$index}_END",
+    ])->all();
+    $message = str_repeat('Please help me find the right AI+ area. ', 30).'GUIDE_MESSAGE_END';
+    Http::fake(['https://api.openai.com/*' => Http::response([
+        'choices' => [['message' => ['content' => 'Open Agent Workspace.']]],
+        'usage' => ['prompt_tokens' => 7, 'completion_tokens' => 9],
+    ])]);
+
+    $this->actingAs($user)->postJson(route('ai-plus.guide.reply'), [
+        'message' => $message,
+        'history' => $history,
+    ])->assertOk();
+
+    Http::assertSent(fn (\Illuminate\Http\Client\Request $request): bool => str_contains(
+        json_encode($request->data()['messages'] ?? [], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+        'GUIDE_HISTORY_1_END',
+    ) && str_contains(
+        json_encode($request->data()['messages'] ?? [], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+        'GUIDE_MESSAGE_END',
+    ));
+});
+
 it('does not answer guide questions while the guide is hidden', function () {
     $user = User::factory()->create();
 

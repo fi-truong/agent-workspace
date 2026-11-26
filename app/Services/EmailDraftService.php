@@ -16,7 +16,7 @@ class EmailDraftService
             'user_id' => $user->id,
             'conversation_id' => $conversation?->id,
             'recipients' => [],
-            'subject' => Str::limit(strip_tags(trim((string) $subject) ?: $body), 120),
+            'subject' => strip_tags(trim((string) $subject) ?: $body),
             'body' => $body,
             'attachments' => [],
         ]);

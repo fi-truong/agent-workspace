@@ -1,6 +1,6 @@
 # AI Plus Project Specification
 
-> **Version 2.3 · Code reviewed: 27 October 2026.** Corresponding Vietnamese document: `PROJECT_SPEC.md`. This is a working specification for review and approval, not a claim that production deployment is complete. “Existing” means a route/implementation is present; “Target requirement” requires acceptance testing; “Planned” is not fully implemented; “TBD” needs an authorized decision.
+> **Version 2.4 · Code reviewed: 26 November 2026.** Corresponding Vietnamese document: `PROJECT_SPEC.md`. This is a working specification for review and approval, not a claim that production deployment is complete. “Existing” means a route/implementation is present; “Target requirement” requires acceptance testing; “Planned” is not fully implemented; “TBD” needs an authorized decision.
 
 Sections 1–11 summarize the product; Sections 12–24 provide detailed requirements, acceptance criteria and open decisions.
 
@@ -13,14 +13,14 @@ AI Plus is LSTS’s internal AI platform for teachers and staff. It supports aca
 - Provide safe AI assistance in a school environment.
 - Enable users to discuss, analyse documents and create content.
 - Enable Agents for specific work purposes and school-wide sharing.
-- Control access, token quotas and sensitive data.
+- Control access, track usage and protect sensitive data.
 - Progress from chat to AI-supported work processes.
 
 ## 3. Users and permissions
 
 | Group | Primary permissions |
 | --- | --- |
-| User/Staff | Chat, create personal Agents, upload knowledge, use showcase, view quota and personal artifacts. |
+| User/Staff | Chat, create personal Agents, upload knowledge, use showcase, view usage and personal artifacts. |
 | Admin | Manage users, prompts, templates, showcase, support tickets, audit logs and operational configuration. |
 
 All conversations, attachments, artifacts and email drafts belong to the creating user. Other users cannot read or download these resources without a dedicated sharing mechanism.
@@ -46,17 +46,17 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 - Attach an Agent to a conversation.
 - Knowledge is chunked, embedded and retrieved by relevance; a configurable keyword fallback is used when embeddings are unavailable.
 - Agents can be shared school-wide through Sharing and Showcase.
-- Owners may connect up to ten workspace Agents and describe their roles. The coordinator uses the user's selected model to delegate and synthesize; each specialist receives at most one task per turn using the specialist model selected for that conversation (GPT-6 Luna by default) and its own prompt and Knowledge, then returns findings. Each specialist response has an 8,192-token output budget by default, subject to the current model limit. A long answer may continue for up to four API responses within that one consultation when enough time and tokens remain reserved for synthesis; only a final response that is not cut off marks the result complete. If a limit is reached after findings arrive, AI+ shows the received findings and their complete or partial status. Specialists cannot call further Agents or create files directly.
-- Only chats attached to a coordinator with at least one specialist the current user may use save PII-filtered document extraction snapshots, scoped to the conversation, user, and message; images stay on the existing private chat disk. This lets a specialist reuse sources on this or a later turn without asking for another upload. Completed Agent results are retained as private context for later steps. The coordinator receives a catalog of sources owned by the chat user and selects source IDs for each task; the backend rechecks access and sends only the selected sources. Earlier Agent results can be excluded for an independent check. A null `source_ids` value retains the existing all-source handoff for compatibility. When combined source content exceeds the handoff budget, individually affordable files are sent whole first, then the most recent complete Agent results; remaining sources receive relevant excerpts with explicit completeness labels. Historical source limitations stay attached to the older Agent result rather than being reported as limitations of the current file handoff. Long tables retain their column headers. Unreadable, truncated, missing, or inaccessible sources are reported in the response, and empty/failed Agent calls are not treated as completed results. A child does not receive the entire chat history or another Agent's private Knowledge. Snapshots are tied to the conversation and deleted with the chat; the broader retention period remains subject to the pending school policy decision.
+- Owners may connect workspace Agents without an AI+-defined count cap. The coordinator uses the user's selected model to delegate and synthesize; specialists use the model selected for that conversation (GPT-6 Luna by default) and their own prompt and Knowledge. AI+ does not impose a user credit quota or caps on consultations, output tokens, coordination time, or handoff characters; OpenAI model/API limits and deployment infrastructure still apply. Empty, failed, or provider-truncated results are marked incomplete. Specialists cannot call further Agents or create files directly.
+- Only chats attached to a coordinator with at least one specialist the current user may use save PII-filtered document extraction snapshots, scoped to the conversation, user, and message; images stay on the existing private chat disk. This lets a specialist reuse sources on this or a later turn without asking for another upload. Completed Agent results are retained as private context for later steps. The coordinator receives a catalog of sources owned by the chat user and selects source IDs for each task; the backend rechecks access and transfers the complete selected source and prior-step results. AI+ does not truncate by file, page, image, or character count; requests may still exceed OpenAI context/token limits or server resources. Unreadable sources, extraction failures, revoked access, or provider rejections are reported; empty/failed Agent calls are not treated as completed results. A child does not receive the entire chat history or another Agent's private Knowledge. Snapshots are tied to the conversation and deleted with the chat; the broader retention period remains subject to the pending school policy decision.
 - When handing off earlier results, include only the newest result from each Agent; superseded attempts do not consume context or carry stale warnings to later Agents. Chat history remains unchanged.
 - If the only discrepancy is a prose category total, and there is exactly one table with unique row IDs whose stated categories cover every row, the backend recomputes and corrects only those totals from the table. Source-data or any other discrepancy still blocks automatic use.
 - For suitably structured TSV tables, the backend warns when stated category totals disagree with recognizable table rows; when one unambiguous complete source is available, it also warns when copied fields with matching names differ from that source. Warnings remain visible in the response and carry into subsequent handoffs; this check does not validate all calculations or conclusions in prose.
-- A completed specialist response with table warnings may receive at most one correction request using the same supplied sources and validation feedback. The correction stays within the consultation's four-response API limit, existing time/token/quota limits and synthesis reserve; it does not invoke another specialist or switch models. Only a complete correction retaining every table, column, unique row identifier and category summary, and passing recognizable source and count checks, is accepted. Invalid, incomplete, truncated, empty, failed or unaffordable corrections retain the original findings and warnings for the existing export gate. Audit records only correction acceptance or rejection, never content. These checks do not replace the teacher's subject-matter review.
+- A completed specialist response with table warnings is sent back to that specialist for correction using the same supplied sources and validation feedback. Only a complete correction retaining every table, column, unique row identifier and category summary, and passing recognizable source and count checks, is accepted. Invalid, incomplete, truncated, empty or failed corrections retain the original findings and warnings for the existing export gate. Audit records only correction acceptance or rejection, never content. These checks do not replace the teacher's subject-matter review.
 - When a request explicitly names a specialist whose latest result was truncated, the system does not synthesize it as if complete; a request to consult the specialist again or exclude that result may proceed. When exporting an earlier draft, the system also checks the request that created it against the specialist results available at that time. This safeguard applies when the named specialist can be recognized in the request.
-- The two latest messages with Agent results share up to 40,000 characters in the coordinator's subsequent context, prioritizing the newer message. If that context exceeds the limit, the sent text is labeled as truncated; retaining context does not guarantee that every interpretation is correct.
+- Earlier Agent results are transferred in full in later context; AI+ does not truncate them at a character threshold. OpenAI may reject requests that exceed its context/token limits.
 - Coordinator chats show the connected Agents accessible to the current user on a single, horizontally scrollable line immediately below the coordinator's name in the page header. This lists available connections, not Agents confirmed to have been called for a particular reply.
 - Coordinator access and connection setup are rechecked at every invocation. A recipient of a use-only shared coordinator may invoke its owner's connected Agents through that coordinator; these private specialists are not added to the recipient's Agent list or made available for direct chats. A specialist owned by someone else is callable only when the current user independently has permission to use it. Revoking coordinator access blocks new coordinated calls. Copies do not inherit connection settings; recipients configure their own connections.
-- All model calls count toward the chatting user's quota, including calls completed before a later synthesis failure. Limits are ten consultations, a 32,000-token threshold and 300 seconds (five minutes) for coordination per turn. Each call is bounded by the current model timeout and the remaining coordination time. No further calls start after a limit is reached; usage from an in-flight request may exceed the token threshold. Only the coordinator executes file tools after the existing user-intent confirmation.
+- Tokens/credits for every model call are recorded by the actual model, including calls completed before a later synthesis failure. AI+ does not use usage to limit a user; OpenAI model/API limits and server resources still apply. Only the coordinator executes file tools after the existing user-intent confirmation.
 - Setting `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` restores the existing chat flow without deleting connections or history. An unmigrated connection table also leaves the existing flow available.
 
 ### 4.3 Sharing and Showcase
@@ -73,19 +73,17 @@ All conversations, attachments, artifacts and email drafts belong to the creatin
 
 ### 4.4 Admin Panel
 
-- Manage users, roles, units/departments, account status and quota. Admins can create, rename and delete units from Users & Roles; renaming updates assigned users, while deletion requires reassignment first. Existing units remain available in user create/edit forms.
+- Manage users, roles, units/departments and account status. Admins can create, rename and delete units from Users & Roles; renaming updates assigned users, while deletion requires reassignment first. Existing units remain available in user create/edit forms.
 - Manage prompts, templates, showcase content, FAQs and support tickets.
 - Audit logging for administrative actions.
 - Admin shortcut from AI Plus.
 
-### 4.5 Usage quota
+### 4.5 Usage
 
 - Prompt, actual-token, AI+ Credits and recent-activity tracking.
-- Quota is calculated over a monthly cycle beginning on the first day or a later phase start date; usage logs do not have to be erased to “reset” it.
-- Testing: 20,000 credits per user per month, converted from the previous 20-million-token allowance.
-- Training: 10,000 credits per user per month, converted from the previous 10-million-token allowance.
-- 1,000 Luna tokens = 1 credit; 1,000 GPT-6 Sol tokens = 20 credits, including input and output. Credits are an internal allowance, not money or OpenAI credits. Integer units preserve 0.001-credit precision without rounding up each turn. Image tokens retain their former allowance value; Sol multipliers are not image-pricing conversion rates.
-- Legacy usage is not repriced: rows without `quota_units` retain their original token total. New rows record the model and a `quota_units` snapshot; disabling Sol does not change recorded charges. Existing quota overrides and token environment settings retain their storage units to preserve balances. Admin forms display/accept credits; actual-token statistics remain separate.
+- Usage is grouped by month or reporting period for analytics only; it does not limit access to AI+.
+- 1,000 Luna tokens = 1 usage credit; 1,000 GPT-6 Sol tokens = 20 usage credits, including input and output. Credits are an internal reporting unit, not money or OpenAI credits. Images retain their existing recording multiplier; the Sol multiplier is not image pricing.
+- Legacy rows without `quota_units` use their original token total. New rows record the model and a `quota_units` snapshot; disabling Sol does not change recorded usage. Existing quota values in the database are preserved but are no longer read to block requests. Actual-token statistics remain separate.
 - Deleted conversations do not appear in Recent Activity.
 
 ### 4.6 Image Workspace
@@ -122,7 +120,7 @@ When a user asks to create or export Excel, Word, PowerPoint or PDF from the cur
 | PowerPoint | `.pptx` | Slide presentations with titles and concise bullet points. |
 | PDF | `.pdf` | Final files for distribution or archiving. |
 
-Chat also accepts individual text-based source files (`.js`, `.css`, `.ts`, `.json`, `.xml`, `.md`, `.php`, `.py`, `.java`, `.sql`, and other common formats). AI can review/edit them and return a new file with the same extension; the source file is never overwritten. Source code is handled as text and is never executed. Each chat file is limited to 5 MiB, and at most 20,000 characters are included in AI context. For edits, AI returns small patches; the server applies each exact, unique patch to the private original and creates a complete output file, preserving all unchanged content. If a patch does not match exactly one location, no file is created and the user is asked to clarify. Files exceeding the visible context are not considered fully reviewed by AI.
+Chat also accepts individual text-based source files (`.js`, `.css`, `.ts`, `.json`, `.xml`, `.md`, `.php`, `.py`, `.java`, `.sql`, and other common formats). AI can review/edit them and return a new file with the same extension; the source file is never overwritten. Source code is handled as text and is never executed. AI+ imposes no file-count, per-file size, combined size, prompt, or context-character cap. PHP, Nginx, storage, and OpenAI context/token limits still apply. For edits, the server validates that each patch matches exactly once in the private original before creating a complete output file that preserves unchanged content.
 
 Processing flow:
 
@@ -135,7 +133,7 @@ Processing flow:
 
 The original user file is not overwritten. Each request creates a new artifact.
 
-When a user requests export of a saved chat draft, the system confirms intent, source scope and format in one structured step. Once export of the unchanged draft is confirmed, the draft is within 40,000 characters and no new attachment is present on that turn, the backend generates the file from the complete saved content without asking the model to rewrite it or reconfirm its source. Earlier truncated attachments do not block this export; requests that also use attachments retain full-source checks. Missing, truncated or failed confirmation decisions must not create a file.
+When a user requests export of a saved chat draft, the system confirms intent, source scope and format in one structured step. Once export of the unchanged draft is confirmed and no new attachment is present on that turn, the backend generates the file from the complete saved content without asking the model to rewrite it or reconfirm its source. Earlier truncated attachments do not block this export; requests that also use attachments retain full-source checks. Missing, truncated or failed confirmation decisions must not create a file.
 
 For a first-turn draft file request where the model did not call the tool, after confirming intent the backend may attempt content creation once using that turn's sources and specialist findings, without requiring an earlier draft. Current specialist results that are partial or retain unresolved data-validation warnings block file export before recovery; the findings and warnings are preserved with the actual reason. The system does not silently change scores or groups, or discard warnings to create a file.
 
@@ -201,9 +199,8 @@ Exact `@lsts.edu.vn` email is allowed for internal work. Raw PII is not stored i
 - It does not edit the user’s original file directly.
 - Artifacts are currently generated from AI response content; advanced Word and Excel templates are a later improvement.
 - Conversation export also supports HTML, language selection and document styles; these are output structures rather than official school Word/Excel templates.
-- Scanned PDF rendering is limited by configuration to control time and cost.
-- Large file jobs currently run in the chat request and should move to queues in production.
-- PDF text parsing runs in a separate process limited to 20 seconds and 256 MB RAM; exceeding either limit returns an explicit error instead of proceeding with partial content. Identical PDF extraction and embeddings are reused only within the same request. Knowledge retrieval skips embeddings when no document vectors exist. The INFO event `AI+ chat performance` records stage and total chat timings without document or prompt content; stages may overlap and must not be added to derive the total.
+- Scanned PDF rendering has no AI+-defined page-count cap; reading still depends on Poppler/OCR and available server resources.
+- PDF text parsing runs in a separate process without an AI+-defined timeout or memory cap; PHP, operating-system, and server resources still apply. Identical PDF extraction and embeddings are reused only within the same request. Knowledge retrieval skips embeddings when no document vectors exist. The INFO event `AI+ chat performance` records stage and total chat timings without document or prompt content; stages may overlap and must not be added to derive the total.
 
 ## 10. Roadmap
 
@@ -256,7 +253,7 @@ Every scope change must update both language versions, revision date, related de
 
 ### 12.1 In and out of scope
 
-- **Current scope:** chat, Agents/RAG, School Knowledge, Prompt Library, Agent Templates, Sharing and Showcase, Image Workspace, quotas/My Usage, support, administration, file export and email drafts.
+- **Current scope:** chat, Agents/RAG, School Knowledge, Prompt Library, Agent Templates, Sharing and Showcase, Image Workspace, usage/My Usage, support, administration, file export and email drafts.
 - **Outside current scope:** sending email; mailbox access; OneDrive/Google Drive/Gmail sync; overwriting source files; autonomous multi-step workflows; guarantees that AI content is always correct or that complex source layouts are preserved.
 - **Environment dependencies:** Microsoft SSO needs an App Registration and secrets; scanned PDFs need Poppler; OCR needs its runtime; JavaScript-heavy page reading needs Playwright/Chromium; AI features need the relevant model and API entitlements. Code or a route alone does not establish production readiness.
 
@@ -266,12 +263,12 @@ Every scope change must update both language versions, revision date, related de
 | --- | --- |
 | Frontend | Laravel Blade plus React/Inertia and Vite |
 | Backend | PHP `^8.3`, Laravel `^13.17`, controllers/services/middleware; Laravel queue and scheduler |
-| AI | OpenAI API for chat, embeddings, configurable moderation and image generation; models/timeouts configured through the environment |
+| AI | OpenAI API for chat, embeddings, configurable moderation and image generation; AI+ sets no user-facing output-token or HTTP-timeout caps |
 | Data | Eloquent/migrations; MySQL is the production target; local/test configuration may differ |
 | Files | Separate private `knowledge`, `chat-attachments`, `agent-avatars` and `ai-artifacts` disks |
 | Documents | PhpWord, PhpSpreadsheet, DomPDF and a PDF parser; Poppler for scanned PDFs |
 
-**Chat flow:** browser → route with authentication/AI policy/throttling → input and PII validation → safety and quota checks → history, attachments, Agent/School Knowledge and a public web page if the user supplied a URL → OpenAI → persist messages/usage → create requested artifacts/drafts → return JSON or SSE. Material from files and web pages is untrusted data, not a system instruction.
+**Chat flow:** browser → route with authentication/AI policy/throttling → input and PII validation → safety checks → history, attachments, Agent/School Knowledge and a public web page if the user supplied a URL → OpenAI → persist messages/usage → create requested artifacts/drafts → return JSON or SSE. Material from files and web pages is untrusted data, not a system instruction.
 
 ## 14. Testable functional requirements
 
@@ -283,30 +280,30 @@ These IDs supplement the feature descriptions in Sections 4–7. “Existing” 
 | FR-02 | Admin routes require the admin role; important actions record actor, action, target and time. Admin status does not itself grant access to private user chats/files. | Partly existing; audit matrix needed |
 | FR-03 | Users create standard/Agent chats, view history, rename, move and delete; another user cannot access them by guessing IDs. Deleted conversations do not appear in Recent Activity. | Existing |
 | FR-04 | Chat supports JSON and SSE; the client shows incremental text, errors and completion. A disconnected stream is not treated as a completed answer. | Existing; verify through production proxy |
-| FR-05 | Chat accepts at most 5 attachments per turn, 15 MiB combined; at most 4 direct images, 4 MiB each; documents and text-based source files up to 5 MiB each; source context up to 20,000 characters; messages up to 5,000 characters. Source code is never executed; oversized source files are not exported partially. Limits produce understandable errors. | Existing |
-| FR-06 | An Agent has an owner, name, description, system prompt, avatar and knowledge; only its owner edits/deletes it. My Agents uses a consistent default card height, reserves a three-line description area, truncates long descriptions and provides an inline More/Less toggle that expands only the selected card. Knowledge is capped at 10 files, 15 MiB per file and 50 MiB per Agent. | Existing |
+| FR-05 | Chat has no AI+-defined cap on attachment count, size, or prompt/context length; process full content or report when PHP/Nginx/storage/provider cannot accept it. Source code is never executed; patches must match exactly once before export. | App caps removed; verify server capacity |
+| FR-06 | An Agent has an owner, name, description, system prompt, avatar and knowledge; only its owner edits/deletes it. My Agents uses a consistent default card height, reserves a three-line description area, truncates long descriptions and provides an inline More/Less toggle that expands only the selected card. AI+ sets no Knowledge file-count or size cap; PHP, storage and server limits still apply. | App caps removed; verify server capacity |
 | FR-07 | Knowledge is indexed/reindexed and retrieved by relevance; embedding failure may fall back to keywords. AI must not imply that knowledge supports an answer when no relevant passage was found. | Partly existing; quality assessment TBD |
 | FR-08 | Admins can add supported files/public `lsts.edu.vn` pages to School Knowledge, see `processing/ready/failed`, sync, delete and enable/disable use. | Existing |
 | FR-09 | Shared Agents have `use_only` or `copy` access; knowledge is copied only with owner permission. Revocation blocks new use; rights to existing copies require explicit testing. | Existing; authorization tests needed |
 | FR-10 | Prompt Library and Agent Templates show only `published` content. Each item is classified under level-one `Teaching` or `School Operations` and an appropriate level-two category. The default published catalog is curated: prompts include useful context and a requested output, while Agent Templates have usable system prompts; older unselected entries remain draft/archived without deleting history or use counts. Admins manage status and taxonomy; public filters support both levels. Showcase offers search/filter, views/uses, comments and owner/admin deletion controls. The approved Vietnamese teaching catalog adds 99 prompts across 11 Teaching categories; six additional categories apply only to Prompt Library. The import uses unique source keys and can be rerun without duplicating entries or overwriting existing edits, status or use counts. | Implemented after migration; QA required |
-| FR-11 | Image Workspace creates/edits images from a prompt and up to 4 reference images; output belongs to a conversation and only its owner may download/delete it. | Existing |
+| FR-11 | Image Workspace creates/edits images from a prompt and reference images; output belongs to a conversation and only its owner may download/delete it. Counts, size and aspect ratio remain subject to the image API and infrastructure. | No AI+-defined cap |
 | FR-12 | File creation produces a new private artifact linked to user/conversation without overwriting the source; DOCX/XLSX/PPTX/PDF/HTML and source-code files with their original extension are supported. PowerPoint must be a valid `.pptx` package with content organized into slides, titles and bullets, not only text in chat. HTML webpage requests must produce a complete standalone HTML document; prose must not be saved as an HTML file. Conversation export also supports PPTX/HTML, source/VI/EN language and standard/report/lesson plan/meeting minutes/budget styles. | Existing |
 | FR-13 | Artifact downloads/deletion and attachment/image access enforce ownership on the server; missing files return 404 and cross-user access is denied. | Existing |
 | FR-14 | “Draft an email” only saves AI-generated subject/body linked to the user/conversation; it neither sends mail nor reads a mailbox. Recipients/attachments are not automatically verified. | Existing |
-| FR-15 | My Usage shows only the user's data; Credits sum `SUM(COALESCE(quota_units, prompt_tokens + completion_tokens))/1000` in the monthly/phase cycle with a per-user override; exhausted quota returns 429. | Existing |
+| FR-15 | My Usage shows only the user's data; token and credit usage use `SUM(COALESCE(quota_units, prompt_tokens + completion_tokens))/1000` for monthly/reporting-period analytics. Usage does not create an allowance or block a request; provider/infrastructure errors are shown by their actual status. | Existing |
 | FR-16 | Users submit/track support tickets and may attach up to 5 supported images/files (10 MiB per file, 15 MiB total); only the ticket owner and admins can download them from private storage. Admins can post public replies with up to 4 JPG/PNG/WebP images (4 MiB each, 16 MiB total), pasted into the reply box or selected as files; images are viewable only by the ticket owner and admins, are not emailed, and are deleted with the ticket. Initial request files are not emailed; deleting a ticket also deletes its attachments. Admins see an automatically refreshed “New” badge for Pending tickets; it stops when a ticket moves out of Pending. Admin replies are public replies in ticket history and are not emailed. | Partially implemented; local QA required |
 
-**Current default quotas:** Testing 20,000 and Training 10,000 credits per user per month; the cycle begins at month start or later phase start. Credits are **not** a monetary or image-generation spending cap. Input/output and images have different prices; an in-flight request may exceed the balance, with no concurrent budget reservation. Production phase, budget and cost alerts: **TBD**.
+**Usage credits:** AI+ records Luna at 1×, Sol at 20× and images using the historical multiplier. These are usage figures, not a balance, quota, money or spending cap. OpenAI may apply separate model/API limits; production budget and cost alerts remain **TBD**.
 
 ## 15. Data, ownership and lifecycle
 
 | Group | Content | Lifecycle/control point |
 | --- | --- | --- |
-| `users`, `teams` | Accounts, roles, status, teams, quota, policy acceptance | Disabling an account must not expose prior data; user deletion needs a policy |
+| `users`, `teams` | Accounts, roles, status, teams, policy acceptance; the legacy quota column is retained but does not block use | Disabling an account must not expose prior data; user deletion needs a policy |
 | `conversations`, `messages` | Chats/images, messages and Agent association | Owner-based access; consistent chat/attachment/image deletion |
 | `agents`, `knowledge_chunks` | Agent configuration, knowledge files and index | Owner, access mode, reindex on file changes |
 | `school_knowledge_sources/chunks` | School-wide source material and index | Admin management, sync/failure state, source/chunk deletion |
-| `usage_logs`, `ai_safety_events` | Tokens/activity, work-use classification and moderation metadata | Usage drives quotas; safety events pruned after 180 days |
+| `usage_logs`, `ai_safety_events` | Tokens/activity, work-use classification and moderation metadata | Usage supports reporting; safety events pruned after 180 days |
 | `ai_artifacts`, `email_drafts` | Private output files and drafts | User FK; conversation may become null when chat is deleted; artifact deletion must not be assumed |
 | Showcase, support, `admin_audit_logs` | Posts/interactions, tickets/replies and audit | Only published posts visible to users; retention TBD |
 
@@ -342,26 +339,26 @@ These are internal web-app routes, **not a versioned public API**. Consult contr
 | GET/POST | `/ai-plus/sharing-showcase...`, `/ai-plus/support...` | Published content and authorized tickets |
 | CRUD | `/admin/...` | auth + policy + admin middleware |
 
-Target error convention: 401/login redirect for unauthenticated requests; 403/404 for unauthorized access depending on route; 422 for validation/PII; 429 for quota/rate limit; 502 for provider failures. The client must distinguish retryable failures from input corrections. SSE may return JSON before opening a stream on validation failure; only `done` confirms completion.
+Target error convention: 401/login redirect for unauthenticated requests; 403/404 for unauthorized access depending on route; 422 for validation/PII; 429 for throttling/provider rate limits; 502 for provider failures. The client must distinguish retryable failures from input corrections. SSE may return JSON before opening a stream on validation failure; only `done` confirms completion.
 
 ## 18. Non-functional requirements
 
 | ID | Requirement | Verification/status |
 | --- | --- | --- |
 | NFR-01 | Site-wide HTTPS, secrets outside Git, least privilege, private disks inaccessible via the web server. | Production configuration and direct-URL checks |
-| NFR-02 | UI shows processing state; proxy does not buffer SSE. Ordinary chat retains its 120-second PHP setting; connected Agents receive 300 seconds for coordination plus one model timeout for output completion (420-second PHP setting by default). Configure suitable outer PHP-FPM/proxy limits; 450 seconds is recommended for these defaults. | Smoke test through real domain on slow networks |
+| NFR-02 | The UI shows processing state and the reverse proxy does not buffer SSE. Chat and connected-Agent requests remain subject to deployment infrastructure timeouts and resource limits. | Smoke test through the real domain on slow networks |
 | NFR-03 | Clear failures when OpenAI/Poppler/OCR/Playwright is unavailable; fallback only where semantically valid. | Dependency-failure tests; uptime/SLO TBD |
 | NFR-04 | Move heavy tasks to queue with controlled retries/idempotency before scaling; some work currently runs in the chat request. | Pilot load test; trigger threshold TBD |
 | NFR-05 | Monitor errors, latency, failed jobs, disk, usage and API cost without logging sensitive data. | Dashboard/alerts/on-call owner TBD |
 | NFR-06 | Back up DB and private files, rehearse restores and verify integrity. | RPO/RTO, backup schedule/retention TBD |
-| NFR-07 | Clearly show quota, upload limits, block reasons and status; support VI/EN content and basic keyboard navigation. | Staff UAT; accessibility standard TBD |
+| NFR-07 | Distinguish usage reporting from OpenAI/infrastructure limits and show the actual error status; support VI/EN content and basic keyboard navigation. | Staff UAT; accessibility standard TBD |
 | NFR-08 | Work with school-supported browsers/OS and common Word/Excel/PDF readers. | Version matrix TBD |
 
 ## 19. Testing, acceptance and release
 
 1. Unit/feature tests for authentication, policy acceptance, role and ownership across conversations, Agents, attachments, images, artifacts, Showcase and support.
 2. VI/EN PII cases: valid/sensitive data, batch student IDs, attachments, false positives and whitelist; verify no raw PII in logs.
-3. JSON/SSE chat: provider timeout/error, stream disconnect, near/exhausted quota, usage recording and unintended duplicate artifact prevention.
+3. JSON/SSE chat: provider timeout/error, stream disconnect, usage recording without blocking requests and unintended duplicate artifact prevention.
 4. Import/index/reindex/remove Agent and School Knowledge; text/scanned PDFs, OCR present/absent and embedding fallback.
 5. Open DOCX/XLSX/PPTX/PDF/HTML output; verify Vietnamese text, safe filenames, access/deletion controls and inability to send drafts.
 6. Local/Microsoft login in the pilot environment, logout/session, rate limit, CSRF, SSRF and prompt injection.
@@ -371,7 +368,7 @@ Target error convention: 401/login redirect for unauthenticated requests; 403/40
 
 ## 20. Deployment and operations
 
-Prepare Linux, PHP/Composer, Node for builds, production DB, HTTPS/reverse proxy and private storage. Install Poppler; enable OCR/Chromium only after testing. Configure `.env`/secrets, `APP_DEBUG=false`, secure cookies, SSO callback, OpenAI key/models, phase/quota, uploads and timeouts. Run migrations, build assets, optimize Laravel and schedule every minute. A queue worker is required once heavy work is queued. Check SSE through the proxy, storage permissions, normal/admin accounts and denial of direct private-disk access. Set up backups, alerts and runbooks for provider outage, quota exhaustion, full disk, indexing failures and rollback. Detailed steps are in `docs/DEPLOYMENT_CHECKLIST_VI.md`.
+Prepare Linux, PHP/Composer, Node for builds, production DB, HTTPS/reverse proxy and private storage. Install Poppler; enable OCR/Chromium only after testing. Configure `.env`/secrets, `APP_DEBUG=false`, secure cookies, SSO callback and OpenAI key/models. Run migrations, build assets, optimize Laravel and schedule every minute. A queue worker is required once heavy work is queued. Check SSE through the proxy, storage permissions, normal/admin accounts and denial of direct private-disk access. Set up backups, alerts and runbooks for provider outage, full disk, indexing failures and rollback. Detailed steps are in `docs/DEPLOYMENT_CHECKLIST_VI.md`.
 
 ## 21. Risks and open decisions
 
@@ -383,7 +380,7 @@ Prepare Linux, PHP/Composer, Node for builds, production DB, HTTPS/reverse proxy
 | D-04 | SSO/Outlook/OneDrive need tenant permissions and configuration | IT grants access and tests App Registration |
 | D-05 | Moderation API may return 403; local fallback catches narrow patterns | Confirm entitlement and unavailable-service behavior |
 | D-06 | Large files run in requests and depend on installed binaries | Measure load and move heavy work to queue |
-| D-07 | Token quota is not a monetary/image spending cap | Budget cap, model pricing and alerts |
+| D-07 | Usage credits do not precisely represent API or image-generation cost | Budget cap, model pricing and alerts |
 | D-08 | RAG/AI can err; sources can contain prompt injection | Evaluation set, human review and red-team tests |
 | D-09 | SLO, RPO/RTO, browser/accessibility targets unquantified | Agree targets based on pilot and IT capacity |
 
@@ -396,13 +393,14 @@ Prepare Linux, PHP/Composer, Node for builds, production DB, HTTPS/reverse proxy
 | 2.1 | 16 Oct 2026 | Added PowerPoint (`.pptx`) generation and conversation export |
 | 2.2 | 23 Oct 2026 | Added owner-configured Agent connections, execution limits, permission checks, usage accounting and rollback switch |
 | 2.3 | 27 Oct 2026 | Added Luna/Sol selection, AI+ Credits, preserved legacy balances/history and snapshotted quota charges |
+| 2.4 | 26 Nov 2026 | Removed AI+-defined credit quotas; retained credits/tokens as usage analytics and aligned long Agent processing |
 
 ## 23. End-to-end business scenarios
 
 | ID | Preconditions and action | Accepted result; error case |
 | --- | --- | --- |
-| UC-01 Private chat | Active user has accepted policy and has quota; creates a chat, sends a prompt, continues, renames and deletes it. | Only the owner sees history; usage increases after a successful AI turn; stream has `done`; deleted chat disappears from sidebar/Recent Activity. Empty prompt, PII and exhausted quota receive suitable errors. |
-| UC-02 Agent with knowledge | Owner creates an Agent, uploads valid knowledge, asks questions inside/outside the source, edits/removes files. | Index updates; relevant passages inform answers where present; the AI does not claim source support without relevant retrieval. Oversized/corrupt files fail clearly without losing valid existing sources. |
+| UC-01 Private chat | Active user has accepted policy; creates a chat, sends a prompt, continues, renames and deletes it. | Only the owner sees history; usage increases after a successful AI turn; stream has `done`; deleted chat disappears from sidebar/Recent Activity. Empty prompt, PII, provider or infrastructure errors receive suitable responses; usage does not block access. |
+| UC-02 Agent with knowledge | Owner creates an Agent, uploads valid knowledge, asks questions inside/outside the source, edits/removes files. | Index updates; relevant passages inform answers where present; the AI does not claim source support without relevant retrieval. If PHP, storage, or the provider cannot process a file, the failure is clear and existing sources are preserved. |
 | UC-03 Share an Agent | Owner chooses `use_only` or `copy`; another user discovers and uses it. | `use_only` does not transfer knowledge ownership; `copy` creates a recipient-owned Agent and copies files only when permitted. Recipients cannot edit the original; revocation blocks new use. |
 | UC-04 Export a file | User discusses content, creates Word/Excel/PDF or exports a conversation, downloads then deletes the artifact. | File opens and belongs to the user; metadata and download agree; source is not overwritten. Another user with the same ID is denied; failed generation does not return a broken success link. |
 | UC-05 Email draft | User requests an email draft from the conversation. | Subject/body are saved for the owner and audited; no email is sent and no mailbox is connected. User reviews content before using it elsewhere. |
@@ -412,10 +410,10 @@ Prepare Linux, PHP/Composer, Node for builds, production DB, HTTPS/reverse proxy
 
 | Configuration group | Current value/behavior | Confirm before production |
 | --- | --- | --- |
-| `AI_USAGE_PHASE`, `AI_*_TOKEN_LIMIT`, `AI_USAGE_PHASE_STARTED_AT` | Default phase `testing`; 20M/10M token limits | Real phase, user overrides, budget and alerts |
+| `AI_USAGE_PHASE`, `AI_USAGE_PHASE_STARTED_AT` | Usage reporting period; no AI+ usage cap | Reporting period, budget and cost alerts |
 | `OPENAI_MODEL`, `OPENAI_IMAGE_MODEL`, `OPENAI_EMBEDDING_MODEL` | Separate chat/image/embedding models | Entitlement, data region, price, quality and fallback |
 | `OPENAI_MODERATION_ENABLED` | Configurable; local safety fallback is limited | Behavior on 403/timeout; policy approver |
-| `PDFTOPPM_BINARY`, `PDF_SCAN_MAX_PAGES` | Default scanned PDF cap is 10 pages | Binary, longer documents, timeout and user message |
+| `PDFTOPPM_BINARY` | Poppler handles scanned PDFs; AI+ sets no page-count cap | Binary, server resources, and provider limits |
 | OCR and Playwright/Chromium | Require binaries/runtime and may be absent on server | Test pilot file/URL types on target environment |
 | `PII_EMAIL_DOMAIN_WHITELIST` | Defaults to `lsts.edu.vn` | Verify domain does not exempt personal mailboxes requiring protection |
 | Storage and proxy | Private disks, SSE and uploads depend on web server | Check file rights, backups, body limits, buffering and TLS |

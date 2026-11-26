@@ -83,21 +83,11 @@
     </div>
 </section>
 
-<form action="{{ route('admin.users.token-quota.update') }}" method="POST" class="token-quota-bulk" id="tokenQuotaBulkForm">
-    @csrf
-    <div><p class="token-quota-eyebrow">MONTHLY LSTS AI+ CREDITS</p><h2>Set quota for one or more users</h2><p>Custom quotas override the current phase default of {{ \App\Services\ChatModelService::formatCredits($defaultTokenQuota) }} credits. Reset restores the default.</p></div>
-    <div class="token-quota-selected" id="tokenQuotaSelected" aria-live="polite"><span>No users selected. Tick users in the list below.</span></div>
-    <label>Monthly credits<input type="number" name="credit_quota_limit" min="0.001" max="1000000" step="0.001" placeholder="e.g. 10000"></label>
-    <div class="token-quota-actions"><button type="submit" name="action" value="set" class="btn-primary">Set custom quota</button><button type="submit" name="action" value="reset" class="btn-secondary">Use phase default</button></div>
-</form>
-@if($errors->has('token_quota_limit'))<p class="text-danger" style="margin:0 0 16px;">{{ $errors->first('token_quota_limit') }}</p>@endif
-@if($errors->has('credit_quota_limit'))<p class="text-danger" style="margin:0 0 16px;">{{ $errors->first('credit_quota_limit') }}</p>@endif
-
 @include('admin.partials.table', [
     'tableId' => 'usersTable',
-    'headers' => ['Select', 'Name', 'Email', 'Role', 'Last sign-in', 'Unit / Department', 'Credit quota', 'Active', 'Created', 'Actions'],
+    'headers' => ['Name', 'Email', 'Role', 'Last sign-in', 'Unit / Department', 'Active', 'Created', 'Actions'],
     'rows' => $users,
-    'renderRow' => function($user) use ($defaultTokenQuota) {
+    'renderRow' => function($user) {
         $roleBadge = match($user->role) {
             'admin' => 'pending',
             'staff' => 'in_progress',
@@ -105,7 +95,6 @@
             default => 'new',
         };
         $currentUserId = auth()->id();
-        $quota = $user->token_quota_limit ?? $defaultTokenQuota;
         $ownedData = [
             'Agents' => $user->agents_count,
             'conversations' => $user->conversations_count,
@@ -126,7 +115,6 @@
             $deleteForm = '<button type="button" class="action-btn danger delete-user-btn" data-delete-url="' . e(route('admin.users.destroy', $user)) . '" data-user-name="' . e($user->name) . '">Delete</button>';
         }
         return [
-            '<input type="checkbox" class="token-quota-user-checkbox" form="tokenQuotaBulkForm" name="user_ids[]" value="'.$user->id.'" data-user-name="'.e($user->name).'" aria-label="Select '.e($user->name).' for quota">',
             '<div class="item-title">' . e($user->name) . '</div>',
             e($user->email),
             '<span class="badge ' . $roleBadge . '">' . ucfirst($user->role) . '</span>',
@@ -134,7 +122,6 @@
                 ? e($user->last_login_at->timezone(config('app.timezone'))->format('d M Y, H:i'))
                 : '<span class="text-muted">Never</span>',
             $user->department ? e($user->department) : '<span class="text-muted">—</span>',
-            '<strong>'.\App\Services\ChatModelService::formatCredits($quota).'</strong><br><span class="text-muted">'.($user->token_quota_limit ? 'Custom' : 'Default').' credits</span>',
             '<span class="badge ' . ($user->is_active ? 'published' : 'draft') . '">' . ($user->is_active ? 'Active' : 'Inactive') . '</span>',
             $user->created_at?->format('d/m/Y') ?? '—',
             '<div class="action-group">
@@ -144,7 +131,7 @@
         ];
     },
     'emptyMessage' => 'No users found',
-    'sortColumns' => [1 => 'name', 2 => 'email', 3 => 'role', 4 => 'last_login_at', 5 => 'department', 6 => 'token_quota_limit', 7 => 'is_active', 8 => 'created_at'],
+    'sortColumns' => [0 => 'name', 1 => 'email', 2 => 'role', 3 => 'last_login_at', 4 => 'department', 5 => 'is_active', 6 => 'created_at'],
 ])
 
 {{ $users->links('pagination::admin-simple') }}
@@ -194,25 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.addEventListener('click', (event) => { if (event.target === modal) close(); });
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
 
-    const selected = document.getElementById('tokenQuotaSelected');
-    const checkboxes = Array.from(document.querySelectorAll('.token-quota-user-checkbox'));
-    const refreshSelectedUsers = () => {
-        const checked = checkboxes.filter((checkbox) => checkbox.checked);
-        selected.replaceChildren();
-        if (!checked.length) {
-            const empty = document.createElement('span');
-            empty.textContent = 'No users selected. Tick users in the list below.';
-            selected.appendChild(empty);
-            return;
-        }
-        checked.forEach((checkbox) => {
-            const name = document.createElement('span');
-            name.textContent = checkbox.dataset.userName;
-            selected.appendChild(name);
-        });
-    };
-    checkboxes.forEach((checkbox) => checkbox.addEventListener('change', refreshSelectedUsers));
-    refreshSelectedUsers();
 });
 </script>
 @endpush

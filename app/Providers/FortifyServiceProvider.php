@@ -105,12 +105,6 @@ class FortifyServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by($throttleKey);
         });
 
-        RateLimiter::for('chat', fn (Request $request) => Limit::perMinute(10)
-            ->by(($request->user()?->id ?? 'guest').'|'.$request->ip()));
-
-        RateLimiter::for('agent-upload', fn (Request $request) => Limit::perMinute(5)
-            ->by(($request->user()?->id ?? 'guest').'|'.$request->ip()));
-
         RateLimiter::for('support', fn (Request $request) => Limit::perMinute(5)
             ->by(($request->user()?->id ?? 'guest').'|'.$request->ip()));
 
@@ -122,8 +116,6 @@ class FortifyServiceProvider extends ServiceProvider
             );
         });
 
-        RateLimiter::for('image-generation', fn (Request $request) => Limit::perMinute(3)
-            ->by((string) $request->user()?->id));
     }
 
     /**

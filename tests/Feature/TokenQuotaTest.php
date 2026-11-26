@@ -6,7 +6,7 @@ use App\Services\TokenQuotaService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 
-test('token quota resets on the first day of each month and honours a later phase start', function () {
+test('usage summary resets on the first day of each month and honours a later phase start without a cap', function () {
     Carbon::setTestNow('2026-09-18 10:00:00');
     $user = User::factory()->create();
     config([
@@ -36,14 +36,15 @@ test('token quota resets on the first day of each month and honours a later phas
     expect(app(TokenQuotaService::class)->summary($user))->toMatchArray([
         'phase' => 'training',
         'used' => 1000,
-        'limit' => 10_000_000,
-        'remaining' => 9_999_000,
+        'limit' => null,
+        'remaining' => null,
+        'unlimited' => true,
     ]);
 
     Carbon::setTestNow();
 });
 
-test('chat is blocked when the user has exhausted their token quota', function () {
+test('chat remains available after usage exceeds legacy monthly token settings', function () {
     $user = User::factory()->create();
     config(['usage.token_limits.testing' => 10]);
 
@@ -54,14 +55,18 @@ test('chat is blocked when the user has exhausted their token quota', function (
         'prompt_tokens' => 6,
         'completion_tokens' => 4,
     ]);
-    Http::fake();
+    Http::fake(['https://api.openai.com/*' => Http::response([
+        'choices' => [['message' => ['content' => 'The answer still works.']]],
+        'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
+    ])]);
     Http::preventStrayRequests();
 
     $this->actingAs($user)
         ->postJson(route('ai-plus.agent-workspace.send'), ['message' => 'Please answer this'])
-        ->assertStatus(429)
-        ->assertJsonPath('retryable', false);
+        ->assertOk()
+        ->assertJsonPath('reply', 'The answer still works.')
+        ->assertJsonPath('token_quota.unlimited', true);
 
-    Http::assertNothingSent();
-    $this->assertDatabaseCount('conversations', 0);
+    Http::assertSentCount(2);
+    $this->assertDatabaseCount('conversations', 1);
 });

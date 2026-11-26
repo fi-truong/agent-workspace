@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\UsageLog;
 use App\Models\User;
 use App\Services\ImageGenerationService;
-use App\Services\TokenQuotaService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -23,9 +22,6 @@ class UsageController extends Controller
         }
         $monthEnd = $monthStart->copy()->addMonth();
 
-        $phase = (string) config('usage.phase', 'testing');
-        $limits = config('usage.token_limits', []);
-        $limit = max((int) ($limits[$phase] ?? $limits['testing'] ?? 20_000_000), 1);
         $cycleStartedAt = $monthStart->copy();
 
         if ($phaseStartedAt = config('usage.phase_started_at')) {
@@ -41,10 +37,17 @@ class UsageController extends Controller
             ->where('created_at', '>=', $cycleStartedAt)
             ->where('created_at', '<', $monthEnd);
 
+        $usageCount = UsageLog::query()
+            ->whereColumn('usage_logs.user_id', 'users.id')
+            ->where('created_at', '>=', $cycleStartedAt)
+            ->where('created_at', '<', $monthEnd)
+            ->selectRaw('COUNT(*)');
+
         $baseQuery = User::query()
             ->select('users.*')
             ->selectSub($usageTotal, 'used_tokens')
-            ->selectSub((clone $usageTotal)->select([])->selectRaw('COALESCE(SUM('.TokenQuotaService::USAGE_UNITS_SQL.'), 0)'), 'used_quota_units');
+            ->selectSub((clone $usageTotal)->select([])->selectRaw('COALESCE(SUM(COALESCE(quota_units, prompt_tokens + completion_tokens)), 0)'), 'used_quota_units')
+            ->selectSub($usageCount, 'provider_calls');
 
         $allUsage = (clone $baseQuery)->get();
         $summary = [
@@ -52,7 +55,7 @@ class UsageController extends Controller
             'active_users' => $allUsage->where('is_active', true)->count(),
             'total_tokens' => $allUsage->sum(fn (User $user) => (int) $user->used_tokens),
             'total_quota_units' => $allUsage->sum(fn (User $user) => (int) $user->getAttribute('used_quota_units')),
-            'near_limit' => $allUsage->filter(fn (User $user) => ((int) $user->getAttribute('used_quota_units') / max((int) ($user->token_quota_limit ?? $limit), 1)) >= 0.85)->count(),
+            'provider_calls' => $allUsage->sum(fn (User $user) => (int) $user->getAttribute('provider_calls')),
         ];
 
         $users = $baseQuery
@@ -92,8 +95,6 @@ class UsageController extends Controller
 
         return view('admin.usage.index', [
             'users' => $users,
-            'limit' => $limit,
-            'phase' => $phase,
             'monthName' => $monthStart->format('F Y'),
             'selectedMonth' => $month,
             'maxMonth' => now()->format('Y-m'),

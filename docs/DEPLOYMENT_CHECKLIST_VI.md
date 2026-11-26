@@ -16,6 +16,7 @@ Checklist này dùng khi chuyển AI+ từ máy local lên server. Thực hiện
 - [ ] Tạo database production và user database có quyền tối thiểu cần thiết.
 - [ ] Điền `DB_*`, `SESSION_DRIVER=database`, `CACHE_STORE=database` và `QUEUE_CONNECTION=database` trong `.env`.
 - [ ] Chạy `php artisan migrate --force` và kiểm tra các bảng `sessions`, `jobs`, `cache`, `ai_safety_events`, cùng dữ liệu AI+ hiện có.
+- [ ] Migration `2026_11_26_111200_expand_ai_content_columns.php` nới nội dung chat, Instructions/Knowledge Agent và subject email draft lên `LONGTEXT`; kiểm tra với dữ liệu dài trước khi mở rộng sử dụng. Rollback không thu nhỏ các cột để tránh cắt dữ liệu mới.
 - [ ] Nếu cần chuyển dữ liệu local, export/import database có kiểm soát; không ghi đè dữ liệu production ngoài kế hoạch backup/rollback.
 - [ ] Chạy `php artisan storage:link`.
 - [ ] Cho web server quyền ghi giới hạn vào `storage/` và `bootstrap/cache/`; kiểm tra upload Knowledge, chat attachments và AI artifacts.
@@ -27,10 +28,7 @@ Checklist này dùng khi chuyển AI+ từ máy local lên server. Thực hiện
 - [ ] `npm ci` rồi `npm run build`.
 - [ ] `php artisan optimize` sau khi `.env` đã hoàn chỉnh.
 - [ ] Khi thay đổi `.env`, luôn chạy `php artisan config:clear` trước khi cache lại config.
-- [ ] Thiết lập PHP-FPM `upload_max_filesize` tối thiểu 15 MB và `post_max_size` tối thiểu 55 MB để hỗ trợ Agent Knowledge tối đa 15 MB/file, 50 MB/Agent (cộng overhead multipart form).
-- [ ] Thiết lập Nginx `client_max_body_size` tối thiểu 60 MB trong virtual host AI+; giới hạn request body phải cao hơn tổng dung lượng Knowledge được phép tải lên.
-- [ ] Chat attachment có giới hạn riêng tối đa 5 MB/file và 15 MB tổng; kiểm tra PHP/Nginx vẫn cho phép request ở mức phù hợp.
-- [ ] Chat thường giữ mốc PHP 120 giây. Agent có kết nối có 300 giây phối hợp; controller đặt mốc PHP bằng thời gian đó cộng một timeout model để hoàn tất đầu ra (mặc định 420 giây). Cấu hình PHP-FPM/Nginx bên ngoài tối thiểu 450 giây cho mặc định này; xem mục 8.1.
+- [ ] Đặt `upload_max_filesize`, `post_max_size` và Nginx `client_max_body_size` theo dung lượng thật mà server có thể nhận và lưu. AI+ không giới hạn số file, dung lượng mỗi file, tổng dung lượng hoặc số trang PDF; PHP/Nginx, storage và tài nguyên máy chủ vẫn giới hạn request thực tế. Test server trước đây được kiểm tra với PHP 15 MB/file, 55 MB/request và Nginx 60 MB.
 
 ## 4. Session, đăng nhập và HTTPS
 
@@ -40,26 +38,26 @@ Checklist này dùng khi chuyển AI+ từ máy local lên server. Thực hiện
 - [ ] Kiểm tra flow AI+ policy acceptance: user mới/chưa đồng ý phải xác nhận policy trước khi vào AI+ hoặc Admin.
 - [ ] Cấu hình Microsoft redirect URI HTTPS chính xác nếu dùng SSO.
 
-## 5. OpenAI và quota
+## 5. OpenAI và usage
 
 - [ ] Đặt `OPENAI_API_KEY` production bằng secret an toàn; xác nhận bằng `php artisan openai:test-key`.
-- [ ] Credits/Sol: backup DB, pull code rồi chạy `php artisan migrate --force --path=database/migrations/2026_10_27_131210_add_chat_model_and_quota_units.php`. Không chia các giá trị `AI_*_TOKEN_LIMIT` hoặc `users.token_quota_limit` cũ cho 1.000 trong DB/env; UI tự quy đổi. Clear config/views và restart `ai-plus.service` nếu domain đi qua port 8000; reload PHP-FPM nếu dùng FPM. Không chạy migration rollback để tắt Sol.
-- [ ] Cho phép `gpt-6-sol` trong đúng OpenAI Project; giữ Luna mặc định. Test JSON/SSE, đổi Luna/Sol, file Word/Excel/PPTX, Agent con, credits trong admin/My Usage và số dư cũ trước khi mở user dùng. Tắt riêng Sol bằng `AI_PLUS_SOL_ENABLED=false` khi cần, giữ ledger để vẫn tính usage Sol đã ghi. Chưa có kiểm tra entitlement thật nếu chỉ chạy test giả lập.
+- [ ] Model/usage ledger: backup DB, pull code rồi chạy `php artisan migrate --force --path=database/migrations/2026_10_27_131210_add_chat_model_and_quota_units.php` nếu migration chưa chạy. Migration giữ nguyên log và chỉ thêm trường model/usage. Giá trị quota cũ trong DB/env không còn chặn request và không cần sửa thủ công. Clear config/views và restart `ai-plus.service` nếu domain đi qua port 8000; reload PHP-FPM nếu dùng FPM.
+- [ ] Cho phép `gpt-6-sol` trong đúng OpenAI Project; giữ Luna mặc định. Test JSON/SSE, đổi Luna/Sol, file Word/Excel/PPTX, Agent con và cách hiển thị usage trong admin/My Usage. Tắt riêng Sol bằng `AI_PLUS_SOL_ENABLED=false` khi cần; dữ liệu usage Sol đã ghi vẫn được giữ. Chưa có kiểm tra entitlement thật nếu chỉ chạy test giả lập.
 - [ ] Sau khi pull, chạy migration `2026_11_04_100331_create_conversation_attachments_table.php` để bật lưu snapshot tài liệu đính kèm cho điều phối Agent. Kiểm tra quyền ghi private disk `chat-attachments`, ownership conversation, handoff file Word/PDF/XLSX/PPTX/CSV/code và ảnh, dữ liệu trích xuất dài, nguồn thiếu/không đọc được, thu hồi quyền Agent, xóa chat và tiếp tục dùng nguồn/kết quả ở lượt sau. Không chạy migration rollback để tắt tính năng; dùng `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` nếu cần tắt điều phối.
-- [ ] Với chat nhiều tài liệu, xác nhận Agent cha chọn đúng mã nguồn cho từng chuyên viên; nguồn không được chọn và kết quả Agent cũ không lọt vào lượt kiểm chứng độc lập. Khi có nhiều kết quả Agent cũ làm vượt ngân sách handoff, file nguồn riêng lẻ còn vừa phải được chuyển đủ, kết quả hoàn chỉnh mới nhất được ưu tiên, và hạn chế từ lượt cũ không bị báo thành lỗi file hiện tại. Dùng một bảng dài để kiểm tra giới hạn đầu ra thực tế của chuyên viên (còn chịu `OPENAI_MAX_TOKENS`), việc tiếp nối khi cần, usage từng phần và phần thời gian/token dành cho tổng hợp. Chỉ hiện hoàn tất khi phần cuối về đủ; nếu chạm giới hạn chung sau khi nhận kết quả thì phải hiện nội dung đã nhận cùng trạng thái hoàn tất/chưa hoàn tất.
+- [ ] Với chat nhiều tài liệu, xác nhận Agent cha chọn đúng mã nguồn cho từng chuyên viên; nguồn không được chọn và kết quả Agent cũ không lọt vào lượt kiểm chứng độc lập. Dùng prompt và bảng dài để xác nhận AI+ không cắt nội dung hoặc áp quota số lượt tiếp nối; context/token của OpenAI, PHP, proxy và tài nguyên máy chủ vẫn áp dụng. Chỉ hiện hoàn tất khi phần cuối về đủ; nếu provider hoặc hạ tầng dừng request thì hiển thị đúng phần đã nhận và trạng thái chưa hoàn tất.
 - [ ] Trong cùng chat, duyệt một bản nháp rồi yêu cầu tạo Word tải xuống. Kiểm tra file thực sự có đủ nội dung bản nháp; nếu model nói sai là không có công cụ, bước khôi phục chỉ chạy sau xác nhận yêu cầu rõ. Câu hỏi về khả năng tạo file không được tự tạo file. Khi xác nhận lỗi, phản hồi nêu lỗi kỹ thuật, không yêu cầu giáo viên diễn đạt lại một lệnh đã rõ.
 - [ ] Sau deploy, có thể chạy `php artisan openai:test-key --live --model=gpt-6-sol` để xác nhận inference, streaming và function calling trên chính server. Cờ `--live` có tiêu token API; chỉ dùng nội dung giả và không ghi vào tài khoản user. Lệnh mặc định không có cờ vẫn chỉ kiểm tra key bằng GET `/models`.
-- [ ] Kiểm tra model chat, embeddings/RAG và các image model được cấp quyền trong OpenAI Project. Với Agent kết nối, xác nhận điều phối và chuyên viên có thể chọn model riêng, model chuyên viên được nhớ theo chat và credits được tính theo model thực tế.
+- [ ] Kiểm tra model chat, embeddings/RAG và các image model được cấp quyền trong OpenAI Project. Với Agent kết nối, xác nhận điều phối và chuyên viên có thể chọn model riêng, model chuyên viên được nhớ theo chat và usage được ghi theo model thực tế.
 - [ ] Chạy migration `2026_10_27_141302_add_specialist_model_to_conversations_table.php` sau khi pull code để lưu lựa chọn model chuyên viên; không rollback migration để tắt Sol.
-- [ ] Xác nhận các quota: `AI_USAGE_PHASE`, `AI_TESTING_TOKEN_LIMIT`, `AI_TRAINING_TOKEN_LIMIT`, và `AI_USAGE_PHASE_STARTED_AT`.
-- [ ] Kiểm tra token usage, reset theo tháng, Image Studio và giới hạn quota với một user test.
+- [ ] Nếu có cấu hình kỳ báo cáo, xác nhận `AI_USAGE_PHASE` và `AI_USAGE_PHASE_STARTED_AT`; các giá trị này chỉ dùng để phân tích usage và không giới hạn user.
+- [ ] Kiểm tra token/credits usage theo tháng, Image Studio và đảm bảo usage không chặn request.
 - [ ] Gửi `safety_identifier` dạng hash theo user như code hiện tại; không gửi email thô.
 - [ ] **Moderation API hiện tạm để `OPENAI_MODERATION_ENABLED=false`** do project trả `403 Forbidden`. Chỉ bật lại sau khi endpoint `/v1/moderations` được xác nhận hoạt động với OpenAI Project/API key trên server.
 
 ## 6. File, RAG, PDF và web reader
 
 - [ ] Cài Poppler (`pdftotext` và `pdftoppm`); đặt `PDFTOTEXT_BINARY` và `PDFTOPPM_BINARY` đúng đường dẫn tuyệt đối khi cần, thường là `/usr/bin/pdftotext` và `/usr/bin/pdftoppm` trên Linux. `pdftotext` trích xuất trang được chỉ định; `pdftoppm` là phương án đọc PDF scan.
-- [ ] Giữ `PDF_SCAN_MAX_PAGES=10`; PDF scan dài cần user chỉ định trang, ví dụ `pages 12–15`.
+- [ ] PDF text và PDF scan được xử lý trên các trang cần thiết; không cấu hình `PDF_SCAN_MAX_PAGES`. Kiểm tra tài nguyên Poppler/OCR và giới hạn OpenAI khi tài liệu rất dài.
 - [ ] Test PDF có text, PDF scan, DOCX, XLSX, PPTX, TXT, CSV và HTML trong cả Chat lẫn Agent Knowledge.
 - [ ] Cài Chromium cho Playwright: `npx playwright install chromium` sau khi cài Node dependencies.
 - [ ] Bật `AI_PLUS_WEB_READING_ENABLED=true` và chỉ bật `AI_PLUS_WEB_BROWSER_RENDERING_ENABLED=true` khi Chromium/Playwright đã test thành công.
@@ -84,71 +82,11 @@ Checklist này dùng khi chuyển AI+ từ máy local lên server. Thực hiện
 - [ ] Giới hạn request body theo upload policy và bật rate limiting ở Nginx/WAF nếu hạ tầng hỗ trợ.
 - [ ] Cấu hình trusted proxy đúng khi HTTPS terminate ở load balancer/reverse proxy.
 
-### 8.1 Timeout cho Connected Agents (Ubuntu / PHP 8.3)
-
-Phần phối hợp có ngân sách tổng 300 giây; từng lần gọi model dùng giá trị nhỏ hơn giữa `OPENAI_TIMEOUT` và thời gian còn lại. Với `OPENAI_TIMEOUT=120`, controller đặt mốc PHP 420 giây cho request có kết nối; request thường giữ 120 giây. Giới hạn ngoài đề xuất 450 giây chừa khoảng hoàn tất request. Nếu thay đổi các giá trị này, tính lại giới hạn ngoài.
-
-Kiểm tra cấu hình thực tế trên test server trước khi sửa:
-
-```bash
-cd /var/www/ai-plus
-php artisan config:show agent_connections
-php artisan config:show openai.timeout
-sudo nginx -T 2>/dev/null | grep -nE '^# configuration file|server_name|fastcgi_pass|proxy_pass|read_timeout'
-sudo php-fpm8.3 -tt 2>&1 | grep -E 'request_terminate_timeout|max_execution_time'
-```
-
-Với vhost AI+ đang dùng `/etc/nginx/sites-available/default` và pool `/etc/php/8.3/fpm/pool.d/www.conf`, sao lưu trước khi chỉnh:
-
-```bash
-sudo cp -n /etc/nginx/sites-available/default /etc/nginx/sites-available/default.before-agent-timeouts
-sudo cp -n /etc/php/8.3/fpm/pool.d/www.conf /etc/php/8.3/fpm/pool.d/www.conf.before-agent-timeouts
-sudo nano /etc/nginx/sites-available/default
-```
-
-Trong `server { ... }` của AI+, thêm hoặc cập nhật các directive sau. Nếu đã có giá trị ở `location` xử lý PHP/proxy thì cập nhật tại location đó vì giá trị con có thể ghi đè giá trị server:
-
-```nginx
-fastcgi_read_timeout 450s;
-proxy_read_timeout 450s;
-```
-
-Sửa pool FPM đang phục vụ AI+:
-
-```bash
-sudo nano /etc/php/8.3/fpm/pool.d/www.conf
-```
-
-Trong section `[www]`, bỏ dấu `;` và đặt:
-
-```ini
-request_terminate_timeout = 450s
-```
-
-Nếu pool khóa `max_execution_time` bằng `php_admin_value[max_execution_time]`, bỏ dòng ép đó cho pool AI+ để controller được chọn 120 giây cho chat thường hoặc 420 giây cho Agent có kết nối. `request_terminate_timeout=450s` vẫn là giới hạn ngoài của pool. Không cần tăng `OPENAI_TIMEOUT`. Nếu AI+ dùng pool/vhost riêng thì chỉ sửa file đang phục vụ AI+, không sửa pool của ứng dụng khác.
-
-Kiểm tra và áp dụng sau khi pull code:
-
-```bash
-sudo nginx -t &&
-sudo php-fpm8.3 -t &&
-php artisan config:clear &&
-php artisan view:clear &&
-sudo systemctl reload nginx &&
-sudo systemctl reload php8.3-fpm
-```
-
-Các mốc PHP/Nginx là các lớp khác nhau: `set_time_limit` không tính mọi thời gian chờ I/O trên Unix, còn Nginx read timeout là khoảng chờ giữa các lần đọc upstream. Kiểm tra qua domain thật bằng tác vụ nhiều Agent dài hơn 90 giây; xác nhận SSE có `done`, kết quả được lưu và quota tăng đúng. Nếu ngrok đi thẳng đến `127.0.0.1:8000` thì request không qua Nginx/FPM; cần kiểm tra service PHP và giới hạn tunnel/CDN tương ứng. Lượt này vẫn chạy trong request, chưa có job nền/lưu tiến độ từng bước.
-
-Tài liệu tham chiếu: [PHP set_time_limit](https://www.php.net/manual/en/function.set-time-limit.php), [PHP-FPM](https://www.php.net/manual/en/install.fpm.configuration.php), [Nginx FastCGI read timeout](https://nginx.org/en/docs/http/ngx_http_fastcgi_module.html#fastcgi_read_timeout), [Nginx proxy read timeout](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_read_timeout).
-
-Rollback cấu hình server: khôi phục các giá trị timeout đã ghi lại trong bản sao lưu, kiểm tra `nginx -t`/`php-fpm8.3 -t` rồi reload. Không hạ timeout server trong lúc vẫn còn request phối hợp dài đang chạy. Công tắc `AI_PLUS_AGENT_CONNECTIONS_ENABLED=false` vẫn tắt riêng tính năng mà giữ cấu hình kết nối và lịch sử.
-
 ## 9. Bảo mật và kiểm thử go-live
 
 - [ ] Chạy `php artisan test`, `npm run types:check`, và kiểm tra package security audit trong môi trường có Internet.
 - [ ] Kiểm tra quyền user/staff/admin, agent ownership, shared/use-only agent, knowledge sharing và truy cập URL trực tiếp.
-- [ ] Kiểm tra PII filter, policy acceptance, local safety fallback, token quota và Support ticket flow.
+- [ ] Kiểm tra PII filter, policy acceptance, local safety fallback, usage reporting và Support ticket flow.
 - [ ] Kiểm tra backup/restore một lần trước go-live.
 - [ ] Tạo tài khoản test không phải admin và thực hiện smoke test từ mạng bên ngoài.
 - [ ] Theo dõi logs, failed jobs, API errors, token usage và phản hồi user trong tuần đầu.

@@ -67,12 +67,12 @@
           </div>
           <div class="knowledge-file-chips" id="knowledge-file-chips" aria-live="polite"></div>
           <div class="knowledge-saved-list" id="knowledge-saved-list" aria-live="polite"></div>
-          <small class="form-hint">Up to {{ \App\Services\KnowledgeService::MAX_AGENT_FILES }} files per Agent · {{ \App\Services\KnowledgeService::MAX_AGENT_FILE_SIZE_MB }} MB per file · {{ \App\Services\KnowledgeService::MAX_AGENT_TOTAL_SIZE_MB }} MB total. Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) or images (JPG, PNG, GIF, WebP). Text in images is read with OCR and added to the agent’s Knowledge.</small>
+          <small class="form-hint">Upload documents (HTML, PDF, DOCX, XLSX, TXT, CSV…) or images (JPG, PNG, GIF, WebP). Text in images is read with OCR and added to the agent’s Knowledge. The server may enforce its own upload limits.</small>
           <div class="form-hint" id="knowledge-limit-status" aria-live="polite"></div>
         </div>
         <fieldset class="form-group agent-connections-field" id="agent-connections-field" hidden>
           <legend>Connected Agents <span class="form-hint">(optional)</span></legend>
-          <small class="form-hint">Choose up to {{ config('agent_connections.max_connections', 10) }} Agents to consult and describe their roles. The chat’s specialist model and your LSTS AI+ Credits apply to these calls. Specialists cannot call other Agents.</small>
+          <small class="form-hint">Choose the Agents to consult and describe their roles. Usage from each call is recorded. OpenAI and server limits may still apply. Specialists cannot call other Agents.</small>
           <input type="search" id="agent-connections-search" aria-label="Find an Agent to connect" placeholder="Find an Agent…">
           <div id="agent-connections-list" aria-label="Agents available to connect"></div>
           <div id="agent-connections-status" class="form-hint" role="status"></div>
@@ -118,13 +118,9 @@
 <script>
   window.AgentModalConfig = window.AgentModalConfig || {};
   window.AgentModalConfig.baseKnowledgeRoute = '{{ route("ai-plus.agent-workspace.agents.index") }}';
-  window.AgentModalConfig.maxKnowledgeFiles = {{ \App\Services\KnowledgeService::MAX_AGENT_FILES }};
-  window.AgentModalConfig.maxKnowledgeFileBytes = {{ \App\Services\KnowledgeService::MAX_AGENT_FILE_SIZE_KB * 1024 }};
-  window.AgentModalConfig.maxKnowledgeTotalBytes = {{ \App\Services\KnowledgeService::MAX_AGENT_TOTAL_SIZE_KB * 1024 }};
   window.AgentModalConfig.connectionOptionsUrl = @json(route('ai-plus.agent-workspace.agents.connection-options'));
   window.AgentModalConfig.sharingUsersUrl = @json(route('ai-plus.agent-workspace.agents.sharing-users'));
   window.AgentModalConfig.department = @json(trim(auth()->user()?->department ?? ''));
-  window.AgentModalConfig.maxConnections = {{ config('agent_connections.max_connections', 10) }};
   window.AgentModalConfig.categories = {{ Illuminate\Support\Js::from(\App\Support\AgentCategories::CATEGORIES) }};
   window.AgentModalConfig.templateDraft = {{ Illuminate\Support\Js::from(session('agent_template_draft')) }};
 </script>

@@ -72,7 +72,7 @@ class ArtifactService
 
         $edits = is_array($payload) ? ($payload['edits'] ?? null) : null;
         $summary = is_array($payload) ? ($payload['summary'] ?? null) : null;
-        if (! is_array($edits) || $edits === [] || count($edits) > 50 || ! is_string($summary) || trim($summary) === '') {
+        if (! is_array($edits) || $edits === [] || ! is_string($summary) || trim($summary) === '') {
             throw new \RuntimeException('I could not safely apply the code changes. No file was created; please try a more specific edit request.');
         }
 
@@ -80,9 +80,7 @@ class ArtifactService
             if (! is_array($edit)
                 || ! is_string($edit['find'] ?? null)
                 || $edit['find'] === ''
-                || mb_strlen($edit['find']) > 20_000
                 || ! is_string($edit['replace'] ?? null)
-                || mb_strlen($edit['replace']) > 50_000
                 || substr_count($source, $edit['find']) !== 1) {
                 throw new \RuntimeException('I could not match a code change to exactly one place in the original file. No file was created; please specify the section to change more precisely.');
             }

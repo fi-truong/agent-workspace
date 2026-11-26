@@ -1,22 +1,21 @@
 @extends('layouts.admin')
 
-@section('page-title', 'Credit Usage')
-@section('page-desc', "Usage per user for {$monthName} · ".ucfirst($phase).' quota')
+@section('page-title', 'AI+ Usage')
+@section('page-desc', "Usage per user for {$monthName}")
 
 @section('content')
 <div class="usage-page">
 <section class="usage-hero">
   <div>
     <p class="eyebrow">MONTHLY OVERVIEW</p>
-    <h2>{{ $monthName }} credit usage</h2>
-    <p>The default {{ $phase }} allowance is {{ \App\Services\ChatModelService::formatCredits($limit) }} LSTS AI+ Credits per user. 1,000 Luna tokens = 1 credit; 1,000 Sol tokens = 20 credits. Individual overrides appear below.</p>
-    @unless($isCurrentMonth)<p class="usage-history-note">Historical usage is shown for this month. Quotas and remaining balances use current user settings.</p>@endunless
+    <h2>{{ $monthName }} usage</h2>
+    <p>AI+ records activity for reporting but does not impose an individual credits cap. Credits are a usage measure; OpenAI and service availability limits still apply.</p>
+    @unless($isCurrentMonth)<p class="usage-history-note">Historical usage is shown for this calendar month.</p>@endunless
   </div>
-  <div class="quota-pill"><span>Default allowance</span><strong>{{ \App\Services\ChatModelService::formatCredits($limit) }}</strong><small>credits</small></div>
 </section>
 
 <section class="image-usage-card" aria-label="Image Studio usage">
-  <div class="image-usage-heading"><div><p class="eyebrow">IMAGE STUDIO</p><h2>Image generation by model</h2><p>Usage for {{ $monthName }}. Image-token charges retain their previous allowance value: 1,000 image tokens = 1 credit. This is not an image-price conversion.</p></div></div>
+  <div class="image-usage-heading"><div><p class="eyebrow">IMAGE STUDIO</p><h2>Image generation by model</h2><p>Usage for {{ $monthName }}. The report records 1 credit per 1,000 image tokens; this is not an image-price conversion.</p></div></div>
   <div class="image-usage-grid">
     @foreach($imageUsage as $model)
     <article><span class="image-usage-label">{{ $model['label'] }}</span><strong>{{ number_format($model['images']) }}</strong><small>images · {{ number_format($model['tokens']) }} tokens</small></article>
@@ -28,7 +27,7 @@
 <section class="usage-stats" aria-label="Usage summary">
   <article><span class="stat-icon mint">👥</span><div><span class="stat-label">Users tracked</span><strong>{{ number_format($summary['users']) }}</strong><small>{{ number_format($summary['active_users']) }} active accounts</small></div></article>
   <article><span class="stat-icon blue">◒</span><div><span class="stat-label">Credits used</span><strong>{{ \App\Services\ChatModelService::formatCredits($summary['total_quota_units']) }}</strong><small>{{ number_format($summary['total_tokens']) }} actual tokens in {{ $monthName }}</small></div></article>
-  <article><span class="stat-icon {{ $summary['near_limit'] ? 'amber' : 'mint' }}">⚠</span><div><span class="stat-label">Need attention</span><strong>{{ number_format($summary['near_limit']) }}</strong><small>At or above 85% of quota</small></div></article>
+  <article><span class="stat-icon amber">↗</span><div><span class="stat-label">Provider calls</span><strong>{{ number_format($summary['provider_calls']) }}</strong><small>AI requests recorded in {{ $monthName }}</small></div></article>
 </section>
 
 <form method="GET" class="admin-filters" style="margin-bottom:20px;">
@@ -43,29 +42,22 @@
 </form>
 
 <div class="usage-table-card">
-  <div class="usage-table-heading"><div><h2>User usage</h2><p>Sorted from highest to lowest usage.</p></div><span class="usage-legend"><i></i> Normal <i class="warning"></i> Near limit <i class="danger"></i> At limit</span></div>
+  <div class="usage-table-heading"><div><h2>User usage</h2><p>Sorted from highest to lowest recorded usage.</p></div></div>
 <div class="table-section">
   <div class="table-wrap"><table class="admin-table"><thead><tr>
-    <th>User</th><th>Role</th><th>Usage</th><th>Quota</th><th>Remaining</th><th>Status</th><th></th>
+    <th>User</th><th>Role</th><th>Credits used</th><th>Actual tokens</th><th>Provider calls</th><th></th>
   </tr></thead><tbody>
   @forelse($users as $user)
-    @php
-      $used = (int) $user->used_quota_units;
-      $userLimit = max((int) ($user->token_quota_limit ?? $limit), 1);
-      $percentage = min(($used / $userLimit) * 100, 100);
-      $remaining = max($userLimit - $used, 0);
-      $status = $used >= $userLimit ? ['At limit', 'pending', 'danger'] : ($percentage >= 85 ? ['Near limit', 'new', 'warning'] : ['Normal', 'published', 'normal']);
-    @endphp
     <tr>
       <td><div class="item-title">{{ $user->name }}</div><div class="item-sub">{{ $user->email }}</div></td>
       <td>{{ ucfirst($user->role) }}</td>
-      <td class="usage-cell"><div><strong>{{ \App\Services\ChatModelService::formatCredits($used) }}</strong> <span>{{ number_format($percentage, 1) }}%</span></div><div class="usage-bar {{ $status[2] }}"><span style="width:{{ $percentage }}%"></span></div><span class="token-caption">{{ number_format($user->used_tokens) }} actual tokens</span></td>
-      <td>{{ \App\Services\ChatModelService::formatCredits($userLimit) }}<span class="token-caption">credits · {{ $user->token_quota_limit ? 'custom' : 'default' }}</span></td><td>{{ \App\Services\ChatModelService::formatCredits($remaining) }}<span class="token-caption">credits left</span></td>
-      <td><span class="badge {{ $status[1] }}">{{ $status[0] }}</span></td>
+      <td>{{ \App\Services\ChatModelService::formatCredits((int) $user->used_quota_units) }}</td>
+      <td>{{ number_format($user->used_tokens) }}</td>
+      <td>{{ number_format($user->provider_calls) }}</td>
       <td><a href="{{ route('admin.users.edit', $user) }}" class="action-btn">View user</a></td>
     </tr>
   @empty
-    <tr><td colspan="7" class="text-muted" style="text-align:center;padding:32px;">No users found.</td></tr>
+    <tr><td colspan="6" class="text-muted" style="text-align:center;padding:32px;">No users found.</td></tr>
   @endforelse
   </tbody></table></div>
 </div>

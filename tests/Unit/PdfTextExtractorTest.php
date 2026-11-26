@@ -4,16 +4,13 @@ use App\Services\KnowledgeService;
 use App\Services\PdfTextExtractor;
 use Dompdf\Dompdf;
 use Illuminate\Http\Request;
-use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeout;
-use Symfony\Component\Process\Process as SymfonyProcess;
 
-it('reads real PDF text through the bounded parser', function () {
+it('reads real PDF text without an AI+ extraction timeout', function () {
     $pdf = new Dompdf;
     $pdf->loadHtml('<p>Workshop sample instructions.</p>');
     $pdf->render();
@@ -26,22 +23,18 @@ it('reuses PDF extraction only within the same request', function () {
     $binary = '%PDF-1.4 sample';
     expect(app(KnowledgeService::class)->extractTextFromBinary($binary, 'pdf'))->toBe('Sample document');
     expect(app(KnowledgeService::class)->extractTextFromBinary($binary, 'pdf'))->toBe('Sample document');
-    Process::assertRanTimes(fn (PendingProcess $process) => $process->timeout === 20 && $process->input === $binary, 1);
+    Process::assertRanTimes(fn (PendingProcess $process) => $process->timeout === 0 && $process->input === $binary, 1);
 
     app()->instance('request', Request::create('/another-request'));
     expect(app(PdfTextExtractor::class)->extract($binary))->toBe('Sample document');
     Process::assertRanTimes(fn (PendingProcess $process) => $process->input === $binary, 2);
 });
 
-it('aborts a PDF timeout without logging document text or command input', function () {
-    $process = new SymfonyProcess(['php', '-r', 'sample'], timeout: 20);
-    $exception = new ProcessTimedOutException(new SymfonyTimeout($process, SymfonyTimeout::TYPE_GENERAL), Process::result());
-    Process::fake(fn () => throw $exception);
-    Log::spy();
+it('does not impose an extraction timeout on PDF processing', function () {
+    Process::fake(['*' => Process::result('Complete PDF text')]);
 
-    expect(fn () => app(KnowledgeService::class)->extractTextFromBinary('%PDF-SECRET_SAMPLE', 'pdf'))
-        ->toThrow(ValidationException::class);
-    Log::shouldHaveReceived('warning')->once()->with('PDF text extraction timed out', ['timeout_seconds' => 20]);
+    expect(app(KnowledgeService::class)->extractTextFromBinary('%PDF-SAMPLE', 'pdf'))->toBe('Complete PDF text');
+    Process::assertRanTimes(fn (PendingProcess $process) => $process->timeout === 0, 1);
 });
 
 it('aborts a PDF memory limit instead of accepting partial extraction', function () {
@@ -69,8 +62,8 @@ it('discards partial parser output when the child exits unsuccessfully', functio
 it('propagates PDF timeouts from Agent Knowledge instead of silently losing the source', function () {
     Storage::fake('knowledge');
     Storage::disk('knowledge')->put('sample.pdf', '%PDF-1.4 sample');
-    $process = new SymfonyProcess(['php'], timeout: 20);
-    $exception = new ProcessTimedOutException(new SymfonyTimeout($process, SymfonyTimeout::TYPE_GENERAL), Process::result());
-    Process::fake(fn () => throw $exception);
-    expect(fn () => app(KnowledgeService::class)->extractText('sample.pdf', 1, 1))->toThrow(ValidationException::class);
+    Process::fake(['*' => Process::result('Complete Knowledge PDF text')]);
+
+    expect(app(KnowledgeService::class)->extractText('sample.pdf', 1, 1))->toBe('Complete Knowledge PDF text');
+    Process::assertRanTimes(fn (PendingProcess $process) => $process->timeout === 0, 1);
 });

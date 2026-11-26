@@ -31,9 +31,11 @@ class OpenAIClient
         $payload = [
             'model' => $model ?? config('openai.model'),
             'messages' => $messages,
-            'max_completion_tokens' => $maxCompletionTokens ?? config('openai.max_tokens'),
             'reasoning_effort' => $tools !== [] ? 'none' : ($reasoningEffort ?? config('openai.reasoning_effort')),
         ];
+        if ($maxCompletionTokens !== null) {
+            $payload['max_completion_tokens'] = $maxCompletionTokens;
+        }
         if ($tools !== []) {
             $payload['tools'] = $tools;
             $payload['tool_choice'] = $requiredToolName === null
@@ -53,8 +55,8 @@ class OpenAIClient
             },
         )
             ->baseUrl(config('openai.base_url'))
-            ->timeout($timeoutSeconds ?? config('openai.timeout'))
-            ->connectTimeout(5)
+            ->timeout($timeoutSeconds ?? 0)
+            ->connectTimeout(0)
             ->withToken($apiKey)
             ->asJson()
             ->post('/chat/completions', $payload);
@@ -88,14 +90,7 @@ class OpenAIClient
         }
         $finishReason = $data['choices'][0]['finish_reason'] ?? null;
 
-        if ($content === '' && $toolCalls === [] && ! $allowEmptyResponse) {
-            if ($finishReason === 'length') {
-                throw new \RuntimeException(
-                    'Câu trả lời bị cắt vì vượt giới hạn token (thường do prompt/Knowledge quá dài). '
-                    .'Hãy thử rút ngắn tin nhắn, hoặc liên hệ CIEC để tăng giới hạn.'
-                );
-            }
-
+        if ($content === '' && $toolCalls === [] && ! $allowEmptyResponse && $finishReason !== 'length') {
             throw new \RuntimeException('OpenAI trả về phản hồi thiếu nội dung.');
         }
 
@@ -136,11 +131,13 @@ class OpenAIClient
         $payload = [
             'model' => $model ?? config('openai.model'),
             'messages' => $messages,
-            'max_completion_tokens' => $maxCompletionTokens ?? config('openai.max_tokens'),
             'reasoning_effort' => $tools !== [] ? 'none' : config('openai.reasoning_effort'),
             'stream' => true,
             'stream_options' => ['include_usage' => true],
         ];
+        if ($maxCompletionTokens !== null) {
+            $payload['max_completion_tokens'] = $maxCompletionTokens;
+        }
         if ($tools !== []) {
             $payload['tools'] = $tools;
             $payload['tool_choice'] = 'auto';
@@ -161,8 +158,8 @@ class OpenAIClient
         )
             ->withOptions(['stream' => true])
             ->baseUrl(config('openai.base_url'))
-            ->timeout($timeoutSeconds ?? config('openai.timeout'))
-            ->connectTimeout(5)
+            ->timeout($timeoutSeconds ?? 0)
+            ->connectTimeout(0)
             ->withToken($apiKey)
             ->asJson()
             ->post('/chat/completions', $payload);
@@ -280,13 +277,6 @@ class OpenAIClient
             'maximum_delta_gap_ms' => $deltaCount > 1 ? round($deltaGapMaxMs, 1) : null,
         ]);
 
-        if ($fullContent === '' && $toolCalls === [] && $finishReason === 'length') {
-            throw new \RuntimeException(
-                'Câu trả lời bị cắt vì vượt giới hạn token (thường do prompt/Knowledge quá dài). '
-                .'Hãy thử rút ngắn tin nhắn, hoặc liên hệ CIEC để tăng giới hạn.'
-            );
-        }
-
         return [
             'content' => $fullContent,
             'prompt_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
@@ -352,8 +342,8 @@ class OpenAIClient
                 fn (\Throwable $exception): bool => $this->shouldRetry($exception),
             )
                 ->baseUrl(config('openai.base_url'))
-                ->timeout(config('openai.timeout'))
-                ->connectTimeout(5)
+                ->timeout(0)
+                ->connectTimeout(0)
                 ->withToken($apiKey)
                 ->acceptJson()
                 ->get('/models');

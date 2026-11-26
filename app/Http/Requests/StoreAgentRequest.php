@@ -35,7 +35,7 @@ class StoreAgentRequest extends FormRequest
             'sharing_user_ids' => ['sometimes', 'array', 'max:100'],
             'sharing_user_ids.*' => ['required', 'integer', 'distinct'],
             'sharing_access' => [Rule::requiredIf(fn (): bool => $this->boolean('is_shared')), 'nullable', 'in:use_only,copy'],
-            'connections' => ['sometimes', 'array', 'max:'.config('agent_connections.max_connections', 10)],
+            'connections' => ['sometimes', 'array'],
             'connections_configured' => ['sometimes', 'boolean'],
             'connections.*' => ['array:agent_id,role'],
             'connections.*.agent_id' => ['required', 'integer', 'distinct'],
@@ -47,10 +47,8 @@ class StoreAgentRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'knowledge.max' => 'Mỗi Agent chỉ được tối đa '.KnowledgeService::MAX_AGENT_FILES.' file Knowledge.',
             'avatar.max' => 'Agent avatar must be 2 MB or smaller.',
             'avatar.mimes' => 'Agent avatar must be a JPG, PNG, or WebP image.',
-            'knowledge.*.max' => 'Mỗi file Knowledge tối đa 15 MB.',
             'knowledge.*.mimes' => 'Chỉ chấp nhận file: '.implode(', ', KnowledgeService::ALLOWED_EXTENSIONS),
         ];
     }

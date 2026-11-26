@@ -18,18 +18,10 @@ return [
     'image_size' => env('OPENAI_IMAGE_SIZE', '1024x1024'),
     'image_quality' => env('OPENAI_IMAGE_QUALITY', 'low'),
 
-    // Standard output budget. AI+ raises this automatically for long source
-    // material so translations and document exports are less likely to stop.
-    'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 8192),
-    'long_max_tokens' => (int) env('OPENAI_LONG_MAX_TOKENS', 16384),
-    'long_output_input_chars' => (int) env('OPENAI_LONG_OUTPUT_INPUT_CHARS', 12000),
-
     // Tuỳ chọn — chưa nối vào OpenAIClient (để sau nếu cần điều chỉnh mức suy luận).
     'reasoning_effort' => env('OPENAI_REASONING_EFFORT', 'low'),
 
     // KHÔNG dùng temperature cho GPT-6 Luna (client không gửi) — bỏ hẳn khỏi config.
-    'timeout' => (int) env('OPENAI_TIMEOUT', 120),
-
     'retry_times' => (int) env('OPENAI_RETRY_TIMES', 2),
     'retry_delay_ms' => (int) env('OPENAI_RETRY_DELAY_MS', 300),
 
@@ -67,18 +59,11 @@ return [
     // để model vision có thể đọc. Ví dụ Linux: /usr/bin/pdftoppm.
     'pdf_text_extractor_binary' => env('PDFTOTEXT_BINARY'),
     'pdf_scan_renderer_binary' => env('PDFTOPPM_BINARY'),
-    'pdf_scan_max_pages' => (int) env('PDF_SCAN_MAX_PAGES', 10),
-    'pdf_scan_max_width' => (int) env('PDF_SCAN_MAX_WIDTH', 1280),
 
     // Agent Knowledge images are OCR'd locally before indexing, so their text
     // can participate in RAG without sending the original image to an AI API.
     'knowledge_ocr_binary' => env('KNOWLEDGE_OCR_BINARY'),
     'knowledge_ocr_languages' => env('KNOWLEDGE_OCR_LANGUAGES', 'vie+eng'),
-    'knowledge_ocr_timeout' => (int) env('KNOWLEDGE_OCR_TIMEOUT', 30),
-    'knowledge_ocr_max_chars' => (int) env('KNOWLEDGE_OCR_MAX_CHARS', 60000),
-
-    // Số đoạn liên quan nhất lấy vào system prompt mỗi lượt hỏi.
-    'rag_top_k' => (int) env('RAG_TOP_K', 4),
 
     // Minimum cosine similarity for an indexed Agent Knowledge result to be
     // presented as relevant. Keyword retrieval requires at least one match.

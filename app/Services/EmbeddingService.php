@@ -62,8 +62,8 @@ class EmbeddingService
                 throw: false,
             )
                 ->baseUrl(config('openai.base_url'))
-                ->timeout(60)
-                ->connectTimeout(5)
+                ->timeout(0)
+                ->connectTimeout(0)
                 ->withToken(config('openai.api_key'))
                 ->asJson()
                 ->post('/embeddings', [

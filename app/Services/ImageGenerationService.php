@@ -47,8 +47,8 @@ class ImageGenerationService
         }
 
         $request = Http::baseUrl(config('openai.base_url'))
-            ->timeout(config('openai.timeout'))
-            ->connectTimeout(5)
+            ->timeout(0)
+            ->connectTimeout(0)
             ->withToken($apiKey);
 
         $model ??= config('openai.image_model');

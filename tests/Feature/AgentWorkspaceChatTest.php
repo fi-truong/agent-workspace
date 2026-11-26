@@ -14,6 +14,7 @@ use App\Models\SchoolKnowledgeSource;
 use App\Models\UsageLog;
 use App\Models\User;
 use App\Services\ArtifactService;
+use App\Services\EmailDraftService;
 use App\Services\KnowledgeService;
 use Dompdf\Dompdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -224,8 +225,38 @@ it('creates conversation and stores both messages', function () {
         ->and(UsageLog::count())->toBe(1);
 });
 
-it('marks a non-streamed chat reply incomplete when its one continuation also reaches the output limit', function () {
+it('stores a long generated email subject without the old AI+ character cap', function () {
+    $subject = trim(str_repeat('Important school update ', 30));
+    $draft = app(EmailDraftService::class)->create($this->user, null, 'Draft email body.', $subject);
+
+    expect($draft->subject)->toBe($subject);
+});
+
+it('stores and sends chat messages longer than a MySQL TEXT column without truncation', function () {
     config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::response([
+        'choices' => [['message' => ['content' => 'Received the full request.']]],
+        'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 3],
+        'model' => 'gpt-6-luna',
+    ])]);
+    $message = str_repeat('School policy context. ', 3100).'CHAT_CONTENT_END_MARKER';
+
+    $response = $this->postJson('/ai-plus/agent-workspace/send', ['message' => $message])->assertOk();
+    $conversation = Conversation::findOrFail($response->json('conversation_id'));
+    $storedMessage = $conversation->messages()->where('role', 'user')->firstOrFail();
+
+    expect(mb_strlen($storedMessage->content))->toBe(mb_strlen($message))
+        ->and($storedMessage->content)->toEndWith('CHAT_CONTENT_END_MARKER');
+    Http::assertSent(fn (Request $request): bool => str_contains(
+        json_encode($request->data()['messages'] ?? [], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+        'CHAT_CONTENT_END_MARKER',
+    ));
+});
+
+it('continues a provider-truncated reply beyond legacy credits until the provider completes', function () {
+    config(['openai.api_key' => 'sk-test']);
+    $this->user->update(['token_quota_limit' => 16384]);
     Http::swap(new Factory);
     Http::fake(['https://api.openai.com/*' => Http::sequence()
         ->push([
@@ -236,6 +267,11 @@ it('marks a non-streamed chat reply incomplete when its one continuation also re
         ->push([
             'choices' => [['message' => ['content' => 'Questionnaire part two.'], 'finish_reason' => 'length']],
             'usage' => ['prompt_tokens' => 8500, 'completion_tokens' => 8192],
+            'model' => 'gpt-6-luna',
+        ])
+        ->push([
+            'choices' => [['message' => ['content' => 'Questionnaire complete.'], 'finish_reason' => 'stop']],
+            'usage' => ['prompt_tokens' => 17000, 'completion_tokens' => 500],
             'model' => 'gpt-6-luna',
         ])]);
 
@@ -254,15 +290,15 @@ it('marks a non-streamed chat reply incomplete when its one continuation also re
         ->assertJsonPath('artifacts', [])
         ->assertJsonPath('reply', fn (string $reply): bool => str_contains($reply, 'Questionnaire part one.')
             && str_contains($reply, 'Questionnaire part two.')
-            && str_contains($reply, 'Phản hồi có thể chưa đầy đủ'));
+            && str_contains($reply, 'Questionnaire complete.')
+            && ! str_contains($reply, 'Phản hồi có thể chưa đầy đủ'));
 
     $assistantReply = $conversation->messages()->where('role', 'assistant')->latest('id')->firstOrFail();
-    expect($assistantReply->prompt_tokens)->toBe(8600)
-        ->and($assistantReply->completion_tokens)->toBe(16384)
-        ->and($assistantReply->content)->toContain('Phản hồi có thể chưa đầy đủ');
+    expect($assistantReply->prompt_tokens)->toBe(25600)
+        ->and($assistantReply->completion_tokens)->toBe(16884)
+        ->and($assistantReply->content)->toContain('Questionnaire complete.');
+    Http::assertSentCount(3);
     expect(AiArtifact::query()->exists())->toBeFalse();
-
-    Http::assertSentCount(2);
 });
 
 it('recovers the complete saved reply for a streamed turn without exposing other turns', function () {
@@ -521,9 +557,16 @@ it('rejects an image model which an administrator has disabled', function () {
         ->assertJsonPath('error', 'The selected image model is unavailable. Choose an enabled model and try again.');
 });
 
-it('does not allow image generation after the monthly token quota is exhausted', function () {
+it('allows image generation after exceeding legacy monthly token settings', function () {
+    config(['openai.api_key' => 'sk-test', 'usage.token_limits.testing' => 1]);
     config(['usage.token_limits.testing' => 1]);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::response([
+        'data' => [['b64_json' => base64_encode('generated-image')]],
+        'usage' => ['input_tokens' => 11, 'output_tokens' => 22],
+    ])]);
     AppSetting::create(['key' => 'ai_plus_image_generation_enabled', 'value' => 'true']);
+    $this->user->update(['token_quota_limit' => 1]);
     UsageLog::create([
         'user_id' => $this->user->id,
         'activity_title' => 'Existing usage',
@@ -532,10 +575,10 @@ it('does not allow image generation after the monthly token quota is exhausted',
     ]);
 
     $this->postJson(route('ai-plus.agent-workspace.generate-image'), ['prompt' => 'A robot'])
-        ->assertStatus(429)
-        ->assertJsonPath('retryable', false);
+        ->assertOk()->assertJsonPath('token_quota.unlimited', true);
 
-    expect(Conversation::count())->toBe(0);
+    expect(Conversation::where('type', Conversation::TYPE_IMAGE)->count())->toBe(1);
+    Http::assertSentCount(1);
 });
 
 it('lets an owner download and remove one generated image without losing token accounting', function () {
@@ -929,11 +972,11 @@ it('keeps file-request acknowledgements hidden until the downloadable file is re
         ->and(Message::where('role', 'assistant')->sole()->content)->toContain('/ai-plus/artifacts/'.$artifact->id.'/download');
 });
 
-it('does not create a purported complete artifact when the attached source exceeds the full-document limit', function () {
+it('passes the full long attachment to the model for requested file creation', function () {
     config(['openai.api_key' => 'sk-test', 'openai.rag_embeddings_enabled' => false]);
-    $sourceText = str_repeat('Academic calendar event and organizer details. ', 900);
+    $sourceText = str_repeat('Academic calendar event and organizer details. ', 900).'FULL_SOURCE_END_MARKER';
     Http::swap(new Factory);
-    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence('word', 'Incomplete output', 'Summary')]);
+    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence('word', 'Complete output', 'Summary')]);
 
     $response = $this->postJson('/ai-plus/agent-workspace/send', [
         'message' => 'Hãy thống kê toàn bộ sự kiện trong tài liệu và tạo file Word.',
@@ -943,11 +986,10 @@ it('does not create a purported complete artifact when the attached source excee
         ]],
     ]);
 
-    $response->assertOk()
-        ->assertJsonPath('artifacts', [])
-        ->assertJsonPath('artifact_error', fn (string $error) => str_contains($error, 'full-processing limit'));
+    $response->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name): bool => str_ends_with($name, '.docx'));
 
-    expect(AiArtifact::query()->exists())->toBeFalse();
+    expect(AiArtifact::query()->exists())->toBeTrue();
+    Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request->data(), JSON_UNESCAPED_UNICODE), 'FULL_SOURCE_END_MARKER'));
 });
 
 it('exports the complete saved draft despite an earlier truncated attachment context', function () {
@@ -1001,7 +1043,8 @@ it('keeps the full-source safeguard when a draft export also requests earlier at
         'conversation_id' => $conversation->id,
         'message' => 'Tạo file Word từ bản nháp đã duyệt và toàn bộ dữ liệu trong tài liệu đính kèm.',
     ])->assertOk()->assertJsonPath('artifacts', [])
-        ->assertJsonPath('artifact_error', fn (string $error): bool => str_contains($error, 'full-processing limit'));
+        ->assertJsonPath('artifact_error', fn (string $error): bool => str_contains($error, 'đã bị thiếu khi lưu')
+            && str_contains($error, 'tải lại tài liệu gốc'));
     Http::assertSentCount(2);
     expect(AiArtifact::count())->toBe(0);
 });
@@ -1206,22 +1249,51 @@ it('supplies the complete earlier draft after failed Word export attempts', func
     expect($documentXml)->toContain('START_OF_DRAFT')->toContain('END_OF_DRAFT');
 });
 
-it('does not export a truncated earlier draft that exceeds the processing limit', function () {
+it('exports a complete earlier draft beyond the former processing limit', function () {
     config(['openai.api_key' => 'sk-test']);
     Http::swap(new Factory);
-    Http::fake(['https://api.openai.com/*' => confirmedArtifactResponseSequence('word', 'An incomplete document')]);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(artifactToolCallResponse('word', 'Incomplete model rewrite'))
+        ->push(draftFileDecisionResponse())]);
     $conversation = Conversation::create([
         'user_id' => $this->user->id, 'title' => 'Large draft', 'type' => Conversation::TYPE_CHAT,
     ]);
-    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => str_repeat('A', 40001)]);
+    $draft = 'START_OF_LONG_DRAFT'.str_repeat('A', 40001).'END_OF_LONG_DRAFT';
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => $draft]);
 
     $this->postJson('/ai-plus/agent-workspace/send', [
         'conversation_id' => $conversation->id,
         'message' => 'Xuất nội dung trên thành file Word.',
-    ])->assertOk()->assertJsonPath('artifacts', [])
-        ->assertJsonPath('artifact_error', fn (string $error): bool => str_contains($error, 'vượt giới hạn'));
+    ])->assertOk()->assertJsonPath('artifacts.0.name', fn (string $name): bool => str_ends_with($name, '.docx'));
 
-    expect(AiArtifact::count())->toBe(0);
+    $artifact = AiArtifact::firstOrFail();
+    $archive = new ZipArchive;
+    expect($archive->open(Storage::disk('ai-artifacts')->path($artifact->path)))->toBeTrue();
+    $documentXml = $archive->getFromName('word/document.xml');
+    $archive->close();
+    expect($documentXml)->toContain('START_OF_LONG_DRAFT')->toContain('END_OF_LONG_DRAFT');
+});
+
+it('keeps the full prior response in a file-action intent check', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::sequence()
+        ->push(artifactToolCallResponse('word', '# Complete document'))
+        ->push(fileActionConfirmationResponse())]);
+    $conversation = Conversation::create([
+        'user_id' => $this->user->id, 'title' => 'Long prior answer', 'type' => Conversation::TYPE_CHAT,
+    ]);
+    $priorResponse = 'START_OF_PRIOR_RESPONSE '.str_repeat("Complete section content.\n", 150).' END_OF_PRIOR_RESPONSE';
+    Message::create(['conversation_id' => $conversation->id, 'role' => 'assistant', 'content' => $priorResponse]);
+
+    $this->postJson('/ai-plus/agent-workspace/send', [
+        'conversation_id' => $conversation->id,
+        'message' => 'Please turn this into a downloadable file.',
+    ])->assertOk()->assertJsonCount(1, 'artifacts');
+
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'START_OF_PRIOR_RESPONSE')
+        && str_contains(json_encode($request['messages'], JSON_UNESCAPED_UNICODE), 'END_OF_PRIOR_RESPONSE'));
 });
 
 it('does not accept an unstructured refusal as a draft export decision', function () {
@@ -1689,11 +1761,11 @@ it('moves a conversation between Quick Chat and an owned Agent without removing 
         ->and($conversation->messages()->count())->toBe(1);
 });
 
-it('sends full history (max 20) on subsequent messages', function () {
+it('sends all stored conversation history on subsequent messages', function () {
     config(['openai.api_key' => 'sk-test']);
 
     $conv = Conversation::create(['user_id' => $this->user->id, 'title' => 'Cuộc trò chuyện']);
-    // Tạo 25 tin trước đó để vượt cap.
+    // Create more turns than the former history cap.
     for ($i = 0; $i < 25; $i++) {
         $conv->messages()->create(['role' => $i % 2 === 0 ? 'user' : 'assistant', 'content' => "Tin {$i}"]);
     }
@@ -1705,15 +1777,13 @@ it('sends full history (max 20) on subsequent messages', function () {
 
     Http::assertSent(function (Request $request) {
         $payload = $request->data();
-        // message user mới nhất vừa gửi được lưu trước khi gom history → có 21 tin trong payload
+        // The new user message is stored before history is assembled.
         $userMsgs = collect($payload['messages'])->where('role', 'user')->count();
         $assistantMsgs = collect($payload['messages'])->where('role', 'assistant')->count();
 
-        $actualTotal = $userMsgs + $assistantMsgs;
-
-        // 20 tin gần nhất + tin vừa lưu (tổng 21), nhưng vì tin vừa lưu nằm trong 20 gần nhất
-        // nên tổng thực tế <= 20. Đảm bảo không vượt quá history cap 20.
-        return $actualTotal <= 20;
+        return $userMsgs + $assistantMsgs === 26
+            && collect($payload['messages'])->contains(fn (array $message): bool => ($message['content'] ?? null) === 'Tin 0')
+            && collect($payload['messages'])->contains(fn (array $message): bool => ($message['content'] ?? null) === 'Tin mới');
     });
 });
 
@@ -1975,6 +2045,7 @@ it('does not mistake overlapping generic prompt words for Agent scope', function
 
 it('uses semantic RAG when embeddings are available', function () {
     config(['openai.api_key' => 'sk-test', 'openai.rag_top_k' => 1]);
+    Http::swap(new Factory);
 
     $agent = Agent::create([
         'user_id' => $this->user->id,
@@ -2020,6 +2091,7 @@ it('uses semantic RAG for a direct chat attachment when embeddings are available
         'openai.rag_chunk_overlap' => 0,
         'openai.rag_top_k' => 1,
     ]);
+    Http::swap(new Factory);
 
     Http::fake(function (Request $request) {
         if (str_ends_with($request->url(), '/embeddings')) {
@@ -2051,6 +2123,7 @@ it('uses semantic RAG for a direct chat attachment when embeddings are available
 
 it('falls back to keyword RAG when the embedding request fails', function () {
     config(['openai.api_key' => 'sk-test', 'openai.rag_top_k' => 1]);
+    Http::swap(new Factory);
 
     $agent = Agent::create([
         'user_id' => $this->user->id,
@@ -2659,7 +2732,8 @@ it('applies a small patch to a long file and preserves its sections outside mode
         ->and(substr($patchedSource, -21))->toBe("# preserve-this-tail\n")
         ->and(strlen($patchedSource))->toBe(strlen($source) - strlen('# update-me') + strlen('# updated'))
         ->and(Message::where('role', 'user')->sole()->internal_context)
-        ->toContain('[SOURCE CODE TRUNCATED: only the first 20000 characters are visible to you.');
+        ->not->toContain('[SOURCE CODE TRUNCATED');
+    Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request->data()['messages'] ?? [], JSON_UNESCAPED_UNICODE), '# preserve-this-tail'));
     expect(Storage::disk('chat-attachments')->allFiles())->toContain(
         Conversation::firstOrFail()->id.'/source-code/'.Message::where('role', 'user')->sole()->id.'-0.py',
     );
@@ -2747,7 +2821,7 @@ it('accepts a real image in each supported chat format', function (string $mime,
     ['image/webp', 'imagewebp'],
 ]);
 
-it('keeps the latest uploaded document available beyond the normal chat-history limit', function () {
+it('keeps the latest uploaded document available in full on follow-up turns', function () {
     config(['openai.api_key' => 'sk-test']);
 
     $conversation = Conversation::create([
@@ -2857,31 +2931,40 @@ it('includes every direct document attachment, including when an image is attach
     });
 });
 
-it('rejects an attachment payload that exceeds the total size limit before starting a chat', function () {
-    $largeDocument = 'data:text/plain;base64,'.base64_encode(str_repeat('a', 5 * 1024 * 1024));
+it('accepts a chat attachment larger than the former per-file cap', function () {
+    config(['openai.api_key' => 'sk-test']);
+    Http::swap(new Factory);
+    Http::fake(['https://api.openai.com/*' => Http::response([
+        'choices' => [['message' => ['content' => 'The complete file was received.']]],
+        'usage' => ['prompt_tokens' => 1, 'completion_tokens' => 1],
+        'model' => 'gpt-6-luna',
+    ])]);
+    $content = str_repeat('a', 5 * 1024 * 1024 + 1).'LARGE_ATTACHMENT_END_MARKER';
 
-    $response = $this->postJson('/ai-plus/agent-workspace/send', [
+    $this->postJson('/ai-plus/agent-workspace/send', [
         'message' => 'Read these files',
-        'documents' => collect(range(1, 4))->map(fn () => [
+        'documents' => [[
             'name' => 'large.txt',
-            'data_url' => $largeDocument,
-        ])->all(),
-    ]);
+            'data_url' => 'data:text/plain;base64,'.base64_encode($content),
+        ]],
+    ])->assertOk()->assertJsonPath('reply', 'The complete file was received.');
 
-    $response->assertStatus(422)
-        ->assertJsonPath('error', 'Tổng dung lượng tệp trong một lượt chat chỉ được tối đa 15 MB.');
-    expect(Conversation::count())->toBe(0);
+    Http::assertSent(fn (Request $request): bool => str_contains(json_encode($request->data()['messages'] ?? [], JSON_UNESCAPED_UNICODE), 'LARGE_ATTACHMENT_END_MARKER'));
 });
 
-it('rejects more than four images before starting a chat', function () {
-    $image = 'data:image/png;base64,'.base64_encode('fake-png-bytes');
+it('accepts more than four images in a chat turn', function () {
+    config(['openai.api_key' => 'sk-test']);
+    $image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9t8AAAAASUVORK5CYII=';
 
     $this->postJson('/ai-plus/agent-workspace/send', [
         'message' => 'Describe these images',
         'images' => array_fill(0, 5, $image),
-    ])->assertStatus(422)->assertJsonValidationErrors('images');
+    ])->assertOk();
 
-    expect(Conversation::count())->toBe(0);
+    Http::assertSent(fn (Request $request): bool => substr_count(
+        json_encode($request->data()['messages'] ?? [], JSON_UNESCAPED_UNICODE),
+        '"type":"image_url"',
+    ) === 5);
 });
 
 it('filters PII via guardrail middleware instead of storing raw PII', function () {

@@ -123,7 +123,7 @@
       @auth
       <form class="ai-guide-form" id="aiGuideForm">
         <label class="sr-only" for="aiGuideInput">Ask LSTS AI+ Guide</label>
-        <textarea id="aiGuideInput" rows="2" maxlength="800" placeholder="For example: I want to create an agent…" required></textarea>
+        <textarea id="aiGuideInput" rows="2" placeholder="For example: I want to create an agent…" required></textarea>
         <button type="submit" id="aiGuideSend">Send</button>
       </form>
       @else

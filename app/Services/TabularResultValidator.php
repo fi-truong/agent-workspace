@@ -25,7 +25,7 @@ class TabularResultValidator
                 }
             }
             if ($differentTotals !== []) {
-                $warnings[] = 'Số lượng trong phần tóm tắt không khớp bảng ('.implode('; ', array_slice($differentTotals, 0, 10)).'). Hãy kiểm tra lại trước khi dùng kết quả.';
+                $warnings[] = 'Số lượng trong phần tóm tắt không khớp bảng ('.implode('; ', $differentTotals).'). Hãy kiểm tra lại trước khi dùng kết quả.';
             }
             $best = [];
             $bestScore = 0;
@@ -71,7 +71,7 @@ class TabularResultValidator
             }
             if ($differentRows !== []) {
                 $count = count($differentRows);
-                $positions = implode(', ', array_slice($differentRows, 0, 10));
+                $positions = implode(', ', $differentRows);
                 $suffix = $count > 10 ? '…' : '';
                 $warnings[] = "Đối chiếu tự động phát hiện {$count} dòng có trường được sao chép bị thiếu hoặc khác nguồn đã cung cấp (thứ tự dòng dữ liệu: {$positions}{$suffix}). Hãy kiểm tra nguồn và xác nhận các thay đổi có chủ ý trước khi dùng kết quả.";
             }
@@ -184,13 +184,13 @@ class TabularResultValidator
         if ($position === false) {
             return [];
         }
-        $before = substr($result, max(0, $position - 4000), min(4000, $position));
+        $before = substr($result, 0, $position);
         $afterTable = substr($result, $position + strlen($table['header']));
         $lines = preg_split('/\R/u', ltrim($afterTable, "\r\n")) ?: [];
         while ($lines !== [] && str_contains($lines[0], "\t")) {
             array_shift($lines);
         }
-        $after = substr(implode("\n", $lines), 0, 4000);
+        $after = implode("\n", $lines);
         foreach ([$before, $after] as $summary) {
             $matched = $this->matchCategoryTotals($summary, $table, $requiredLabels);
             if (count($matched) >= max(2, count($requiredLabels))) {

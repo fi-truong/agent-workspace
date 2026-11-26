@@ -14,8 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let conversationId = window.__IMAGE_CONVERSATION_ID__ || null;
   let referenceImages = [];
   let activeSource = null;
-  const MAX_REFERENCE_IMAGES = 4;
-  const MAX_REFERENCE_BYTES = 4 * 1024 * 1024;
 
   if (!form || !promptInput || !submit || !results) return;
 
@@ -236,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (modelHint) modelHint.textContent = activeSource ? 'Sunburst is selected to refine the active image version. Start a new image to use a different model.' : 'Sunburst is selected for precise editing with your reference images. Remove all references to choose a different model.';
     } else {
       modelSelect.disabled = false;
-      if (modelHint) modelHint.textContent = 'Choose Flare for speed or Sunburst for precise edits. Paste an image or choose up to 4 PNG, JPEG, or WebP images (4 MB each).';
+      if (modelHint) modelHint.textContent = 'Choose Flare for speed or Sunburst for precise edits. Paste an image or choose PNG, JPEG, or WebP images.';
     }
   }
 
@@ -246,12 +244,8 @@ document.addEventListener('DOMContentLoaded', () => {
       WebUI.notice('Image editing is not currently enabled by the administrator.', { title: 'Image editing unavailable' });
       return;
     }
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > MAX_REFERENCE_BYTES) {
-      WebUI.notice('Reference images must be PNG, JPEG, or WebP files up to 4 MB.', { title: 'Unsupported reference image' });
-      return;
-    }
-    if (referenceImages.length >= MAX_REFERENCE_IMAGES) {
-      WebUI.notice(`You can add up to ${MAX_REFERENCE_IMAGES} reference images.`, { title: 'Reference image limit' });
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      WebUI.notice('Reference images must be PNG, JPEG, or WebP files.', { title: 'Unsupported reference image' });
       return;
     }
     const reader = new FileReader();
@@ -307,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const quotaText = document.querySelector('[data-token-quota]');
       if (quota && quotaText) {
         const format = (units) => (Number(units) / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
-        quotaText.textContent = `${format(quota.used)} / ${format(quota.limit)} credits used`;
+        quotaText.textContent = `${format(quota.used)} credits used this month`;
       }
 
       conversationId = data.conversation_id;

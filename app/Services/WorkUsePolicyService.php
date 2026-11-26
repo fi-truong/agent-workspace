@@ -124,8 +124,8 @@ PROMPT;
 
         try {
             $response = Http::baseUrl(config('openai.base_url'))
-                ->timeout(15)
-                ->connectTimeout(5)
+                ->timeout(0)
+                ->connectTimeout(0)
                 ->withToken(config('openai.api_key'))
                 ->asJson()
                 ->post('/moderations', [

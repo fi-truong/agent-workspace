@@ -60,13 +60,6 @@
             @include('admin.partials.field-error', ['field' => 'employee_id'])
         </div>
         <div class="form-group">
-            <label>Monthly credit quota</label>
-            <input type="number" name="credit_quota_limit" class="form-input" min="0.001" max="1000000" step="0.001" placeholder="Use phase default" value="{{ old('credit_quota_limit', $user->token_quota_limit === null ? null : \App\Services\ChatModelService::credits($user->token_quota_limit)) }}">
-            <p class="form-hint">Leave blank to use the default quota for the current phase. A custom value applies to this user every month.</p>
-            @include('admin.partials.field-error', ['field' => 'token_quota_limit'])
-            @include('admin.partials.field-error', ['field' => 'credit_quota_limit'])
-        </div>
-        <div class="form-group">
             <label style="display:flex;align-items:center;gap:8px;">
                 <input type="checkbox" name="is_active" value="1" {{ old('is_active', $user->is_active) ? 'checked' : '' }} {{ $user->id === auth()->id() ? 'disabled' : '' }}>
                 Active account

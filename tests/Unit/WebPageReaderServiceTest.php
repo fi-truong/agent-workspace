@@ -47,13 +47,26 @@ it('does not request private-network links', function () {
     Http::assertNothingSent();
 });
 
-it('limits each message to two unique links', function () {
+it('reads every unique public link in a message', function () {
     Http::fake([
         'https://example.com/*' => Http::response('Read me', 200, ['Content-Type' => 'text/plain']),
     ]);
 
     $blocks = webReaderWithPublicDns()->readFromMessage('https://example.com/one https://example.com/two https://example.com/three');
 
-    expect($blocks)->toHaveCount(2);
-    Http::assertSentCount(2);
+    expect($blocks)->toHaveCount(3);
+    Http::assertSentCount(3);
+});
+
+it('reads page text beyond the former response-size cap', function () {
+    $body = str_repeat('PUBLIC_PAGE_CONTENT ', 80_000);
+    Http::fake([
+        'https://example.com/*' => Http::response($body, 200, ['Content-Type' => 'text/plain']),
+    ]);
+
+    $blocks = webReaderWithPublicDns()->readFromMessage('Read https://example.com/large');
+
+    expect($blocks)->toHaveCount(1)
+        ->and($blocks[0])->toContain('PUBLIC_PAGE_CONTENT')
+        ->and(strlen($blocks[0]))->toBeGreaterThan(1_500_000);
 });
