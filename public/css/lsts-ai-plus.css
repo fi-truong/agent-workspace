@@ -7,6 +7,10 @@
     --lsts-theme-rail: 72px;
 }
 
+.lsts-ai-ui p {
+    text-wrap: pretty;
+}
+
 :is([data-theme='orange'], [data-theme='burgundy']) .lsts-ai-ui {
     --lsts-highlight: color-mix(in srgb, var(--navy) 14%, var(--surface));
     --lsts-hover: color-mix(in srgb, var(--navy) 8%, var(--surface));

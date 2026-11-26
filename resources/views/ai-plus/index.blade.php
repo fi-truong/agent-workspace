@@ -25,7 +25,7 @@
       <div class="section-head">
         <h2>Create</h2>
       </div>
-      <p class="section-desc">Everything you need to build an agent from scratch — or start from something already made.</p>
+      <p class="section-desc">Build an Agent from scratch or start with an existing Agent, prompt, or template.</p>
       <div class="grid cols-3">
         @foreach($createCards as $card)
         <a class="card" href="{{ $card['url'] }}" aria-labelledby="home-card-{{ $card['icon'] }}">
